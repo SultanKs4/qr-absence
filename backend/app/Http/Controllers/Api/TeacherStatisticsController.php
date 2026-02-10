@@ -87,15 +87,15 @@ class TeacherStatisticsController extends Controller
                 // If any session is present, mark as present? Or show detailed?
                 // Mobile app likely expects a single status code or count.
                 // Let's return just 'hadir' count for the line chart usually.
-                $status = 'hadir'; 
+                $status = 'hadir';
             }
-            
+
             // For simple line chart (e.g. 1=Hadir, 0=Absen)
-            $value = $dayData ? 1 : 0; 
+            $value = $dayData ? 1 : 0;
 
             $data[] = [
                 'day' => $day,
-                'value' => $value, // 1 for attended, 0 for not
+                'status' => $dayData ? 'hadir' : 'alpha', // Simplified for the chart
             ];
         }
 

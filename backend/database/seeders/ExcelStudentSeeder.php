@@ -18,8 +18,9 @@ class ExcelStudentSeeder extends Seeder
     {
         $filePath = '/home/deva/ta/qr-absence/Data NISN RPL 24225.xlsx';
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             $this->command->error("File not found: {$filePath}");
+
             return;
         }
 
@@ -36,68 +37,89 @@ class ExcelStudentSeeder extends Seeder
 
             $count = 0;
             foreach ($rows as $index => $row) {
-                if ($index < 3) continue; // Skip headers and metadata
+                if ($index < 3) {
+                    continue;
+                } // Skip headers and metadata
 
                 $name = $row[1];
                 $nisn = $row[2];
                 $classLabel = $row[3]; // e.g. "XI RPL 1"
 
-                if (empty($name) || empty($nisn)) continue;
+                if (empty($name) || empty($nisn)) {
+                    continue;
+                }
 
-                // Normalize NISN (remove leading zero if it's a string like "008...")
-                // Actually keep it as string to preserve leading zeros
-                $nisn = (string)$nisn;
+                // Normalize NISN
+                $nisn = (string) $nisn;
 
                 // Parse class
                 // "XI RPL 1" -> grade: XI, label: RPL 1
                 $parts = explode(' ', $classLabel);
                 $grade = $parts[0] ?? '';
-                $label = isset($parts[1]) && isset($parts[2]) ? $parts[1] . ' ' . $parts[2] : '';
+                $label = isset($parts[1]) && isset($parts[2]) ? $parts[1].' '.$parts[2] : '';
 
                 $class = Classes::where('grade', $grade)
                     ->where('label', $label)
                     ->first();
 
-                if (!$class) {
+                if (! $class) {
                     $this->command->warn("Class not found for student {$name}: {$classLabel}");
+
                     continue;
                 }
 
-                // Create User
-                $username = strtolower(str_replace(' ', '', $name)) . substr($nisn, -4);
-                
-                // Avoid username collision
-                $i = 1;
-                $originalUsername = $username;
-                while (User::where('username', $username)->exists()) {
-                    $username = $originalUsername . $i;
-                    $i++;
+                // Check if student profile already exists by NISN
+                $studentProfile = StudentProfile::where('nisn', $nisn)->first();
+
+                if ($studentProfile) {
+                    $user = $studentProfile->user;
+                    $user->update([
+                        'name' => $name,
+                        'user_type' => 'student',
+                        'active' => true,
+                    ]);
+
+                    $studentProfile->update([
+                        'nis' => $nisn,
+                        'class_id' => $class->id,
+                    ]);
+                } else {
+                    // Create NEW User
+                    $username = strtolower(str_replace(' ', '', $name)).substr($nisn, -4);
+
+                    // Avoid username collision for genuinely new users
+                    $i = 1;
+                    $originalUsername = $username;
+                    while (User::where('username', $username)->exists()) {
+                        $username = $originalUsername.$i;
+                        $i++;
+                    }
+
+                    $user = User::create([
+                        'name' => $name,
+                        'username' => $username,
+                        'password' => Hash::make('password123'),
+                        'user_type' => 'student',
+                        'active' => true,
+                    ]);
+
+                    // Create Student Profile
+                    $user->studentProfile()->create([
+                        'nisn' => $nisn,
+                        'nis' => $nisn,
+                        'gender' => 'L',
+                        'address' => 'Alamat belum diatur',
+                        'class_id' => $class->id,
+                        'is_class_officer' => false,
+                    ]);
                 }
-
-                $user = User::create([
-                    'name' => $name,
-                    'username' => $username,
-                    'password' => Hash::make('password123'),
-                    'user_type' => 'student',
-                    'active' => true,
-                ]);
-
-                // Create Student Profile
-                $user->studentProfile()->create([
-                    'nisn' => $nisn,
-                    'nis' => $nisn, // Using NISN as NIS fallback
-                    'gender' => 'L', // Default to 'L' as it's not in excel
-                    'address' => 'Alamat belum diatur',
-                    'class_id' => $class->id,
-                    'is_class_officer' => false,
-                ]);
 
                 $count++;
             }
 
-            $this->command->info("Successfully imported {$count} students from Excel.");
+            $this->command->info("Successfully processed {$count} students from Excel.");
         } catch (\Exception $e) {
-            $this->command->error("Error seeding from Excel: " . $e->getMessage());
+            $this->command->error('Error seeding from Excel: '.$e->getMessage());
         }
     }
 }

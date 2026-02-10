@@ -987,7 +987,7 @@ class AttendanceController extends Controller
                 // Authorized if they are the teacher for the schedule OR if they are the homeroom teacher for the student
                 $isAuthorized = ($attendance->schedule && $attendance->schedule->teacher_id == $teacherProfile->id) ||
                                 ($attendance->student && $attendance->student->class_id == $teacherProfile->homeroom_class_id);
-                
+
                 // Also allow if it's the teacher's OWN attendance record
                 if ($attendance->attendee_type === 'teacher' && $attendance->teacher_id == $teacherProfile->id) {
                     $isAuthorized = true;
@@ -1032,7 +1032,7 @@ class AttendanceController extends Controller
                 // Authorized if they are the teacher for the schedule OR if they are the homeroom teacher for the student
                 $isAuthorized = ($attendance->schedule && $attendance->schedule->teacher_id == $teacherProfile->id) ||
                                 ($attendance->student && $attendance->student->class_id == $teacherProfile->homeroom_class_id);
-                
+
                 // Also allow if it's the teacher's OWN attendance record
                 if ($attendance->attendee_type === 'teacher' && $attendance->teacher_id == $teacherProfile->id) {
                     $isAuthorized = true;
@@ -1106,6 +1106,57 @@ class AttendanceController extends Controller
         }
 
         return response()->json(\App\Http\Resources\AttendanceResource::collection($attendances));
+    }
+
+    public function bulkManual(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'schedule_id' => ['required', 'exists:schedules,id'],
+            'date' => ['required', 'date'],
+            'items' => ['required', 'array'],
+            'items.*.student_id' => ['required', 'exists:student_profiles,id'],
+            'items.*.status' => ['required', 'string'],
+        ]);
+
+        $schedule = Schedule::findOrFail($data['schedule_id']);
+        $this->authorizeSchedule($request, $schedule);
+
+        $date = $data['date'];
+        $results = [];
+
+        DB::transaction(function () use ($data, $date, $schedule, &$results) {
+            foreach ($data['items'] as $item) {
+                // Normalize status
+                $status = $item['status'];
+                $map = [
+                    'hadir' => 'present',
+                    'sakit' => 'sick',
+                    'izin' => 'excused',
+                    'terlambat' => 'late',
+                    'alpha' => 'absent',
+                ];
+                $status = $map[$status] ?? $status;
+
+                $attendance = Attendance::updateOrCreate(
+                    [
+                        'student_id' => $item['student_id'],
+                        'schedule_id' => $schedule->id,
+                        'date' => $date,
+                    ],
+                    [
+                        'status' => $status,
+                        'attendee_type' => 'student',
+                        'checked_in_at' => now(),
+                        'source' => 'manual',
+                    ]
+                );
+                $results[] = $attendance;
+            }
+        });
+
+        return response()->json([
+            'message' => count($results).' data kehadiran berhasil disimpan',
+        ]);
     }
 
     public function markExcuse(Request $request, Attendance $attendance): JsonResponse

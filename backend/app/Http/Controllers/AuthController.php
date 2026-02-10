@@ -50,7 +50,7 @@ class AuthController extends Controller
         }
 
         // Check if this is a student trying to login with NISN/NIS only (no password)
-        $isStudentNisnLogin = $user->user_type === 'student' && 
+        $isStudentNisnLogin = $user->user_type === 'student' &&
                                empty($data['password']) &&
                                ($studentProfile = \App\Models\StudentProfile::where('nisn', $data['login'])
                                    ->orWhere('nis', $data['login'])
@@ -80,31 +80,70 @@ class AuthController extends Controller
             'user_type' => $user->user_type,
         ]);
 
-        // Determine precise role for frontend compatibility
+        // Determine base role for mobile navigation compatibility
         $role = $user->user_type;
-        if ($user->user_type === 'admin') {
-            $role = $user->adminProfile?->type ?? 'admin';
-        } elseif ($user->user_type === 'teacher') {
-            $role = $user->teacherProfile?->homeroom_class_id ? 'wakel' : 'guru';
-        } elseif ($user->user_type === 'student') {
-            $role = $user->studentProfile?->is_class_officer ? 'pengurus_kelas' : 'siswa';
-        }
 
-        $userData = $user->load(['adminProfile', 'teacherProfile', 'studentProfile'])->toArray();
-        $userData['role'] = $role;
-        $userData['user_type'] = $user->user_type; // Keep original for reference
+        $isClassOfficer = $user->studentProfile?->is_class_officer ?? false;
+
+        // Build Profile for Mobile app
+        $profile = null;
+        if ($user->user_type === 'student' && $user->studentProfile) {
+            $profile = [
+                'nis' => $user->studentProfile->nis,
+                'class_name' => $user->studentProfile->classRoom?->name,
+                'photo_url' => $user->photo_url ?? null,
+            ];
+        } elseif ($user->user_type === 'teacher' && $user->teacherProfile) {
+            $profile = [
+                'nip' => $user->teacherProfile->nip,
+                'photo_url' => $user->photo_url ?? null,
+            ];
+        }
 
         return response()->json([
             'token' => $token,
-            'user' => $userData,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'user_type' => $role, // Map precise role to user_type for Kotlin @SerializedName
+                'is_class_officer' => $isClassOfficer,
+                'profile' => $profile,
+            ],
         ]);
     }
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json(
-            $request->user()->load(['adminProfile', 'teacherProfile', 'studentProfile'])
-        );
+        $user = $request->user()->load(['adminProfile', 'teacherProfile', 'studentProfile', 'studentProfile.classRoom']);
+
+        // Determine base role
+        $role = $user->user_type;
+
+        $isClassOfficer = $user->studentProfile?->is_class_officer ?? false;
+
+        $profile = null;
+        if ($user->user_type === 'student' && $user->studentProfile) {
+            $profile = [
+                'nis' => $user->studentProfile->nis,
+                'class_name' => $user->studentProfile->classRoom?->name,
+                'photo_url' => $user->photo_url ?? null,
+            ];
+        } elseif ($user->user_type === 'teacher' && $user->teacherProfile) {
+            $profile = [
+                'nip' => $user->teacherProfile->nip,
+                'photo_url' => $user->photo_url ?? null,
+            ];
+        }
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'user_type' => $role,
+            'is_class_officer' => $isClassOfficer,
+            'profile' => $profile,
+        ]);
     }
 
     public function logout(Request $request): JsonResponse

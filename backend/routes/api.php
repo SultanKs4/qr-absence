@@ -29,6 +29,9 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
 
     // Mobile-specific endpoints (backward compatible)
     Route::get('/mobile/notifications', [MobileNotificationController::class, 'index']);
+    Route::post('/devices', [DeviceController::class, 'store']); // Match ApiService.kt @POST("devices")
+    Route::get('/schedules', [ScheduleController::class, 'index']); // Match @GET("schedules")
+    Route::get('/schedules/{schedule}', [ScheduleController::class, 'show']); // Match @GET("schedules/{schedule}")
 
     // Mobile dashboard endpoints
     Route::get('/me/dashboard/summary', [DashboardController::class, 'studentDashboard'])->middleware('role:student');
@@ -53,6 +56,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
     // Public classes list (read-only for mobile/web app)
     Route::get('/classes', [ClassController::class, 'index'])->middleware('role:admin,teacher,student');
     Route::get('/majors', [MajorController::class, 'index'])->middleware('role:admin,teacher,student');
+    Route::get('/subjects', [SubjectController::class, 'index'])->middleware('role:admin,teacher,student');
 
     Route::middleware('role:admin')->group(function (): void {
         Route::apiResource('majors', MajorController::class);
@@ -67,10 +71,12 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
         Route::apiResource('school-years', SchoolYearController::class);
         Route::apiResource('semesters', SemesterController::class);
         Route::apiResource('rooms', RoomController::class);
-        Route::apiResource('subjects', SubjectController::class);
+        Route::apiResource('subjects', SubjectController::class)->except(['index']);
         Route::apiResource('time-slots', TimeSlotController::class);
         Route::post('/wa/send-text', [WhatsAppController::class, 'sendText']);
         Route::post('/wa/send-media', [WhatsAppController::class, 'sendMedia']);
+        Route::get('/settings', [SettingController::class, 'index']);
+        Route::post('/settings/bulk', [SettingController::class, 'bulkUpdate']);
         Route::get('/admin/summary', [DashboardController::class, 'adminSummary']);
         Route::get('/attendance/summary', [DashboardController::class, 'attendanceSummary']);
     });
@@ -94,14 +100,15 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
     });
 
     Route::middleware('role:admin,teacher,student')->group(function (): void {
-        Route::post('/attendance/scan', [AttendanceController::class, 'scan'])->middleware('throttle:scan');
+        Route::prefix('attendance')->group(function () {
+            Route::post('/scan', [AttendanceController::class, 'scan'])->middleware('throttle:scan');
+            Route::post('/manual', [AttendanceController::class, 'manual']);
+            Route::post('/bulk-manual', [AttendanceController::class, 'bulkManual']);
+        });
         Route::get('/qrcodes/active', [QrCodeController::class, 'active']);
         Route::post('/qrcodes/generate', [QrCodeController::class, 'generate']);
         Route::post('/me/class/qr-token', [QrCodeController::class, 'generate']); // Alias for Webta
         Route::post('/qrcodes/{token}/revoke', [QrCodeController::class, 'revoke']);
-
-        // Manual attendance (Shared for Admin/Teacher)
-        Route::post('/attendance/manual', [AttendanceController::class, 'manual']);
     });
 
     Route::middleware('role:admin,teacher')->group(function (): void {
@@ -149,6 +156,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
         Route::get('/me/attendance/summary', [AttendanceController::class, 'summaryMe']);
         Route::get('/me/schedules', [ScheduleController::class, 'me']);
         Route::post('/me/devices', [DeviceController::class, 'store']);
+        Route::post('/devices', [DeviceController::class, 'store']); // Consistent alias
         Route::delete('/me/devices/{device}', [DeviceController::class, 'destroy']);
     });
 

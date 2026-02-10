@@ -14,15 +14,31 @@ use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    public function adminSummary(): JsonResponse
+    public function adminSummary(Request $request): JsonResponse
     {
-        $stats = Cache::remember('dashboard.admin', 600, function () {
+        $today = now()->format('Y-m-d');
+
+        $stats = Cache::remember("dashboard.admin.{$today}", 600, function () use ($today) {
+            $todayStats = Attendance::whereDate('date', $today)
+                ->selectRaw('status, count(*) as count')
+                ->groupBy('status')
+                ->get()
+                ->pluck('count', 'status');
+
             return [
                 'students_count' => StudentProfile::count(),
                 'teachers_count' => TeacherProfile::count(),
                 'classes_count' => Classes::count(),
                 'majors_count' => Major::count(),
                 'rooms_count' => \App\Models\Room::count(),
+                'attendance_today' => [
+                    'hadir' => $todayStats->get('present', 0),
+                    'izin' => $todayStats->get('izin', 0) + $todayStats->get('excused', 0),
+                    'sakit' => $todayStats->get('sick', 0),
+                    'alpha' => $todayStats->get('absent', 0),
+                    'terlambat' => $todayStats->get('late', 0),
+                    'pulang' => $todayStats->get('return', 0),
+                ],
             ];
         });
 
@@ -72,7 +88,7 @@ class DashboardController extends Controller
 
         // Get today's schedules for student's class
         $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', now()->dayOfWeek)
+            ->where('day', now()->format('l'))
             ->with(['teacher.user'])
             ->orderBy('start_time')
             ->get();
@@ -91,6 +107,7 @@ class DashboardController extends Controller
 
             return [
                 'id' => $schedule->id,
+                'class_id' => $schedule->class_id,
                 'time_slot' => $schedule->title ?? 'Jam Ke '.$schedule->id,
                 'subject' => $schedule->subject_name,
                 'teacher' => $schedule->teacher?->user?->name ?? 'N/A',
@@ -138,7 +155,7 @@ class DashboardController extends Controller
 
         // Get today's teaching schedules
         $schedules = Schedule::where('teacher_id', $teacher->id)
-            ->where('day', now()->dayOfWeek)
+            ->where('day', now()->format('l'))
             ->with('class')
             ->orderBy('start_time')
             ->get();
@@ -146,6 +163,7 @@ class DashboardController extends Controller
         $scheduleToday = $schedules->map(function ($schedule) {
             return [
                 'id' => $schedule->id,
+                'class_id' => $schedule->class_id,
                 'subject' => $schedule->subject_name,
                 'class_name' => $schedule->class?->name ?? 'N/A',
                 'time_slot' => $schedule->title ?? 'Jam Ke '.$schedule->id,
@@ -180,7 +198,9 @@ class DashboardController extends Controller
                 'present' => $attendanceSummary->get('present', 0),
                 'sick' => $attendanceSummary->get('sick', 0),
                 'excused' => $attendanceSummary->get('excused', 0) + $attendanceSummary->get('izin', 0),
+                'izin' => $attendanceSummary->get('izin', 0),
                 'absent' => $attendanceSummary->get('absent', 0),
+                'late' => $attendanceSummary->get('late', 0),
             ],
             'schedule_today' => $scheduleToday,
         ]);
@@ -279,7 +299,7 @@ class DashboardController extends Controller
 
             // 2. Tren Bulanan (Last 6 Months Trend)
             $sixMonthsAgo = now()->subMonths(5)->startOfMonth()->format('Y-m-d');
-            
+
             $monthlyData = Attendance::whereBetween('date', [$sixMonthsAgo, $today])
                 ->selectRaw('DATE(date) as date_only, status, count(*) as count')
                 ->groupBy('date_only', 'status')
@@ -287,7 +307,7 @@ class DashboardController extends Controller
 
             $trend = [];
             // We'll group by month for the 6-month chart
-            $dataByMonth = $monthlyData->groupBy(function($item) {
+            $dataByMonth = $monthlyData->groupBy(function ($item) {
                 return Carbon::parse($item->date_only)->format('Y-m');
             });
 
@@ -295,7 +315,7 @@ class DashboardController extends Controller
                 $monthDate = now()->subMonths($i);
                 $monthKey = $monthDate->format('Y-m');
                 $monthRecords = $dataByMonth->get($monthKey, collect([]));
-                
+
                 $total = $monthRecords->sum('count');
                 $present = $monthRecords->whereIn('status', ['present', 'late'])->sum('count');
 

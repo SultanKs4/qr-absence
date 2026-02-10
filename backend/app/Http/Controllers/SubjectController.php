@@ -8,9 +8,15 @@ use Illuminate\Http\Request;
 
 class SubjectController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(Subject::latest()->paginate());
+        $perPage = $request->integer('per_page', 15);
+
+        if ($perPage === -1) {
+            return response()->json(Subject::query()->latest()->get());
+        }
+
+        return response()->json(Subject::query()->latest()->paginate($perPage));
     }
 
     public function store(Request $request): JsonResponse
