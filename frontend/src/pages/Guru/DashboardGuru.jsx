@@ -7,7 +7,8 @@ import {
   FaCheckCircle,
   FaChevronRight,
   FaArrowRight,
-  FaBell
+  FaBell,
+  FaInfoCircle
 } from 'react-icons/fa';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import CustomAlert from '../../components/Common/CustomAlert';

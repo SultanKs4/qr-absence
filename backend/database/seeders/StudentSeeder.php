@@ -15,14 +15,14 @@ class StudentSeeder extends Seeder
     {
         // Pastikan ada kelas dan jurusan
         $major = Major::firstOrCreate(
-            ['code' => 'TKJ'],
-            ['name' => 'Teknik Komputer dan Jaringan']
+            ['code' => 'RPL'],
+            ['name' => 'Rekayasa Perangkat Lunak']
         );
 
         $class = Classes::firstOrCreate(
             [
                 'grade' => '12',
-                'label' => 'TKJ 1',
+                'label' => 'RPL 1',
             ],
             [
                 'major_id' => $major->id,

@@ -107,6 +107,8 @@ class AuthController extends Controller
             $actualRole = $isHomeroom ? 'wakel' : 'guru';
         } elseif ($user->user_type === 'student') {
             $actualRole = $user->studentProfile?->is_class_officer ? 'pengurus_kelas' : 'siswa';
+        } elseif ($user->user_type === 'admin') {
+            $actualRole = $user->adminProfile?->type ?? 'admin';
         }
 
         return response()->json([
@@ -114,6 +116,7 @@ class AuthController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
                 'user_type' => $user->user_type, // Original DB type
                 'role' => $actualRole, // Standardized role for UI
@@ -153,11 +156,14 @@ class AuthController extends Controller
             $actualRole = $isHomeroom ? 'wakel' : 'guru';
         } elseif ($user->user_type === 'student') {
             $actualRole = $user->studentProfile?->is_class_officer ? 'pengurus_kelas' : 'siswa';
+        } elseif ($user->user_type === 'admin') {
+            $actualRole = $user->adminProfile?->type ?? 'admin';
         }
 
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
+            'username' => $user->username,
             'email' => $user->email,
             'user_type' => $user->user_type,
             'role' => $actualRole,

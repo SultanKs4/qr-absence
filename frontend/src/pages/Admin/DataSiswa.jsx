@@ -4,7 +4,8 @@ import './DataSiswa.css';
 import {
     FaUserPlus, FaFileImport, FaFileExport, FaSearch,
     FaFilter, FaEllipsisV, FaEdit, FaTrash, FaCheck,
-    FaFilePdf, FaFileExcel, FaEye, FaTimes, FaSpinner
+    FaFilePdf, FaFileExcel, FaEye, FaTimes, FaSpinner,
+    FaUserGraduate, FaDownload
 } from 'react-icons/fa';
 import TambahSiswa from '../../components/Admin/TambahSiswa';
 import PageWrapper from '../../components/ui/PageWrapper';
@@ -14,6 +15,9 @@ import {
 import { getClasses } from '../../services/class';
 import { getMajors } from '../../services/major';
 import { STORAGE_BASE_URL } from '../../utils/constants';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import apiClient from '../../services/api';
 
 function DataSiswa() {
     const [students, setStudents] = useState([]);
@@ -28,6 +32,12 @@ function DataSiswa() {
     const [showImportModal, setShowImportModal] = useState(false);
     const fileInputRef = useRef(null);
     const [isImporting, setIsImporting] = useState(false);
+
+    // Missing states for history modal
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [selectedStudent, setSelectedStudent] = useState(null);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [studentHistory, setStudentHistory] = useState([]);
 
     // Fetch initial data
     useEffect(() => {
@@ -111,6 +121,25 @@ function DataSiswa() {
 
     const handleImport = () => {
         fileInputRef.current.click();
+    };
+
+    const handleExportToExcel = () => {
+        try {
+            const worksheet = XLSX.utils.json_to_sheet(filteredStudents.map((s, i) => ({
+                No: i + 1,
+                Nama: s.user?.name || s.name,
+                NISN: s.nisn,
+                Jurusan: s.class_room?.major?.name || '-',
+                Kelas: s.class_room?.name || '-'
+            })));
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Data Siswa");
+            XLSX.writeFile(workbook, `Data_Siswa_${new Date().toLocaleDateString()}.xlsx`);
+            setShowExportMenu(false);
+        } catch (error) {
+            console.error('Excel Export failed:', error);
+            alert('Gagal mengekspor Excel');
+        }
     };
 
     const handleFileChange = async (e) => {
