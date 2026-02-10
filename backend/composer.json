@@ -18,7 +18,6 @@
         "laravel/sanctum": "^4.0",
         "laravel/telescope": "^5.16",
         "laravel/tinker": "^2.10.1",
-        "phpoffice/phpspreadsheet": "^5.4",
         "predis/predis": "*",
         "simplesoftwareio/simple-qrcode": "*"
     },
