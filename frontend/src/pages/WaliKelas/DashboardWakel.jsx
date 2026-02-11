@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './DashboardWakel.css';
 import NavbarWakel from '../../components/WaliKelas/NavbarWakel';
+import { authService } from '../../services/auth';
+import { authHelpers } from '../../utils/authHelpers';
+import attendanceService from '../../services/attendance';
 
 const DashboardWakel = () => {
   const navigate = useNavigate();
@@ -10,7 +13,7 @@ const DashboardWakel = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
-  const [user, setUser] = useState(authHelpers.getUserData());
+  const [user] = useState(authHelpers.getUserData());
   
   // 🔥 STATE TERPISAH: scanSuccess dan mulaiAbsen
   const [scanSuccess, setScanSuccess] = useState(false);
@@ -116,18 +119,10 @@ const DashboardWakel = () => {
     }, 100);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      try {
-        await authService.logout();
-        navigate('/login');
-      } catch (err) {
-        console.error("Logout failed:", err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user_data');
-        localStorage.removeItem('user_role');
-        navigate('/login');
-      }
+      authService.logout();
+      navigate('/login');
     }
   };
 
@@ -211,13 +206,13 @@ const DashboardWakel = () => {
                     <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
                   </svg>
                   <div>
-                    <p className="datetime-label">{formatDate(now)}</p>
+                    <p className="datetime-label">{formatDate(currentTime)}</p>
                     <p className="datetime-static">07:00 - 15:00</p>
                   </div>
                 </div>
 
                 <div className="datetime-right">
-                  <p className="datetime-clock">{formatTime(now)}</p>
+                  <p className="datetime-clock">{formatTime(currentTime)}</p>
                 </div>
               </div>
 

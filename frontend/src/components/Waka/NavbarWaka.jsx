@@ -1,10 +1,17 @@
-import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './NavbarWaka.css';
 import logo from '../../assets/logo.png';
 
 function NavbarWaka() {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      authService.logout();
+      navigate('/login');
+    }
+  };
 
   return (
     <nav className="navbar">
@@ -44,6 +51,10 @@ function NavbarWaka() {
         >
           Kehadiran Siswa
         </NavLink>
+        
+        <button onClick={handleLogout} className="btn-logoutt">
+          <span>Keluar</span>
+        </button>
       </div>
     </nav>
   );

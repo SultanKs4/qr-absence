@@ -1,9 +1,17 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './NavbarPengurus.css';
 import logo from '../../assets/logo.png';
 
 function NavbarPengurus() {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      authService.logout();
+      navigate('/login');
+    }
+  };
   return (
     <nav className="navbar">
       <div className="nav-left">
@@ -21,6 +29,10 @@ function NavbarPengurus() {
         <NavLink to="/pengurus-kelas/presensi" className={({ isActive }) => isActive ? 'active' : ''}>
           Presensi
         </NavLink>
+
+        <button onClick={handleLogout} className="btn-logoutt">
+          <span>Keluar</span>
+        </button>
       </div>
     </nav>
   );

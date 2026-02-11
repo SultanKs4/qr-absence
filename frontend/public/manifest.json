@@ -1,6 +1,6 @@
 {
-  "short_name": "QR Absen",
-  "name": "QR Absence System",
+  "name": "Presensi Pembelajaran Digital",
+  "short_name": "Presensi",
   "icons": [
     {
       "src": "vite.svg",

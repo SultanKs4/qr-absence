@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -14,35 +15,7 @@ const LoginPage = () => {
 
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // Data dummy untuk autentikasi
-  const dummyUsers = {
-    'admin': [
-      { username: 'admin', password: 'admin123' }
-    ],
-    'waka': [
-      { kodeGuru: 'WK001', password: 'waka123' },
-      { kodeGuru: 'WK002', password: 'waka123' }
-    ],
-    'peserta-didik': [
-      { nisn: '123' },
-      { nisn: '0012345679' },
-      { nisn: '0012345680' }
-    ],
-    'guru': [
-      { kodeGuru: 'GR001', password: 'guru123' },
-      { kodeGuru: 'GR002', password: 'guru123' },
-      { kodeGuru: 'GR003', password: 'guru123' }
-    ],
-    'wali-kelas': [
-      { kodeGuru: 'WK101', password: 'wakel123' },
-      { kodeGuru: 'WK102', password: 'wakel123' }
-    ],
-    'pengurus-kelas': [
-      { nisn: '123' },
-      { nisn: '0012345682' }
-    ]
-  };
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Konfigurasi untuk setiap role
   const roleConfig = {
@@ -102,37 +75,7 @@ const LoginPage = () => {
 
   const config = roleConfig[role] || roleConfig['admin'];
 
-  // Fungsi validasi login
-  const validateLogin = () => {
-    const users = dummyUsers[role] || [];
-    
-    switch(role) {
-      case 'admin':
-        return users.some(user => 
-          user.username === formData.identifier && 
-          user.password === formData.password
-        );
-      
-      case 'waka':
-      case 'guru':
-      case 'wali-kelas':
-        return users.some(user => 
-          user.kodeGuru === formData.identifier && 
-          user.password === formData.password
-        );
-      
-      case 'peserta-didik':
-      case 'pengurus-kelas':
-        return users.some(user => 
-          user.nisn === formData.identifier
-        );
-      
-      default:
-        return false;
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     
@@ -142,18 +85,20 @@ const LoginPage = () => {
       return;
     }
 
-    // Validasi kredensial
-    if (validateLogin()) {
-      console.log('Login berhasil sebagai', role, formData);
+    setIsLoggingIn(true);
+    try {
+      const { user } = await authService.login(formData.identifier, formData.password);
+      console.log('Login berhasil sebagai', user.role, user);
       
-      // Simpan data user ke localStorage
-      localStorage.setItem('userRole', role);
-      localStorage.setItem('userIdentifier', formData.identifier);
-      
-      // Navigate ke dashboard
+      // Navigate ke dashboard berdasarkan role dari backend atau config
+      // Note: authService.login sudah menyimpan role & data ke localStorage
       navigate(config.dashboard);
-    } else {
-      setError('NISN tidak ditemukan atau data login salah!');
+    } catch (err) {
+      console.error('Login error:', err);
+      const message = err.response?.data?.message || 'NISN tidak ditemukan atau data login salah!';
+      setError(message);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -204,6 +149,7 @@ const LoginPage = () => {
                   onChange={(e) => handleInputChange(field.name, e.target.value)}
                   className="form-input"
                   required
+                  disabled={isLoggingIn}
                 />
                 {/* Toggle password visibility hanya untuk field password */}
                 {field.type === 'password' && (
@@ -212,6 +158,7 @@ const LoginPage = () => {
                     onClick={togglePasswordVisibility}
                     className="password-toggle"
                     aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    disabled={isLoggingIn}
                   >
                     {showPassword ? (
                       // Eye slash icon (hide)
@@ -233,12 +180,12 @@ const LoginPage = () => {
           ))}
           
           <div className="button-group">
-            <button type="button" onClick={handleBack} className="back-button">
+            <button type="button" onClick={handleBack} className="back-button" disabled={isLoggingIn}>
               Kembali
             </button>
             
-            <button type="submit" className="login-button">
-              Masuk
+            <button type="submit" className="login-button" disabled={isLoggingIn}>
+              {isLoggingIn ? 'Memproses...' : 'Masuk'}
             </button>
           </div>
         </form>

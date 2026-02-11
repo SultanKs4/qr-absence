@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './DashboardGuru.css';
 import NavbarGuru from '../../components/Guru/NavbarGuru';
+import { authService } from '../../services/auth';
+import { authHelpers } from '../../utils/authHelpers';
+import attendanceService from '../../services/attendance';
 
 function DashboardGuru() {
   const navigate = useNavigate();
@@ -13,7 +16,7 @@ function DashboardGuru() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
-  const [user, setUser] = useState(authHelpers.getUserData());
+  const [user] = useState(authHelpers.getUserData());
 
   // State untuk melacak jadwal yang sudah selesai absensi
   const [completedAbsensi, setCompletedAbsensi] = useState(new Set());
@@ -115,18 +118,10 @@ function DashboardGuru() {
     handleQrVerified();
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      try {
-        await authService.logout();
-        navigate('/login');
-      } catch (err) {
-        console.error("Logout failed:", err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user_data');
-        localStorage.removeItem('user_role');
-        navigate('/login');
-      }
+      authService.logout();
+      navigate('/login');
     }
   };
 

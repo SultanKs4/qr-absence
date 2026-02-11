@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './NavbarAdmin.css';
 import logo from '../../assets/logo.png';
 
@@ -11,10 +12,7 @@ function NavbarAdmin() {
     const confirmLogout = window.confirm('Apakah Anda yakin ingin keluar?');
     
     if (confirmLogout) {
-      // Hapus token atau data session (sesuaikan dengan sistem autentikasi Anda)
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.clear();
+      authService.logout();
       
       // Redirect ke halaman login
       navigate('/login');

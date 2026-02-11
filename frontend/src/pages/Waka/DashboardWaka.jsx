@@ -12,6 +12,7 @@ import {
 import "./DashboardWaka.css";
 import { useNavigate } from "react-router-dom";
 import NavbarWaka from "../../components/Waka/NavbarWaka";
+import { authService } from '../../services/auth';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -75,13 +76,9 @@ export default function DashboardWaka() {
     const confirmLogout = window.confirm('Apakah Anda yakin ingin keluar?');
     
     if (confirmLogout) {
-      // Hapus token atau data session (sesuaikan dengan sistem autentikasi Anda)
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.clear();
-      
       // Redirect ke halaman login
-      navigate('/');
+      authService.logout();
+      navigate('/login');
       
       // Optional: tampilkan pesan
       alert('Anda telah berhasil logout');

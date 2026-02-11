@@ -1,9 +1,17 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './NavbarGuru.css';  // pastikan nama CSS sesuai
 import logo from '../../assets/logo.png';  // PERBAIKAN PENTING: path gambar
 
 function NavbarGuru() {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      authService.logout();
+      navigate('/login');
+    }
+  };
   return (
     <nav className="navbar">
       <div className="nav-left">
@@ -23,6 +31,9 @@ function NavbarGuru() {
         Kehadiran Siswa
         </NavLink>
         
+        <button onClick={handleLogout} className="btn-logoutt">
+          <span>Keluar</span>
+        </button>
       </div>
     </nav>
   );

@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, BookOpen, ArrowLeft, LogOut, TrendingUp, PieChart, User, Camera } from 'lucide-react';
 import './DashboardKelas.css';
 import NavbarPengurus from "../../components/PengurusKelas/NavbarPengurus";
+import { authService } from '../../services/auth';
+import attendanceService from '../../services/attendance';
+import { authHelpers } from '../../utils/authHelpers';
 import jadwalImage from '../../assets/jadwal.png';
 
 // Sample Data
@@ -767,13 +770,32 @@ const ProfileModal = ({ isOpen, onClose, profile, onLogout, currentProfileImage,
 
 // Main Dashboard
 const DashboardKelas = () => {
+  const navigate = useNavigate();
   const [showSubjects, setShowSubjects] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [profileImage, setProfileImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        const data = await attendanceService.getStudentClassDashboard();
+        setDashboardData(data);
+      } catch (err) {
+        console.error("Error fetching class dashboard data:", err);
+        setError("Gagal mengambil data dashboard kelas.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
     return () => clearInterval(timer);
   }, []);
 
@@ -789,10 +811,8 @@ const DashboardKelas = () => {
 
   const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('userRole');
-      window.location.href = '/';
+      authService.logout();
+      navigate('/login');
     }
   };
 

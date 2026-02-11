@@ -1,9 +1,17 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { authService } from '../../services/auth';
 import './NavbarWakel.css';  // pastikan nama CSS sesuai
 import logo from '../../assets/logo.png';  // PERBAIKAN PENTING: path gambar
 
 function NavbarWakel() {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    if (window.confirm('Apakah Anda yakin ingin keluar?')) {
+      authService.logout();
+      navigate('/login');
+    }
+  };
   return (
     <nav className="navbar">
       <div className="nav-left">
@@ -25,6 +33,10 @@ function NavbarWakel() {
         <NavLink to="/walikelas/jadwalwakel" activeClassName="active">
         Jadwal
         </NavLink>
+
+        <button onClick={handleLogout} className="btn-logoutt">
+          <span>Keluar</span>
+        </button>
       </div>
     </nav>
   );
