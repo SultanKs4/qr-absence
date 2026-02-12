@@ -15,14 +15,14 @@ class ClassOfficerSeeder extends Seeder
     {
         // Pastikan ada kelas
         $major = Major::firstOrCreate(
-            ['code' => 'TKJ'],
-            ['name' => 'Teknik Komputer dan Jaringan']
+            ['code' => 'RPL'],
+            ['name' => 'Rekayasa Perangkat Lunak']
         );
 
         $class = Classes::firstOrCreate(
             [
                 'grade' => '12',
-                'label' => 'TKJ 1',
+                'label' => 'RPL 1',
             ],
             [
                 'major_id' => $major->id,
@@ -47,7 +47,7 @@ class ClassOfficerSeeder extends Seeder
                 'nisn' => '0024999',
                 'nis' => '2024999',
                 'gender' => 'L',
-                'address' => 'Jl. Contoh No. 999',
+                'address' => 'Jl. Ular Sakti',
                 'class_id' => $class->id,
                 'is_class_officer' => true, // Tandai sebagai pengurus kelas
             ]

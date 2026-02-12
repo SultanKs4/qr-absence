@@ -11,10 +11,10 @@ Dokumen ini berisi hasil analisis perbandingan antara `backend_todo.md` dengan e
 ---
 
 ## 2. Cegah Data Duplikat (Role Admin)
-**Status:** ❌ Belum Terimplementasi (Generic Endpoint)
-- **Endpoint:** `POST /api/admin/data` tidak ditemukan.
-- **Temuan:** Logic pencegahan duplikat (seperti `unique:users,username`, `unique:teacher_profiles,nip`) sudah ada di masing-masing controller (`StudentController`, `TeacherController`), tetapi endpoint sinkronisasi/upload data master tunggal belum ada.
-- **Rekomendasi:** Konfirmasi apakah endpoint ini dimaksudkan sebagai "Bulk Import" atau validasi generik. Jika Bulk Import, fitur import siswa/guru sudah ada.
+**Status:** ✅ Sudah Terimplementasi
+- **Endpoint:** `POST /api/admin/data/sync`.
+- **Temuan:** Logic pencegahan duplikat (`validateDuplicates`) telah diimplementasikan dalam `AdminDataController`. Endpoint ini memvalidasi `username`, `nisn`, `nip`, dan `email` terhadap data yang sudah ada di database untuk mencegah error "Unique constraint" pada operasi bulk.
+- **Rekomendasi:** Gunakan endpoint ini sebelum melakukan sinkronisasi atau import data master untuk memastikan kebersihan data.
 
 ## 4. Ekspor Data Kehadiran (Role Waka)
 **Status:** ✅ Sudah Terimplementasi
@@ -58,9 +58,9 @@ Dokumen ini berisi hasil analisis perbandingan antara `backend_todo.md` dengan e
 - **Temuan:** Mengembalikan `409 Conflict` jika presensi siswa sudah tercatat untuk sesi tersebut. Mencegah timpa data tidak sengaja.
 
 ## 22. Update Status Dispensasi (Mobile)
-**Status:** ❌ Belum Terimplementasi
-- **Endpoint:** Tidak ada endpoint khusus `PATCH /api/siswa/status/:id`.
-- **Temuan:** Update status dilakukan lewat `POST /api/attendance/manual` atau `POST /absence-requests` (pengajuan izin). Endpoint short-cut untuk ubah status siswa langsung ke dispensasi belum ada.
+**Status:** ✅ Sudah Terimplementasi
+- **Endpoint:** `PATCH /api/attendance/{attendance}` (via `AttendanceController@markExcuse`).
+- **Temuan:** Status `dispensasi` dan `dinas` telah ditambahkan ke dalam validasi method `markExcuse`. Admin atau Guru kini dapat mengubah status presensi yang sudah ada menjadi dispensasi secara langsung melalui mobile atau web.
 
 ## 23. Tambahkan Sakit & Izin di Absensi (Mobile)
 **Status:** ✅ Sudah Terimplementasi

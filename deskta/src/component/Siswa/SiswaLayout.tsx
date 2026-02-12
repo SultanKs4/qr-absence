@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect, useRef } from "react";
+import { storage } from '../../utils/storage';
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from "../Sidebar";
 import { useLocalLenis } from "../Shared/SmoothScroll";
@@ -23,16 +24,13 @@ export default function SiswaLayout({
   children,
   pageTitle = "Dashboard",
 }: SiswaLayoutProps) {
-  const [isOpen, setOpen] = useState(() => {
-    const saved = localStorage.getItem("sidebarOpenSiswa");
-    return saved ? saved === "true" : true;
-  });
+  const [isOpen, setOpen] = useState(() => storage.getSidebarState('siswa'));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLocalLenis(scrollContainerRef);
 
   useEffect(() => {
-    localStorage.setItem("sidebarOpenSiswa", isOpen.toString());
+    storage.setSidebarState('siswa', isOpen);
   }, [isOpen]);
 
   return (
@@ -185,131 +183,4 @@ export default function SiswaLayout({
 }
 
 
-// ======= LEGACY CODE =======
-// import { ReactNode, useState, useEffect } from "react";
-// import Sidebar from "../Sidebar";
 
-// type MenuKey = "dashboard" | "jadwal-anda" | "notifikasi" | "absensi";
-
-// interface SiswaLayoutProps {
-//   user: { name: string; phone: string };
-//   currentPage: MenuKey;
-//   onMenuClick: (key: MenuKey) => void;
-//   onLogout: () => void;
-//   children: ReactNode;
-//   pageTitle?: string;
-// }
-
-// export default function SiswaLayout({
-//   user,
-//   currentPage,
-//   onMenuClick,
-//   onLogout,
-//   children,
-//   pageTitle = "Dashboard",
-// }: SiswaLayoutProps) {
-//   const [isOpen, setOpen] = useState(() => {
-//     const saved = localStorage.getItem("sidebarOpenSiswa");
-//     return saved ? saved === "true" : true;
-//   });
-
-//   useEffect(() => {
-//     localStorage.setItem("sidebarOpenSiswa", isOpen.toString());
-//   }, [isOpen]);
-
-//   return (
-//     <div
-//       style={{
-//         display: "flex",
-//         height: "100vh",
-//         width: "100vw",
-//         background: "#F8FAFC",
-//         overflow: "hidden",
-//         position: "fixed",
-//         top: 0,
-//         left: 0,
-//       }}
-//     >
-//       {/* Sidebar */}
-//       <div style={{ position: "relative", zIndex: 5, flexShrink: 0 }}>
-//         <Sidebar
-//           currentPage={currentPage}
-//           onMenuClick={onMenuClick}
-//           onLogout={onLogout}
-//           isOpen={isOpen}
-//           onToggle={() => setOpen((v) => !v)}
-//           userRole="siswa"
-//         />
-//       </div>
-
-//       {/* Main Content */}
-//       <div
-//         style={{
-//           flex: 1,
-//           display: "flex",
-//           flexDirection: "column",
-//           overflow: "hidden",
-//           position: "relative",
-//           zIndex: 1,
-//           height: "100%",
-//           minHeight: 0,
-//         }}
-//       >
-//         {/* Header */}
-//         <header
-//           style={{
-//             height: "64px",
-//             minHeight: "64px",
-//             background: "#0B2948",
-//             color: "#fff",
-//             display: "flex",
-//             alignItems: "center",
-//             justifyContent: "space-between",
-//             padding: "0 24px",
-//             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-//             zIndex: 4,
-//             flexShrink: 0,
-//           }}
-//         >
-//           <div
-//             style={{
-//               fontSize: "22px",
-//               fontWeight: 800,
-//               color: "#fff",
-//             }}
-//           >
-//             {pageTitle}
-//           </div>
-//           <div
-//             style={{
-//               fontWeight: 700,
-//               fontSize: "16px",
-//               color: "#fff",
-//               display: "flex",
-//               alignItems: "center",
-//               gap: "8px",
-//             }}
-//           >
-//             <span>{user.name}</span>
-//           </div>
-//         </header>
-
-//         {/* Main Content Area */}
-//         <main
-//           style={{
-//             flex: 1,
-//             overflowY: "auto",
-//             overflowX: "hidden",
-//             padding: "24px",
-//             display: "flex",
-//             flexDirection: "column",
-//             minHeight: 0,
-//             height: "100%",
-//           }}
-//         >
-//           {children}
-//         </main>
-//       </div>
-//     </div>
-//   );
-// }

@@ -327,8 +327,6 @@ class ScheduleController extends Controller
             'kamis' => 'Thursday',
             'jumat' => 'Friday',
             'jum\'at' => 'Friday',
-            'sabtu' => 'Saturday',
-            'minggu' => 'Sunday',
         ];
 
         $lower = strtolower($day);

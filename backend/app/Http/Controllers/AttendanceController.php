@@ -140,6 +140,116 @@ class AttendanceController extends Controller
         });
     }
 
+    public function scanStudent(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'], // Accept 'token' as per frontend, but treat as NISN
+            'device_id' => ['nullable', 'integer'],
+        ]);
+
+        $nisn = $data['token']; // Frontend sends 'token', but for student scan it's NISN
+
+        $user = $request->user();
+        if ($user->user_type !== 'teacher' || ! $user->teacherProfile) {
+            return response()->json(['message' => 'Hanya guru yang dapat melakukan scan ini'], 403);
+        }
+
+        $student = StudentProfile::with('user')->where('nisn', $nisn)->first();
+        if (! $student) {
+            return response()->json(['message' => 'Siswa dengan NISN ini tidak ditemukan'], 404);
+        }
+
+        // Find active schedule for this teacher
+        $now = now();
+        $day = $now->format('l'); // English day name (e.g., Thursday)
+        $time = $now->format('H:i:s');
+
+        // Find schedule that matches day and time
+        // We use a looser check: Schedule for this teacher, today.
+        // Ideally we check time, but for now let's just find the *current* one.
+        $schedule = Schedule::with('class')
+            ->where('teacher_id', $user->teacherProfile->id)
+            ->where('day', $day)
+            ->where('start_time', '<=', $time)
+            ->where('end_time', '>=', $time)
+            ->first();
+
+        if (! $schedule) {
+            return response()->json(['message' => 'Tidak ada jadwal mengajar aktif saat ini.'], 422);
+        }
+
+        if ($schedule->class_id !== $student->class_id) {
+            return response()->json([
+                'message' => "Siswa ini ({$student->user->name}) bukan dari kelas jadwal saat ini ({$schedule->class->name})",
+            ], 422);
+        }
+
+        // Check for leave
+        $activeLeave = \App\Models\StudentLeavePermission::where('student_id', $student->id)
+            ->where('date', $now->toDateString())
+            ->where('status', 'active')
+            ->first();
+
+        if ($activeLeave && $activeLeave->shouldHideFromAttendance($schedule)) {
+            $leaveType = $this->getLeaveTypeLabel($activeLeave->type);
+
+            return response()->json([
+                'message' => "Siswa sedang dalam status {$leaveType}",
+                'leave_permission' => $activeLeave,
+            ], 422);
+        }
+
+        $attributes = [
+            'attendee_type' => 'student',
+            'student_id' => $student->id,
+            'schedule_id' => $schedule->id,
+        ];
+
+        // Lock to prevent duplicates
+        $lockKey = "attendance_scan_student_{$student->id}_{$schedule->id}_{$now->toDateString()}";
+
+        // Using Cache Lock
+        $lock = Cache::lock($lockKey, 10);
+
+        try {
+            if ($lock->get()) {
+                $existing = Attendance::where($attributes)
+                    ->whereDate('date', $now->toDateString())
+                    ->first();
+
+                if ($existing) {
+                    return response()->json([
+                        'message' => 'Presensi siswa sudah tercatat',
+                        'status' => $existing->status,
+                        'student' => $student,
+                    ]);
+                }
+
+                $attendance = Attendance::create([
+                    'attendee_type' => 'student',
+                    'student_id' => $student->id,
+                    'schedule_id' => $schedule->id,
+                    'date' => $now,
+                    'status' => 'present',
+                    'checked_in_at' => $now,
+                    'source' => 'teacher_scan',
+                ]);
+
+                AttendanceRecorded::dispatch($attendance);
+
+                return response()->json([
+                    'message' => 'Presensi berhasil dicatat',
+                    'status' => $attendance->status,
+                    'student' => $student,
+                ]);
+            } else {
+                return response()->json(['message' => 'Sedang memproses...'], 429);
+            }
+        } finally {
+            $lock->release();
+        }
+    }
+
     /**
      * Determine status based on schedule time
      */
@@ -167,6 +277,62 @@ class AttendanceController extends Controller
         }
 
         return 'present';
+    }
+
+    public function storeManual(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'attendee_type' => ['required', 'in:student'],
+            'student_id' => ['required', 'exists:student_profiles,id'],
+            'schedule_id' => ['required', 'exists:schedules,id'],
+            'status' => ['required', 'in:present,late,excused,sick,absent,dinas,izin,pulang,return'],
+            'date' => ['required', 'date'],
+            'reason' => ['nullable', 'string'],
+        ]);
+
+        $user = $request->user();
+        $schedule = Schedule::findOrFail($data['schedule_id']);
+
+        // Authorization: Teacher must be the owner or Admin/Waka
+        if ($user->user_type === 'teacher' && $schedule->teacher_id !== $user->teacherProfile->id) {
+            // Also check if Homeroom Teacher? Maybe not for manual input of subject attendance.
+            // But waka/admin might use this too.
+            // For now, restrict to schedule teacher.
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $now = Carbon::parse($data['date']);
+
+        // Map 'pulang' to 'return' for database enum
+        $status = $data['status'] === 'pulang' ? 'return' : $data['status'];
+
+        $attributes = [
+            'attendee_type' => 'student',
+            'student_id' => $data['student_id'],
+            'schedule_id' => $data['schedule_id'],
+        ];
+
+        $attendance = Attendance::updateOrCreate(
+            [
+                ...$attributes,
+                'date' => $now->toDateString(), // Use only date part for uniqueness? Or datetime? Table usually has date column as date or datetime. Seeder uses timestamps.
+                // Migration says date is datetime. But unique logic usually per day per schedule.
+                // Let's assume we want to update if exists.
+            ],
+            [
+                'status' => $status,
+                'checked_in_at' => $now, // Or keep original check in? If manual overwrite, maybe update time too.
+                'source' => 'manual',
+                'reason' => $data['reason'] ?? null,
+            ]
+        );
+
+        // If updated, we might want to log it?
+
+        return response()->json([
+            'message' => 'Kehadiran berhasil disimpan',
+            'attendance' => $attendance,
+        ]);
     }
 
     /**
@@ -1190,9 +1356,13 @@ class AttendanceController extends Controller
         }
 
         $query = Attendance::query()
-            ->with(['student.user:id,name', 'teacher.user:id,name'])
+            ->with(['student.user:id,name', 'teacher.user:id,name', 'attachments'])
             ->where('schedule_id', $schedule->id)
             ->latest('checked_in_at');
+
+        if ($request->filled('date')) {
+            $query->whereDate('date', $request->date('date'));
+        }
 
         $perPage = $this->resolvePerPage($request);
         $attendances = $perPage ? $query->paginate($perPage) : $query->get();
@@ -1279,7 +1449,7 @@ class AttendanceController extends Controller
         }
 
         $data = $request->validate([
-            'status' => ['required', 'in:present,late,excused,sick,absent,dinas,izin,return'],
+            'status' => ['required', 'in:present,late,excused,sick,absent,dispensasi,dinas,izin,return'],
             'reason' => ['nullable', 'string'],
         ]);
 

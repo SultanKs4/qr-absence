@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { storage } from '../../utils/storage';
 import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from 'react';
 import Sidebar from '../Sidebar';
@@ -29,16 +30,13 @@ export default function StaffLayout({
   user,
   onLogout,
 }: StaffLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('wakaSidebarOpen');
-    return saved ? saved === 'true' : true;
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => storage.getSidebarState('waka'));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLocalLenis(scrollContainerRef);
 
   useEffect(() => {
-    localStorage.setItem('wakaSidebarOpen', sidebarOpen.toString());
+    storage.setSidebarState('waka', sidebarOpen);
   }, [sidebarOpen]);
 
   return (

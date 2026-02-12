@@ -14,20 +14,21 @@ class SubjectSeeder extends Seeder
     {
         $subjects = [
             ['code' => 'PAI', 'name' => 'Pendidikan Agama dan Budi Pekerti'],
-            ['code' => 'PPN', 'name' => 'Pendidikan Pancasila'],
+            ['code' => 'PKN', 'name' => 'Pendidikan Pancasila dan Kewarganegaraan'],
             ['code' => 'BIN', 'name' => 'Bahasa Indonesia'],
             ['code' => 'BIG', 'name' => 'Bahasa Inggris'],
             ['code' => 'MTK', 'name' => 'Matematika'],
-            ['code' => 'SEJ', 'name' => 'Sejarah'],
+            ['code' => 'SI', 'name' => 'Sejarah Indonesia'],
             ['code' => 'OR', 'name' => 'Pendidikan Jasmani, Olahraga, dan Kesehatan'],
             ['code' => 'SB', 'name' => 'Seni Budaya'],
             ['code' => 'INF', 'name' => 'Informatika'],
             ['code' => 'IPAS', 'name' => 'Projek Ilmu Pengetahuan Alam dan Sosial'],
-            ['code' => 'DK', 'name' => 'Dasar-dasar Keahlian'],
-            ['code' => 'KK', 'name' => 'Konsentrasi Keahlian'],
-            ['code' => 'PKK', 'name' => 'Projek Kreatif dan Kewirausahaan'],
-            ['code' => 'LB', 'name' => 'Muatan Lokal / Bahasa Daerah'],
+            ['code' => 'DPK', 'name' => 'Dasar-dasar Program Kejurusan'],
+            ['code' => 'MPKK', 'name' => 'Projek Kreatif dan Kewirausahaan'],
+            ['code' => 'B.JAWA', 'name' => 'Muatan Lokal / Bahasa Daerah'],
             ['code' => 'BK', 'name' => 'Bimbingan Konseling'],
+            ['code' => 'MPP', 'name' => 'Projek Penguatan Profil Pelajar Pancasila'],
+            ['code' => 'PKDK', 'name' => 'Projek Penguatan Profil Pelajar Pancasila'],
         ];
 
         foreach ($subjects as $subject) {

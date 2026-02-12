@@ -44,8 +44,8 @@ export function MetodeGuru({
     try {
       const { dashboardService } = await import('../../../services/dashboard');
       // Call scan API. 
-      // Assuming /attendance/scan handles Teacher Scanning Student Token
-      const response = await dashboardService.scanAttendance(result);
+      // Teacher Scanning Student Token uses scanStudentQR
+      const response = await dashboardService.scanStudentQR(result);
 
       // Show success
       await popupAlert(`✅ Berhasil: ${response.message || 'Presensi tercatat'}`);
@@ -249,20 +249,20 @@ export function MetodeGuru({
                   style={{ padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <input
-                    type="time"
-                    value={dispMulai}
-                    onChange={(e) => setDispMulai(e.target.value)}
-                    style={{ padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}
-                  />
-                  <input
-                    type="time"
-                    value={dispSelesai}
-                    onChange={(e) => setDispSelesai(e.target.value)}
-                    style={{ padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}
-                  />
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <input
+                  type="time"
+                  value={dispMulai}
+                  onChange={(e) => setDispMulai(e.target.value)}
+                  style={{ padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}
+                />
+                <input
+                  type="time"
+                  value={dispSelesai}
+                  onChange={(e) => setDispSelesai(e.target.value)}
+                  style={{ padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
               <textarea
                 value={dispKeterangan}
                 onChange={(e) => setDispKeterangan(e.target.value)}

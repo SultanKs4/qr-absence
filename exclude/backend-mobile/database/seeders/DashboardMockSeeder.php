@@ -73,8 +73,8 @@ class DashboardMockSeeder extends Seeder
             }
         }
 
-        // 4. Setup Schedules (Mon - Sat)
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        // 4. Setup Schedules (Mon - Fri)
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         foreach ($classes as $class) {
             foreach ($days as $day) {
                 // 2 sessions per day

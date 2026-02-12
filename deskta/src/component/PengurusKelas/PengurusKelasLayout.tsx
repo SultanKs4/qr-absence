@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { type ReactNode, useState, useEffect, useRef } from 'react';
+import { storage } from '../../utils/storage';
 import { AnimatePresence, motion } from "framer-motion";
-import type { ReactNode } from "react";
 import Sidebar from "../Sidebar";
 import { useLocalLenis } from "../Shared/SmoothScroll";
 import LogoSchool from "../../assets/Icon/logo smk.png";
@@ -22,17 +22,14 @@ export default function PengurusKelasLayout({
   children,
   pageTitle = "Dashboard",
 }: PengurusKelasLayoutProps) {
-  const [isOpen, setOpen] = useState(() => {
-    const saved = localStorage.getItem("sidebarOpenPengurus");
-    return saved ? saved === "true" : true;
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => storage.getSidebarState('pengurus'));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLocalLenis(scrollContainerRef);
 
   useEffect(() => {
-    localStorage.setItem("sidebarOpenPengurus", isOpen.toString());
-  }, [isOpen]);
+    storage.setSidebarState('pengurus', sidebarOpen);
+  }, [sidebarOpen]);
 
   return (
     <div
@@ -53,8 +50,8 @@ export default function PengurusKelasLayout({
           currentPage={currentPage}
           onMenuClick={onMenuClick}
           onLogout={onLogout}
-          isOpen={isOpen}
-          onToggle={() => setOpen((v) => !v)}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
           userRole="pengurus_kelas"
         />
       </div>

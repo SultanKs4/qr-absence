@@ -23,7 +23,7 @@ class StudentSeeder extends Seeder
         $class1 = Classes::firstOrCreate(
             [
                 'grade' => '12',
-                'label' => 'XII RPL 2',
+                'label' => 'XII RPL 1',
 
             ],
             [

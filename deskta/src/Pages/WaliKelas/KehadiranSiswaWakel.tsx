@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
+import { storage } from '../../utils/storage';
 import WalikelasLayout from '../../component/Walikelas/layoutwakel';
 import { FormModal } from '../../component/Shared/FormModal';
 import { Select } from '../../component/Shared/Select';
@@ -139,10 +140,10 @@ export function KehadiranSiswaWakel({
 
         // 2. LocalStorage Data (Perizinan Pulang)
         // Only if date matches
-        const perizinanData = localStorage.getItem('perizinanPulangList');
-        if (perizinanData) {
+        const perizinanList = storage.getPerizinanPulangList();
+        if (perizinanList && perizinanList.length > 0) {
           try {
-            const perizinanList = JSON.parse(perizinanData);
+            // const perizinanList = JSON.parse(perizinanData); // Already parsed by storage
             const lsRows: KehadiranRow[] = perizinanList
               .filter((p: any) => {
                 // Check if date matches selection (simple string compare)

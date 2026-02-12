@@ -549,6 +549,7 @@ export default function DashboardGuru({ user, onLogout }: DashboardGuruProps) {
             onLogout={handleLogoutClick}
             currentPage={currentPage}
             onMenuClick={handleMenuClick}
+            schedule={selectedSchedule}
           />
         );
       case "jadwal-anda":

@@ -88,7 +88,7 @@ export default function Sidebar({
   } else if (userRole === "pengurus_kelas") {
     MENU_ITEMS = MENU_ITEMS_PENGURUS_KELAS;
     roleLabel = "Pengurus Kelas";
-  } else if (userRole === "walikelas") {
+  } else if (userRole === "wakel") {
     MENU_ITEMS = MENU_ITEMS_WALIKELAS;
     roleLabel = "Wali Kelas";
   }

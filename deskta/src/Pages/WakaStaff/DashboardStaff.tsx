@@ -14,6 +14,7 @@ import DaftarKetidakhadiran from "./DaftarKetidakhadiran";
 import { usePopup } from "../../component/Shared/Popup/PopupProvider";
 import { dashboardService } from "../../services/dashboard";
 import { STORAGE_BASE_URL } from "../../utils/constants";
+import { isCancellation } from "../../utils/errorHelpers";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -143,7 +144,7 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
         const wakaStats = await dashboardService.getWakaDashboardSummary({ signal: controller.signal });
         setWakaSummary(wakaStats);
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
+        if (!isCancellation(err)) {
           console.error('Error fetching dashboard data:', err);
           setError('Gagal memuat ringkasan data Waka/Staff.');
         }
@@ -387,133 +388,133 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
             }}>
               {/* Error Alert replaced by Conditional Rendering */}
               {isLoading && !wakaSummary ? (
-                 <LoadingState />
+                <LoadingState />
               ) : error ? (
-                 <ErrorState message={error} onRetry={() => window.location.reload()} />
+                <ErrorState message={error} onRetry={() => window.location.reload()} />
               ) : (
                 <>
 
-              {/* Welcome Section */}
-              <div style={{ marginBottom: "8px" }}>
-                <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111827", margin: 0 }}>
-                  Selamat Datang, {user.name}
-                </h2>
-                <p style={{ fontSize: "14px", color: "#6B7280", margin: "4px 0 0" }}>
-                  Ringkasan aktivitas dan data sekolah hari ini
-                </p>
-              </div>
+                  {/* Welcome Section */}
+                  <div style={{ marginBottom: "8px" }}>
+                    <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111827", margin: 0 }}>
+                      Selamat Datang, {user.name}
+                    </h2>
+                    <p style={{ fontSize: "14px", color: "#6B7280", margin: "4px 0 0" }}>
+                      Ringkasan aktivitas dan data sekolah hari ini
+                    </p>
+                  </div>
 
-              {/* Top Section: History & Statistics */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-                  gap: "24px",
-                }}
-              >
-                {/* Riwayat Kehadiran Card */}
-                <div style={cardStyle}>
-                  <SectionHeader
-                    title="Riwayat Kehadiran"
-                    subtitle={`${currentDate} • ${currentTime}`}
-                  />
-                  <HistoryCard
-                    start={historyInfo.start}
-                    end={historyInfo.end}
-                  />
-                </div>
-
-                {/* Statistik Kehadiran Card */}
-                <div style={cardStyle}>
-                  <SectionHeader
-                    title="Statistik Kehadiran"
-                    subtitle="Rekap keseluruhan"
-                  />
+                  {/* Top Section: History & Statistics */}
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))",
-                      gap: "12px",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+                      gap: "24px",
                     }}
                   >
-                    {statCards.filter(item => item.label !== "Pulang").map((item) => (
+                    {/* Riwayat Kehadiran Card */}
+                    <div style={cardStyle}>
+                      <SectionHeader
+                        title="Riwayat Kehadiran"
+                        subtitle={`${currentDate} • ${currentTime}`}
+                      />
+                      <HistoryCard
+                        start={historyInfo.start}
+                        end={historyInfo.end}
+                      />
+                    </div>
+
+                    {/* Statistik Kehadiran Card */}
+                    <div style={cardStyle}>
+                      <SectionHeader
+                        title="Statistik Kehadiran"
+                        subtitle="Rekap keseluruhan"
+                      />
                       <div
-                        key={item.label}
                         style={{
-                          border: `1px solid ${item.color}20`,
-                          borderRadius: "12px",
-                          padding: "16px",
-                          textAlign: "center",
-                          backgroundColor: `${item.color}10`,
-                          transition: "all 0.2s ease",
-                          cursor: "default",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))",
+                          gap: "12px",
                         }}
                       >
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: "12px",
-                            color: "#6B7280",
-                            fontWeight: 600,
-                            marginBottom: "6px",
-                          }}
-                        >
-                          {item.label}
-                        </p>
-                        <p
-                          style={{
-                            margin: "0",
-                            fontSize: "22px",
-                            fontWeight: 700,
-                            color: item.color,
-                          }}
-                        >
-                          {wakaSummary?.statistik ? wakaSummary.statistik[item.key] : 0}
-                        </p>
+                        {statCards.filter(item => item.label !== "Pulang").map((item) => (
+                          <div
+                            key={item.label}
+                            style={{
+                              border: `1px solid ${item.color}20`,
+                              borderRadius: "12px",
+                              padding: "16px",
+                              textAlign: "center",
+                              backgroundColor: `${item.color}10`,
+                              transition: "all 0.2s ease",
+                              cursor: "default",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "12px",
+                                color: "#6B7280",
+                                fontWeight: 600,
+                                marginBottom: "6px",
+                              }}
+                            >
+                              {item.label}
+                            </p>
+                            <p
+                              style={{
+                                margin: "0",
+                                fontSize: "22px",
+                                fontWeight: 700,
+                                color: item.color,
+                              }}
+                            >
+                              {wakaSummary?.statistik ? wakaSummary.statistik[item.key] : 0}
+                            </p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Grafik Section */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                  gap: "24px",
-                }}
-              >
+                  {/* Grafik Section */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                      gap: "24px",
+                    }}
+                  >
 
 
-                {/* Monthly Chart - Line Chart seperti DashboardSiswa */}
-                <div style={{
-                  ...cardStyle,
-                  transition: "all 0.3s ease",
-                }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-4px)";
-                    e.currentTarget.style.boxShadow = "0 8px 30px rgba(0, 31, 62, 0.12)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.08)";
-                  }}>
-                  <SectionHeader
-                    title="Grafik Kehadiran Bulanan"
-                    subtitle="Periode Jan - Jun"
-                  />
-                   <MonthlyLineChart data={wakaSummary?.trend?.map((t: any) => ({
-                    month: t.month || t.label,
-                    hadir: t.present !== undefined ? t.present : t.hadir,
-                    izin: t.sick_excused !== undefined ? t.sick_excused : t.izin,
-                    tidak_hadir: t.absent !== undefined ? t.absent : t.alpha,
-                    sakit: t.sick !== undefined ? t.sick : 0,
-                    pulang: t.return !== undefined ? t.return : t.terlambat
-                  })) || []} />
-                </div>
-              </div>
-              </>
+                    {/* Monthly Chart - Line Chart seperti DashboardSiswa */}
+                    <div style={{
+                      ...cardStyle,
+                      transition: "all 0.3s ease",
+                    }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-4px)";
+                        e.currentTarget.style.boxShadow = "0 8px 30px rgba(0, 31, 62, 0.12)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.08)";
+                      }}>
+                      <SectionHeader
+                        title="Grafik Kehadiran Bulanan"
+                        subtitle="Periode Jan - Jun"
+                      />
+                      <MonthlyLineChart data={wakaSummary?.trend?.map((t: any) => ({
+                        month: t.month || t.label,
+                        hadir: t.present !== undefined ? t.present : t.hadir,
+                        izin: t.sick_excused !== undefined ? t.sick_excused : t.izin,
+                        tidak_hadir: t.absent !== undefined ? t.absent : t.alpha,
+                        sakit: t.sick !== undefined ? t.sick : 0,
+                        pulang: t.return !== undefined ? t.return : t.terlambat
+                      })) || []} />
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </StaffLayout>
@@ -537,12 +538,12 @@ function GuruPenggantiList() {
         const { dashboardService } = await import("../../services/dashboard");
         const today = new Date().toISOString().split('T')[0];
         const response: any = await dashboardService.getTeachersDailyAttendance({ date: today }, { signal: controller.signal });
-        
+
         const items = response.items?.data || response.items || [];
         const absent = items.filter((item: any) => (item.status || item.attendance?.status) === 'absent');
         setAbsentTeachers(absent);
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
+        if (!isCancellation(err)) {
           console.error("Failed to fetch absent teachers", err);
         }
       } finally {
@@ -590,25 +591,25 @@ function GuruPenggantiList() {
             </thead>
             <tbody>
               {absentTeachers.map((item, index) => (
-                <tr key={item.teacher?.id || index} style={{ borderBottom: "1px solid #F3F4F6", transition: "background-color 0.2s" }} 
+                <tr key={item.teacher?.id || index} style={{ borderBottom: "1px solid #F3F4F6", transition: "background-color 0.2s" }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#F9FAFB"}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
                   <td style={{ padding: "12px 16px", fontWeight: 500, color: "#111827" }}>{item.teacher?.user?.name || item.teacher?.name || "-"}</td>
                   <td style={{ padding: "12px 16px", color: "#4B5563" }}>{item.teacher?.nip || "-"}</td>
                   <td style={{ padding: "12px 16px" }}>
-                    <span style={{ 
-                      backgroundColor: "#FEE2E2", 
-                      color: "#991B1B", 
-                      padding: "4px 10px", 
-                      borderRadius: "12px", 
-                      fontSize: "12px", 
-                      fontWeight: 600 
+                    <span style={{
+                      backgroundColor: "#FEE2E2",
+                      color: "#991B1B",
+                      padding: "4px 10px",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      fontWeight: 600
                     }}>
                       Alpha
                     </span>
                   </td>
                   <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                    <button 
+                    <button
                       disabled
                       style={{
                         backgroundColor: "#E5E7EB",

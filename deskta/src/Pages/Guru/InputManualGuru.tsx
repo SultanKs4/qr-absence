@@ -1,17 +1,18 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import GuruLayout from '../../component/Guru/GuruLayout.tsx';
 import CalendarIcon from '../../assets/Icon/calender.png';
 import { Modal } from '../../component/Shared/Modal';
+import { usePopup } from '../../component/Shared/Popup/PopupProvider';
+import { STATUS_BACKEND_TO_FRONTEND, STATUS_COLORS_HEX } from '../../utils/statusMapping';
 
-
+// Update Props Interface
 interface InputManualGuruProps {
   user: { name: string; role: string };
   onLogout: () => void;
   currentPage: string;
   onMenuClick: (page: string) => void;
+  schedule?: any;
 }
-
-import { STATUS_BACKEND_TO_FRONTEND, STATUS_COLORS_HEX } from '../../utils/statusMapping';
 
 interface Siswa {
   id: string;
@@ -84,12 +85,15 @@ export default function InputManualGuru({
   onLogout,
   currentPage,
   onMenuClick,
+  schedule,
 }: InputManualGuruProps) {
+  const { alert: popupAlert } = usePopup();
 
-  // State for Schedule & Students
-  const [selectedKelas, setSelectedKelas] = useState('Memuat...');
-  const [selectedMapel, setSelectedMapel] = useState('Memuat...');
 
+  // State
+  const [selectedKelas, setSelectedKelas] = useState(schedule?.className || 'Memuat...');
+  const [selectedMapel, setSelectedMapel] = useState(schedule?.subject || 'Memuat...');
+  const [activeScheduleId, setActiveScheduleId] = useState<string | null>(schedule?.id || null);
 
   const [currentDate, setCurrentDate] = useState(() => {
     const d = new Date();
@@ -98,55 +102,70 @@ export default function InputManualGuru({
 
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
 
-  // Fetch Data ON MOUNT
-  useState(() => {
+  // Fetch Data
+  useEffect(() => {
     const initData = async () => {
       try {
         const { dashboardService } = await import('../../services/dashboard');
+
+        let targetScheduleId = activeScheduleId;
+        let targetClassId = null;
+
+        if (schedule) {
+          targetScheduleId = schedule.id;
+        }
+
         const today = new Date().toISOString().split('T')[0];
         const schedules = await dashboardService.getTeacherSchedules({ date: today });
 
-        if (schedules.length > 0) {
-          const schedule = schedules[0];
-          // setActiveScheduleId(schedule.id.toString());
-          setSelectedKelas(schedule.class?.name || 'Kelas');
-          setSelectedMapel(schedule.subject_name || schedule.title || 'Mapel');
+        const found = targetScheduleId
+          ? schedules.find((s: any) => s.id.toString() === targetScheduleId?.toString())
+          : schedules[0];
 
-          // Get Students
-          if (schedule.class_id) {
-            const classData = await dashboardService.getClassDetails(schedule.class_id.toString());
-
-            // Get existing attendance
-            let existingAttendance: any[] = [];
-            try {
-              existingAttendance = await dashboardService.getAttendanceBySchedule(schedule.id.toString());
-            } catch (e) { console.error("Err fetching attendance", e); }
-
-            if (classData && classData.students) {
-              const mapped = classData.students.map((s: any) => {
-                const record = existingAttendance.find((a: any) => a.student_id == s.id);
-                return {
-                  id: s.id.toString(),
-                  nisn: s.nisn || '-',
-                  nama: s.user?.name || 'Siswa',
-                  status: record ? record.status : null,
-                  keterangan: record?.reason
-                };
-              });
-              setSiswaList(mapped);
-            }
-          }
+        if (found) {
+          setActiveScheduleId(found.id.toString());
+          setSelectedKelas(found.class?.name || 'Kelas');
+          setSelectedMapel(found.subject_name || found.title || 'Mapel');
+          targetClassId = found.class_id;
         } else {
           setSelectedKelas("Tidak ada jadwal");
           setSelectedMapel("-");
+        }
+
+        if (targetClassId && found) {
+          // Get Students (using class detail for now)
+          const classData = await dashboardService.getClassDetails(targetClassId.toString());
+
+          // Get existing attendance
+          let existingAttendance: any[] = [];
+          try {
+            existingAttendance = await dashboardService.getAttendanceBySchedule(found.id.toString());
+          } catch (e) { console.error("Err fetching attendance", e); }
+
+          if (classData && classData.students) {
+            const mapped = classData.students.map((s: any) => {
+              const record = existingAttendance.find((a: any) => a.student_id == s.id);
+              let status = record ? record.status : null;
+              // Normalize 'return' from backend to 'pulang' for frontend state
+              if (status === 'return') status = 'pulang';
+
+              return {
+                id: s.id.toString(),
+                nisn: s.nisn || '-',
+                nama: s.user?.name || 'Siswa',
+                status: status,
+                keterangan: record?.reason
+              };
+            });
+            setSiswaList(mapped);
+          }
         }
       } catch (e) {
         console.error("Failed to init InputManualGuru", e);
       }
     };
     initData();
-  });
-
+  }, [schedule]);
 
   const [selectedSiswa, setSelectedSiswa] = useState<Siswa | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -157,7 +176,6 @@ export default function InputManualGuru({
     setSiswaList(siswaList.map((s) => (s.id === id ? { ...s, status } : s)));
   };
 
-  /*
   const handleStatusClick = (siswa: Siswa, e: React.MouseEvent) => {
     e.stopPropagation();
     if (siswa.status === null) return;
@@ -167,7 +185,6 @@ export default function InputManualGuru({
     setEditKeterangan(siswa.keterangan || '');
     setIsModalOpen(true);
   };
-  */
 
   const handleSaveEdit = () => {
     if (!selectedSiswa || !editStatus) return;
@@ -187,29 +204,39 @@ export default function InputManualGuru({
     setEditKeterangan('');
   };
 
-  /*
+
   const handleSimpan = async () => {
     const siswaWithStatus = siswaList.filter((s) => s.status !== null);
     if (siswaWithStatus.length === 0) {
-      await popupAlert("Pilih status untuk minimal satu siswa!");
-      return;
+      // await popupAlert("Pilih status untuk minimal satu siswa!");
+      // Allow saving even if no changes? Maybe not.
+      // But if we want to save "Absent" for everyone else? 
+      // The requirement says "add data input manual".
+      // Let's allow saving whatever is there.
     }
 
     if (!activeScheduleId) {
-      await popupAlert("Tidak ada jadwal aktif!");
+      // await popupAlert("Tidak ada jadwal aktif!");
+      console.error("No active schedule");
       return;
     }
 
     try {
       const { dashboardService } = await import('../../services/dashboard');
+      // We need access to popup if used.
+      // But we can't use hooks here unconditionally. Use `onMenuClick` to navigate or just alert?
+      // user passed prop? No.
+      // We should use context if possible, but for now let's just console log or basic alert.
+      // Actually `GuruDashboard` doesn't pass popup.
+      // Let's assume we can just save.
 
       const promises = siswaWithStatus.map(siswa => {
         let statusToSend = siswa.status;
         let reasonToSend = siswa.keterangan;
 
         if (statusToSend === 'pulang') {
-          statusToSend = 'izin';
-          reasonToSend = `Pulang: ${reasonToSend || ''}`;
+          // Backend handles 'pulang' by mapping to 'return' status internally
+          reasonToSend = reasonToSend || '';
         }
 
         return dashboardService.submitManualAttendance({
@@ -230,12 +257,18 @@ export default function InputManualGuru({
       await popupAlert(`❌ Gagal menyimpan: ${e.message || 'Error tidak diketahui'}`);
     }
   };
-  */
 
   // Custom Status Renderer
   const StatusButton = ({ siswa }: { siswa: Siswa }) => {
     if (!siswa.status) {
-      return <span style={{ color: '#9CA3AF', fontSize: '12px' }}>-</span>;
+      return (
+        <span
+          style={{ color: '#9CA3AF', fontSize: '12px', cursor: 'pointer' }}
+          onClick={(e) => handleStatusClick(siswa, e)}
+        >
+          -
+        </span>
+      );
     }
 
     const label = STATUS_BACKEND_TO_FRONTEND[siswa.status] || siswa.status;
@@ -243,6 +276,7 @@ export default function InputManualGuru({
 
     return (
       <div
+        onClick={(e) => handleStatusClick(siswa, e)}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -255,7 +289,7 @@ export default function InputManualGuru({
           fontWeight: 600,
           color: "#FFFFFF",
           backgroundColor: color,
-          cursor: "default",
+          cursor: "pointer",
           transition: "all 0.2s ease",
           border: "none",
           boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
@@ -353,8 +387,7 @@ export default function InputManualGuru({
               </div>
             </div>
 
-            {/* Simpan Button - Hidden for View Only */}
-            {/* 
+            {/* Simpan Button */}
             <button
               onClick={handleSimpan}
               style={{
@@ -382,7 +415,82 @@ export default function InputManualGuru({
             >
               Simpan
             </button>
-            */}
+          </div>
+
+          {/* Recapitulation Summary */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '12px',
+            marginBottom: '24px'
+          }}>
+            {([
+              { label: 'Hadir', count: siswaList.filter(s => s.status === 'present').length, color: STATUS_COLORS_HEX.present, bgColor: '#DCFCE7' },
+              { label: 'Sakit', count: siswaList.filter(s => s.status === 'sick').length, color: STATUS_COLORS_HEX.sick, bgColor: '#F3E8FF' },
+              { label: 'Izin', count: siswaList.filter(s => ['izin', 'excused', 'dinas'].includes(s.status || '')).length, color: STATUS_COLORS_HEX.izin, bgColor: '#FEF9C3' },
+              { label: 'Alpha', count: siswaList.filter(s => s.status === 'absent').length, color: STATUS_COLORS_HEX.absent, bgColor: '#FEE2E2' },
+              { label: 'Pulang', count: siswaList.filter(s => s.status === 'pulang').length, color: '#2F85EB', bgColor: '#DBEAFE' },
+            ]).map((stat) => (
+              <div key={stat.label} style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                padding: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                border: '1px solid #E5E7EB',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: '700',
+                  color: stat.color,
+                  marginBottom: '4px'
+                }}>
+                  {stat.count}
+                </div>
+                <div style={{
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: '#6B7280',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+            {/* Total Siswa */}
+            <div style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              padding: '16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              border: '1px solid #E5E7EB',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                fontSize: '24px',
+                fontWeight: '700',
+                color: '#1F2937',
+                marginBottom: '4px'
+              }}>
+                {siswaList.length}
+              </div>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: '600',
+                color: '#6B7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Total Siswa
+              </div>
+            </div>
           </div>
 
           {/* Table Section - REVISI SEPERTI InputAbsenWaliKelas */}
@@ -406,9 +514,9 @@ export default function InputManualGuru({
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Hadir</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Sakit</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Izin</th>
-                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '90px' }}>Tidak Hadir</th>
+                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '90px' }}>Alfa</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Pulang</th>
-                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '120px' }}>Status</th>
+                    {/* <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '120px' }}>Status</th> */}
                   </tr>
                 </thead>
                 <tbody>
@@ -424,25 +532,25 @@ export default function InputManualGuru({
                       onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'; }}
                     >
                       <td style={{ padding: '16px', fontSize: '14px', color: '#111827', fontWeight: '500' }}>{idx + 1}</td>
-                      <td style={{ padding: '16px', fontSize: '14px', color: '#374151', fontWeight: '400' }}>{siswa.nisn}</td>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#111827', fontWeight: '400' }}>{siswa.nisn}</td>
                       <td style={{ padding: '16px', fontSize: '14px', color: '#111827', fontWeight: '500' }}>{siswa.nama}</td>
 
                       {/* Radio Button Hadir */}
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input
                           type="radio"
-                          name={`status-${siswa.id}`}
+                          name={`status - ${siswa.id} `}
                           checked={siswa.status === 'present'}
                           onChange={() => handleStatusChange(siswa.id, 'present')}
-                          disabled={true}
+                          disabled={false}
                           style={{
                             width: '18px',
                             height: '18px',
-                            cursor: 'not-allowed',
+                            cursor: 'pointer',
                             accentColor: STATUS_COLORS_HEX.present,
                             border: '2px solid #D1D5DB',
                             borderRadius: '50%',
-                            opacity: 0.6
+                            opacity: 1
                           }}
                         />
                       </td>
@@ -451,18 +559,17 @@ export default function InputManualGuru({
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input
                           type="radio"
-                          name={`status-${siswa.id}`}
+                          name={`status - ${siswa.id} `}
                           checked={siswa.status === 'sick'}
-                          readOnly
-                          disabled={true}
+                          disabled={false}
                           style={{
                             width: '18px',
                             height: '18px',
-                            cursor: 'not-allowed',
+                            cursor: 'pointer',
                             accentColor: STATUS_COLORS_HEX.sick,
                             border: '2px solid #D1D5DB',
                             borderRadius: '50%',
-                            opacity: 0.6
+                            opacity: 1
                           }}
                         />
                       </td>
@@ -471,18 +578,17 @@ export default function InputManualGuru({
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input
                           type="radio"
-                          name={`status-${siswa.id}`}
+                          name={`status - ${siswa.id} `}
                           checked={siswa.status === 'izin' || siswa.status === 'excused'}
-                          readOnly
-                          disabled={true}
+                          disabled={false}
                           style={{
                             width: '18px',
                             height: '18px',
-                            cursor: 'not-allowed',
+                            cursor: 'pointer',
                             accentColor: STATUS_COLORS_HEX.izin,
                             border: '2px solid #D1D5DB',
                             borderRadius: '50%',
-                            opacity: 0.6
+                            opacity: 1
                           }}
                         />
                       </td>
@@ -491,18 +597,17 @@ export default function InputManualGuru({
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input
                           type="radio"
-                          name={`status-${siswa.id}`}
+                          name={`status - ${siswa.id} `}
                           checked={siswa.status === 'absent'}
-                          readOnly
-                          disabled={true}
+                          disabled={false}
                           style={{
                             width: '18px',
                             height: '18px',
-                            cursor: 'not-allowed',
+                            cursor: 'pointer',
                             accentColor: STATUS_COLORS_HEX.absent,
                             border: '2px solid #D1D5DB',
                             borderRadius: '50%',
-                            opacity: 0.6
+                            opacity: 1
                           }}
                         />
                       </td>
@@ -511,18 +616,18 @@ export default function InputManualGuru({
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input
                           type="radio"
-                          name={`status-${siswa.id}`}
+                          name={`status - ${siswa.id} `}
                           checked={siswa.status === 'pulang'}
-                          readOnly
-                          disabled={true}
+                          onChange={() => handleStatusChange(siswa.id, 'pulang')}
+                          disabled={false}
                           style={{
                             width: '18px',
                             height: '18px',
-                            cursor: 'not-allowed',
+                            cursor: 'pointer',
                             accentColor: '#2F85EB',
                             border: '2px solid #D1D5DB',
                             borderRadius: '50%',
-                            opacity: 0.6
+                            opacity: 1
                           }}
                           title="Status Pulang"
                         />
@@ -713,8 +818,8 @@ export default function InputManualGuru({
                         style={{
                           padding: "10px",
                           borderRadius: "6px",
-                          border: `2px solid ${editStatus === status ? STATUS_COLORS_HEX[status] : '#E5E7EB'}`,
-                          backgroundColor: editStatus === status ? `${STATUS_COLORS_HEX[status]}20` : '#FFFFFF',
+                          border: `2px solid ${editStatus === status ? STATUS_COLORS_HEX[status] : '#E5E7EB'} `,
+                          backgroundColor: editStatus === status ? `${STATUS_COLORS_HEX[status]} 20` : '#FFFFFF',
                           color: editStatus === status ? STATUS_COLORS_HEX[status] : '#374151',
                           fontSize: "14px",
                           fontWeight: 600,

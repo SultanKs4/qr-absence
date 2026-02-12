@@ -177,7 +177,7 @@ export const dashboardService = {
      */
     async getWakaDashboardSummary(options?: AxiosRequestConfig): Promise<WakaSummary> {
         const response = await apiClient.get<WakaSummary>(
-            '/api/waka/dashboard/summary',
+            API_ENDPOINTS.WAKA_DASHBOARD_SUMMARY,
             options
         );
         return response.data;
@@ -258,7 +258,7 @@ export const dashboardService = {
      * Manual Attendance Input (for Teacher/Waka)
      */
     async submitManualAttendance(data: ManualAttendanceRequest, options?: AxiosRequestConfig): Promise<any> {
-        return (await apiClient.post('/attendance/manual', data, options)).data;
+        return (await apiClient.post(API_ENDPOINTS.ATTENDANCE_MANUAL, data, options)).data;
     },
 
     /**
@@ -292,5 +292,11 @@ export const dashboardService = {
             { ...options, params }
         );
         return response.data;
+    },
+    /**
+     * Scan Student QR (for Teacher)
+     */
+    async scanStudentQR(token: string, options?: AxiosRequestConfig): Promise<any> {
+        return (await apiClient.post(API_ENDPOINTS.ATTENDANCE_SCAN_STUDENT, { token }, options)).data;
     },
 };

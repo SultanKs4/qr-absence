@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect, useRef } from 'react';
+import { storage } from '../../utils/storage';
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from '../Sidebar';
 import AWANKANAN from '../../assets/Icon/AWANKANAN.png';
@@ -30,16 +31,13 @@ export default function WalikelasLayout({
   onLogout,
   hideBackground = false,
 }: WalikelasLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('walikelasSidebarOpen');
-    return saved ? saved === 'true' : true;
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => storage.getSidebarState('walikelas'));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLocalLenis(scrollContainerRef);
 
   useEffect(() => {
-    localStorage.setItem('walikelasSidebarOpen', sidebarOpen.toString());
+    storage.setSidebarState('walikelas', sidebarOpen);
   }, [sidebarOpen]);
 
   const handleToggleSidebar = () => {
@@ -139,7 +137,7 @@ export default function WalikelasLayout({
           onLogout={onLogout}
           isOpen={sidebarOpen}
           onToggle={handleToggleSidebar}
-          userRole="walikelas"
+          userRole="wakel"
         />
       </div>
 

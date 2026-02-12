@@ -355,7 +355,7 @@ class DashboardController extends Controller
             $trend = [];
             // We'll group by month for the 6-month chart
             $dataByMonth = $monthlyData->groupBy(function ($item) {
-                return Carbon::parse($item->date_only)->format('Y-m');
+                return \Carbon\Carbon::parse($item->date_only)->format('Y-m');
             });
 
             for ($i = 5; $i >= 0; $i--) {

@@ -44,6 +44,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
     Route::get('/me/notifications', [MobileNotificationController::class, 'index']);
 
     // Mobile follow-up endpoint
+    // Route::get'/me/students/follow-up', [TeacherController::class, 'getStudentsFollowUp'])->middleware('role:teacher');
     Route::get('/me/students/follow-up', [TeacherController::class, 'getStudentsFollowUp'])->middleware('role:teacher');
 
     // Mobile specific teacher endpoints (attendance & stats)
@@ -57,6 +58,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
 
     // Public classes list (read-only for mobile/web app)
     Route::get('/classes', [ClassController::class, 'index'])->middleware('role:admin,teacher,student');
+    Route::get('/classes/{class}', [ClassController::class, 'show'])->middleware('role:admin,teacher,student');
     Route::get('/majors', [MajorController::class, 'index'])->middleware('role:admin,teacher,student');
     Route::get('/subjects', [SubjectController::class, 'index'])->middleware('role:admin,teacher,student');
 
@@ -80,7 +82,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
 
     Route::middleware('role:admin')->group(function (): void {
         Route::apiResource('majors', MajorController::class);
-        Route::apiResource('classes', ClassController::class)->except(['index']); // index is public now
+        Route::apiResource('classes', ClassController::class)->except(['index', 'show']); // show is public now
         Route::apiResource('teachers', TeacherController::class)->except(['index']); // index available publicly
         Route::post('/teachers/import', [TeacherController::class, 'import']);
         Route::apiResource('students', StudentController::class);
@@ -98,8 +100,10 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
         Route::post('/wa/send-media', [WhatsAppController::class, 'sendMedia']);
         Route::get('/settings', [SettingController::class, 'index']);
         Route::post('/settings/bulk', [SettingController::class, 'bulkUpdate']);
+        Route::post('/settings', [SettingController::class, 'update']);
         Route::get('/admin/summary', [DashboardController::class, 'adminSummary']);
         Route::get('/attendance/summary', [DashboardController::class, 'attendanceSummary']);
+        Route::post('/admin/data/sync', [\App\Http\Controllers\AdminDataController::class, 'sync']);
     });
 
     Route::middleware('role:admin,teacher,student')->group(function (): void {
@@ -146,6 +150,8 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
         Route::get('/classes/{class}/students/absences', [AttendanceController::class, 'classStudentsAbsences']);
         Route::post('/me/schedule-image', [TeacherController::class, 'uploadMyScheduleImage']);
         Route::post('/me/schedules/{schedule}/close', [AttendanceController::class, 'close']);
+        Route::post('/attendance/scan-student', [AttendanceController::class, 'scanStudent']);
+        Route::post('/attendance/manual', [AttendanceController::class, 'storeManual']);
 
         // Teacher Schedule Detail - accessed from dashboard "Tampilkan" button
         Route::get('/me/schedules/{schedule}/detail', [\App\Http\Controllers\TeacherScheduleDetailController::class, 'show']);

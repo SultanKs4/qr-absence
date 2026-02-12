@@ -1,6 +1,7 @@
 ﻿// FILE: DetailGuru.tsx - Halaman Detail Guru with API Integration
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
+import { storage } from '../../utils/storage';
 import { User as UserIcon, ArrowLeft, Edit2, Save, X } from 'lucide-react';
 import { usePopup } from "../../component/Shared/Popup/PopupProvider";
 
@@ -127,8 +128,7 @@ export default function DetailGuru({
 
           // Fallback to localStorage as last resort
           if (!foundGuru) {
-            const saved = localStorage.getItem('selectedGuru');
-            if (saved) foundGuru = JSON.parse(saved);
+            foundGuru = storage.getSelectedGuru(); // Returns parsed object or null
           }
         }
 

@@ -1,7 +1,7 @@
 export const ROLE_MAPPING: Record<string, string> = {
   'Peserta Didik': 'Siswa',
   'Guru': 'Guru',
-  'Wali Kelas': 'WaliKelas',
+  'Wali Kelas': 'wakel',
   'Admin': 'Admin',
   'Waka': 'WakaStaff',
   'Staff': 'WakaStaff', // In case backend sends 'Staff'

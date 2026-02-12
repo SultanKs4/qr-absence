@@ -1,5 +1,6 @@
-OpenAPI document exported to api.json.
-
+{
+    "openapi": "3.1.0",
+    "info": {
         "title": "QRAbsence",
         "version": "0.0.1"
     },
@@ -257,6 +258,72 @@ OpenAPI document exported to api.json.
                 }
             }
         },
+        "/admin/data/sync": {
+            "post": {
+                "operationId": "adminData.sync",
+                "summary": "Bulk sync master data with duplication check.\nThis is a placeholder for the generic sync endpoint mentioned in Item #2",
+                "tags": [
+                    "AdminData"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Implementation for Item #2: Master data sync endpoint\nFor now, we provide the validation logic as requested to \"Cegah Data Duplikat\"",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "has_duplicates": {
+                                            "type": "boolean"
+                                        },
+                                        "duplicates": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "index": {
+                                                        "type": "string"
+                                                    },
+                                                    "username": {
+                                                        "type": "string"
+                                                    },
+                                                    "errors": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "required": [
+                                                    "index",
+                                                    "username",
+                                                    "errors"
+                                                ]
+                                            }
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Ditemukan data duplikat.",
+                                                "Tidak ada data duplikat found."
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "has_duplicates",
+                                        "duplicates",
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/attendance/teachers/daily": {
             "get": {
                 "operationId": "attendance.teachersDailyAttendance",
@@ -504,7 +571,7 @@ OpenAPI document exported to api.json.
         },
         "/attendance/manual": {
             "post": {
-                "operationId": "attendance.manual",
+                "operationId": "attendance.storeManual",
                 "tags": [
                     "Attendance"
                 ],
@@ -513,30 +580,59 @@ OpenAPI document exported to api.json.
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/StoreManualAttendanceRequest"
+                                "type": "object",
+                                "properties": {
+                                    "attendee_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "student"
+                                        ]
+                                    },
+                                    "student_id": {
+                                        "type": "integer"
+                                    },
+                                    "schedule_id": {
+                                        "type": "integer"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "present",
+                                            "late",
+                                            "excused",
+                                            "sick",
+                                            "absent",
+                                            "dinas",
+                                            "izin",
+                                            "pulang",
+                                            "return"
+                                        ]
+                                    },
+                                    "date": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    },
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "attendee_type",
+                                    "student_id",
+                                    "schedule_id",
+                                    "status",
+                                    "date"
+                                ]
                             }
                         }
                     }
                 },
                 "responses": {
-                    "201": {
-                        "description": "`AttendanceResource`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/AttendanceResource"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "$ref": "#/components/responses/AuthorizationException"
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
-                    },
-                    "409": {
-                        "description": "An error",
+                    "200": {
+                        "description": "If updated, we might want to log it?",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -544,8 +640,34 @@ OpenAPI document exported to api.json.
                                     "properties": {
                                         "message": {
                                             "type": "string",
-                                            "description": "Error overview.",
-                                            "example": "Presensi siswa ini sudah tercatat untuk sesi ini."
+                                            "enum": [
+                                                "Kehadiran berhasil disimpan"
+                                            ]
+                                        },
+                                        "attendance": {
+                                            "$ref": "#/components/schemas/Attendance"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "attendance"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Also check if Homeroom Teacher? Maybe not for manual input of subject attendance.\nBut waka/admin might use this too.\nFor now, restrict to schedule teacher.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Unauthorized"
+                                            ]
                                         }
                                     },
                                     "required": [
@@ -554,6 +676,9 @@ OpenAPI document exported to api.json.
                                 }
                             }
                         }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -747,6 +872,7 @@ OpenAPI document exported to api.json.
                                             "excused",
                                             "sick",
                                             "absent",
+                                            "dispensasi",
                                             "dinas",
                                             "izin",
                                             "return"
@@ -841,6 +967,7 @@ OpenAPI document exported to api.json.
                                             "excused",
                                             "sick",
                                             "absent",
+                                            "dispensasi",
                                             "dinas",
                                             "izin",
                                             "return"
@@ -2253,6 +2380,179 @@ OpenAPI document exported to api.json.
                 }
             }
         },
+        "/attendance/scan-student": {
+            "post": {
+                "operationId": "attendance.scanStudent",
+                "tags": [
+                    "Attendance"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string"
+                                    },
+                                    "device_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "Accept 'token' as per frontend, but treat as NISN"
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "429": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Sedang memproses..."
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Presensi berhasil dicatat"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "student": {
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/StudentProfile"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "status",
+                                                "student"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Presensi siswa sudah tercatat"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "student": {
+                                                    "anyOf": [
+                                                        {
+                                                            "$ref": "#/components/schemas/StudentProfile"
+                                                        },
+                                                        {
+                                                            "type": "null"
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "status",
+                                                "student"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Siswa dengan NISN ini tidak ditemukan"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Hanya guru yang dapat melakukan scan ini"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/me/attendance": {
             "get": {
                 "operationId": "attendance.me",
@@ -2765,6 +3065,152 @@ OpenAPI document exported to api.json.
                 }
             }
         },
+        "/classes/{class}": {
+            "get": {
+                "operationId": "class.show",
+                "tags": [
+                    "Class"
+                ],
+                "parameters": [
+                    {
+                        "name": "class",
+                        "in": "path",
+                        "required": true,
+                        "description": "The class ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Classes"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "classes.update",
+                "tags": [
+                    "Class"
+                ],
+                "parameters": [
+                    {
+                        "name": "class",
+                        "in": "path",
+                        "required": true,
+                        "description": "The class ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "grade": {
+                                        "type": "string",
+                                        "maxLength": 10
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "maxLength": 20
+                                    },
+                                    "major_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Classes"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "classes.destroy",
+                "tags": [
+                    "Class"
+                ],
+                "parameters": [
+                    {
+                        "name": "class",
+                        "in": "path",
+                        "required": true,
+                        "description": "The class ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Deleted"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/classes/{class}/schedule-image": {
             "post": {
                 "operationId": "class.uploadScheduleImage",
@@ -2903,152 +3349,6 @@ OpenAPI document exported to api.json.
                                 "schema": {
                                     "type": "string",
                                     "format": "binary"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
-                    }
-                }
-            }
-        },
-        "/classes/{class}": {
-            "get": {
-                "operationId": "classes.show",
-                "tags": [
-                    "Class"
-                ],
-                "parameters": [
-                    {
-                        "name": "class",
-                        "in": "path",
-                        "required": true,
-                        "description": "The class ID",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Classes"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
-                    }
-                }
-            },
-            "put": {
-                "operationId": "classes.update",
-                "tags": [
-                    "Class"
-                ],
-                "parameters": [
-                    {
-                        "name": "class",
-                        "in": "path",
-                        "required": true,
-                        "description": "The class ID",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "grade": {
-                                        "type": "string",
-                                        "maxLength": 10
-                                    },
-                                    "label": {
-                                        "type": "string",
-                                        "maxLength": 20
-                                    },
-                                    "major_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Classes"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
-                    },
-                    "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
-                    }
-                }
-            },
-            "delete": {
-                "operationId": "classes.destroy",
-                "tags": [
-                    "Class"
-                ],
-                "parameters": [
-                    {
-                        "name": "class",
-                        "in": "path",
-                        "required": true,
-                        "description": "The class ID",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "message": {
-                                            "type": "string",
-                                            "enum": [
-                                                "Deleted"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "message"
-                                    ]
                                 }
                             }
                         }
@@ -4110,6 +4410,99 @@ OpenAPI document exported to api.json.
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/class/dashboard": {
+            "get": {
+                "operationId": "dashboard.classDashboard",
+                "summary": "Get class dashboard summary for class officers (Pengurus Kelas)\nReturns today's class stats and monthly trend for their class",
+                "tags": [
+                    "Dashboard"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "date": {
+                                            "type": "string"
+                                        },
+                                        "profile": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "kelas": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "gender": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "laki-laki",
+                                                        "perempuan"
+                                                    ]
+                                                },
+                                                "class_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "kelas",
+                                                "id",
+                                                "gender",
+                                                "class_id"
+                                            ]
+                                        },
+                                        "dailyStats": {
+                                            "type": "string"
+                                        },
+                                        "monthlyTrend": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "date",
+                                        "profile",
+                                        "dailyStats",
+                                        "monthlyTrend"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Class not found"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -6460,10 +6853,7 @@ OpenAPI document exported to api.json.
                                             ]
                                         },
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string"
-                                            }
+                                            "type": "string"
                                         }
                                     },
                                     "required": [
@@ -6476,6 +6866,62 @@ OpenAPI document exported to api.json.
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "setting.update",
+                "summary": "Update individual school settings including file upload. LGOO SEKOLAH",
+                "tags": [
+                    "Setting"
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateSettingRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "success"
+                                            ]
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Settings updated successfully"
+                                            ]
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     }
                 }
             }
@@ -6563,7 +7009,7 @@ OpenAPI document exported to api.json.
         "/settings/sync": {
             "get": {
                 "operationId": "setting.sync",
-                "summary": "Sync settings and active context",
+                "summary": "Sync settings and active context. TERMASUK LOGO SEKOLAH",
                 "tags": [
                     "Setting"
                 ],
@@ -6596,8 +7042,7 @@ OpenAPI document exported to api.json.
                                             ]
                                         },
                                         "settings": {
-                                            "type": "array",
-                                            "items": {}
+                                            "type": "string"
                                         }
                                     },
                                     "required": [
@@ -11918,64 +12363,6 @@ OpenAPI document exported to api.json.
                 ],
                 "title": "StoreAbsenceRequest"
             },
-            "StoreManualAttendanceRequest": {
-                "type": "object",
-                "properties": {
-                    "attendee_type": {
-                        "type": "string",
-                        "enum": [
-                            "student",
-                            "teacher"
-                        ]
-                    },
-                    "schedule_id": {
-                        "type": "integer"
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": [
-                            "present",
-                            "late",
-                            "excused",
-                            "sick",
-                            "absent",
-                            "dinas",
-                            "izin",
-                            "pulang"
-                        ]
-                    },
-                    "date": {
-                        "type": "string",
-                        "format": "date-time"
-                    },
-                    "student_id": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "teacher_id": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "reason": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
-                        "maxLength": 255
-                    }
-                },
-                "required": [
-                    "attendee_type",
-                    "schedule_id",
-                    "status",
-                    "date"
-                ],
-                "title": "StoreManualAttendanceRequest"
-            },
             "StoreScheduleRequest": {
                 "type": "object",
                 "properties": {
@@ -11987,13 +12374,11 @@ OpenAPI document exported to api.json.
                             "Wednesday",
                             "Thursday",
                             "Friday",
-                            "Saturday",
                             "Senin",
                             "Selasa",
                             "Rabu",
                             "Kamis",
-                            "Jumat",
-                            "Sabtu"
+                            "Jumat"
                         ]
                     },
                     "start_time": {
@@ -12671,13 +13056,11 @@ OpenAPI document exported to api.json.
                             "Wednesday",
                             "Thursday",
                             "Friday",
-                            "Saturday",
                             "Senin",
                             "Selasa",
                             "Rabu",
                             "Kamis",
-                            "Jumat",
-                            "Sabtu"
+                            "Jumat"
                         ]
                     },
                     "start_time": {
@@ -12730,6 +13113,129 @@ OpenAPI document exported to api.json.
                     }
                 },
                 "title": "UpdateScheduleRequest"
+            },
+            "UpdateSettingRequest": {
+                "type": "object",
+                "properties": {
+                    "school_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "school_logo": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "maxLength": 2048
+                    },
+                    "school_mascot": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "binary",
+                        "contentMediaType": "application/octet-stream",
+                        "maxLength": 2048
+                    },
+                    "school_email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "email",
+                        "maxLength": 255
+                    },
+                    "school_phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 20
+                    },
+                    "school_address": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 500
+                    },
+                    "school_subdistrict": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "school_district": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "school_city": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "school_province": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "school_postal_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 20
+                    },
+                    "school_npsn": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50
+                    },
+                    "school_accreditation": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 10
+                    },
+                    "school_headmaster": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "school_headmaster_nip": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50
+                    },
+                    "school_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50
+                    }
+                },
+                "title": "UpdateSettingRequest"
             },
             "UpdateStudentRequest": {
                 "type": "object",

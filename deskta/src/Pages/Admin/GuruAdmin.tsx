@@ -1,5 +1,6 @@
 ﻿// FILE: GuruAdmin.tsx - Halaman Admin untuk mengelola data guru
 import { useState, useRef, useEffect } from 'react';
+import { storage } from '../../utils/storage';
 import AdminLayout from '../../component/Admin/AdminLayout';
 import { Button } from '../../component/Shared/Button';
 import { Select } from '../../component/Shared/Select';
@@ -242,7 +243,7 @@ export default function GuruAdmin({
       onNavigateToDetail(row.id);
     } else {
       // Fallback default
-      localStorage.setItem('selectedGuru', JSON.stringify(row));
+      storage.setSelectedGuru(row);
       onMenuClick('detail-guru');
     }
   };

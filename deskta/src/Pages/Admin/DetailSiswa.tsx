@@ -1,6 +1,7 @@
 ﻿// FILE: DetailSiswa.tsx - Halaman Detail Siswa dengan Data Lengkap
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
+import { storage } from '../../utils/storage';
 import { User as UserIcon, ArrowLeft, Edit2, Save, X } from 'lucide-react';
 import { usePopup } from "../../component/Shared/Popup/PopupProvider";
 
@@ -95,15 +96,10 @@ export default function DetailSiswa({
             originalData: studentAPI
           };
         } else {
-          // Fallback to localStorage
-          const savedSiswa = localStorage.getItem('selectedSiswa');
-          if (savedSiswa) {
-            try {
-              const parsed = JSON.parse(savedSiswa);
-              if (parsed.id === siswaId) {
-                studentToSet = parsed;
-              }
-            } catch (e) { console.error(e); }
+          // Fallback to storage
+          const savedSiswa = storage.getSelectedSiswa();
+          if (savedSiswa && savedSiswa.id === siswaId) {
+            studentToSet = savedSiswa;
           }
         }
 
@@ -210,8 +206,8 @@ export default function DetailSiswa({
         setSiswaData(updatedSiswaUI);
         setOriginalData(updatedSiswaUI);
 
-        // Update localStorage
-        localStorage.setItem('selectedSiswa', JSON.stringify(updatedSiswaUI));
+        // Update storage
+        storage.setSelectedSiswa(updatedSiswaUI);
 
         // Callback
         if (onUpdateSiswa) onUpdateSiswa(updatedSiswaUI);

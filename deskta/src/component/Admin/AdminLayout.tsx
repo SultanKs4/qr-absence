@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect } from "react";
+import { storage } from '../../utils/storage';
 import Sidebar from "../../component/Sidebar";
 import AWANKANAN from "../../assets/Icon/AWANKANAN.png";
 import AWANKIRI from "../../assets/Icon/AWANKIRI.png";
@@ -28,13 +29,10 @@ export default function AdminLayout({
   onLogout,
   hideBackground = false,
 }: AdminLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem("sidebarOpen");
-    return saved ? saved === "true" : true;
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => storage.getSidebarState('admin'));
 
   useEffect(() => {
-    localStorage.setItem("sidebarOpen", sidebarOpen.toString());
+    storage.setSidebarState('admin', sidebarOpen);
   }, [sidebarOpen]);
 
   const handleToggleSidebar = () => {
@@ -71,7 +69,7 @@ export default function AdminLayout({
               backgroundColor: "#F8FAFC", // Warna background lembut
             }}
           />
-          
+
           {/* Awan dan dekorasi */}
           <img
             src={AWANKIRI}
@@ -195,14 +193,14 @@ export default function AdminLayout({
               </p>
             )}
           </div>
-          
-          <div style={{ 
-            display: "flex", 
-            alignItems: "center", 
+
+          <div style={{
+            display: "flex",
+            alignItems: "center",
             gap: "16px",
-            flexShrink: 0 
+            flexShrink: 0
           }}>
-            <div style={{ 
+            <div style={{
               textAlign: "right",
               paddingRight: "16px",
               borderRight: "1px solid #E5E7EB"
@@ -217,8 +215,8 @@ export default function AdminLayout({
             <img
               src={LogoSchool}
               alt="Logo SMK"
-              style={{ 
-                width: "48px", 
+              style={{
+                width: "48px",
                 height: "48px",
                 borderRadius: "8px",
                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",

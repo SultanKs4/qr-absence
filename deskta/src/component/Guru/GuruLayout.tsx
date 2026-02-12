@@ -1,4 +1,5 @@
 import { type ReactNode, useState, useEffect, useRef } from 'react';
+import { storage } from '../../utils/storage';
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from '../Sidebar';
 import AWANKIRI from '../../assets/Icon/AWANKIRI.png';
@@ -26,16 +27,13 @@ export default function GuruLayout({
   user,
   onLogout,
 }: GuruLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('guruSidebarOpen');
-    return saved ? saved === 'true' : true;
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => storage.getSidebarState('guru'));
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   useLocalLenis(scrollContainerRef);
 
   useEffect(() => {
-    localStorage.setItem('guruSidebarOpen', sidebarOpen.toString());
+    storage.setSidebarState('guru', sidebarOpen);
   }, [sidebarOpen]);
 
   const handleToggleSidebar = () => {

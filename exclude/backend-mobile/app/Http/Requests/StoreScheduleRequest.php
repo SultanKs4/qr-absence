@@ -14,7 +14,7 @@ class StoreScheduleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Senin,Selasa,Rabu,Kamis,Jumat,Sabtu'],
+            'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Senin,Selasa,Rabu,Kamis,Jumat'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'title' => ['nullable', 'string', 'max:255'],

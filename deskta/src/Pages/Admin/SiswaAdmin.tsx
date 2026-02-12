@@ -1,5 +1,6 @@
 ﻿// SiswaAdmin.tsx - Halaman Admin untuk mengelola data siswa
 import React, { useState, useEffect, useRef } from 'react';
+import { storage } from '../../utils/storage';
 import AdminLayout from '../../component/Admin/AdminLayout';
 import { Button } from '../../component/Shared/Button';
 import { Select } from '../../component/Shared/Select';
@@ -156,7 +157,7 @@ export default function SiswaAdmin({
     } else {
       const siswa = siswaList.find(s => s.id === siswaId);
       if (siswa) {
-        localStorage.setItem('selectedSiswa', JSON.stringify(siswa));
+        storage.setSelectedSiswa(siswa);
       }
       onMenuClick('detail-siswa');
     }
@@ -193,7 +194,7 @@ export default function SiswaAdmin({
         const text = event.target?.result as string;
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        
+
         const items = lines.slice(1).filter(line => line.trim() !== '').map(line => {
           const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
           const item: any = {};
@@ -213,12 +214,12 @@ export default function SiswaAdmin({
         const formattedItems = items.map(item => {
           // Try to find class by name matches (case-insensitive)
           const csvKelas = (item['Kelas'] || item['Class'] || '').trim();
-          const foundKelas = csvKelas 
-            ? kelasList.find(k => k.nama.toLowerCase() === csvKelas.toLowerCase()) 
+          const foundKelas = csvKelas
+            ? kelasList.find(k => k.nama.toLowerCase() === csvKelas.toLowerCase())
             : null;
-          
-          const classIdToUse = foundKelas 
-            ? parseInt(foundKelas.id) 
+
+          const classIdToUse = foundKelas
+            ? parseInt(foundKelas.id)
             : (parseInt(selectedKelas) || (kelasList[0]?.id ? parseInt(kelasList[0].id) : 1));
 
           return {
@@ -237,7 +238,7 @@ export default function SiswaAdmin({
         setIsSubmitting(true);
         const { studentService } = await import('../../services/student');
         const response = await studentService.importStudents(formattedItems);
-        
+
         void popupAlert(`Berhasil mengimpor ${response.created} siswa.`);
         await fetchData();
       } catch (err: any) {

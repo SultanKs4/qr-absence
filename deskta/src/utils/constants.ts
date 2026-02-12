@@ -46,6 +46,8 @@ export const API_ENDPOINTS = {
   ATTENDANCE_DOCUMENT: (id: number) => `/api/attendance/${id}/document`,
   ME_ATTENDANCE: '/api/me/attendance',
   ME_ATTENDANCE_SUMMARY: '/api/me/attendance/summary',
+  ATTENDANCE_MANUAL: '/api/attendance/manual',
+  ATTENDANCE_SCAN_STUDENT: '/api/attendance/scan-student',
 
   // QR Codes
   QR_GENERATE: '/api/qrcodes/generate',
@@ -67,6 +69,7 @@ export const API_ENDPOINTS = {
 
   // Waka
   WAKA_ATTENDANCE_SUMMARY: '/api/waka/attendance/summary',
+  WAKA_DASHBOARD_SUMMARY: '/api/waka/dashboard/summary',
   TEACHERS_DAILY_ATTENDANCE: '/api/attendance/teachers/daily',
   STUDENTS_ABSENCES: '/api/students/absences',
   ABSENCE_REQUESTS: '/api/absence-requests',

@@ -89,7 +89,10 @@ export default function KehadiranSiswaGuru({
             try {
               attendanceRecords = await dashboardService.getAttendanceBySchedule(
                 schedule.id.toString(),
-                { signal: controller.signal }
+                {
+                  params: { date: new Date().toISOString().split('T')[0] },
+                  signal: controller.signal
+                }
               );
             } catch (err: any) {
               if (err.name !== 'AbortError') {
@@ -100,14 +103,21 @@ export default function KehadiranSiswaGuru({
             if (classData && classData.students) {
               const mappedStudents = classData.students.map((s: any) => {
                 // Find existing record
-                const record = attendanceRecords.find((a: any) => a.student_id == s.id);
+                // Find existing record by student_id or student.id
+                const record = attendanceRecords.find((a: any) =>
+                  (a.student_id ? a.student_id.toString() : (a.student?.id?.toString())) === s.id.toString()
+                );
+
+                let status = record ? record.status : null;
+                // Normalize 'return' from backend to 'pulang' for frontend UI
+                if (status === 'return') status = 'pulang';
 
                 return {
                   id: s.id.toString(),
                   nisn: s.nisn || '-',
                   nama: s.user?.name || 'Siswa',
                   mapel: schedule.subject_name || schedule.title || 'Mapel',
-                  status: record ? record.status : null, // Default to null if no record
+                  status: status, // Default to null if no record
                   tanggal: currentDate,
                   jamPelajaran: '1-2',
                   guru: user.name,
@@ -355,16 +365,18 @@ export default function KehadiranSiswaGuru({
   // Fungsi helper untuk DetailRow
   const DetailRow = ({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) => (
     <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
+      display: 'grid',
+      gridTemplateColumns: '140px 20px 1fr',
+      alignItems: 'center',
       marginBottom: 16,
       paddingBottom: 12,
       borderBottom: '1px solid #E5E7EB',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {icon}
-        <div style={{ fontWeight: 600, color: '#374151' }}>{label} :</div>
+        <div style={{ fontWeight: 600, color: '#374151' }}>{label}</div>
       </div>
+      <div style={{ fontWeight: 600, color: '#374151', textAlign: 'center' }}>:</div>
       <div style={{ fontWeight: 500, color: '#1F2937', textAlign: 'right' }}>
         {value}
       </div>
@@ -486,14 +498,14 @@ export default function KehadiranSiswaGuru({
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
               <thead>
-                <tr style={{ backgroundColor: '#1E293B', color: 'black' }}>
-                  <th style={{ ...styles.th, color: 'black' }}>No</th>
-                  <th style={{ ...styles.th, color: 'black' }}>NISN</th>
-                  <th style={{ ...styles.th, color: 'black' }}>Nama Siswa</th>
-                  <th style={{ ...styles.th, color: 'black' }}>Mata Pelajaran</th>
-                  <th style={{ ...styles.th, color: 'black' }}>Guru</th>
-                  <th style={{ ...styles.th, textAlign: 'center', color: 'black' }}>Status</th>
-                  <th style={{ ...styles.th, textAlign: 'center', color: 'black' }}>Aksi</th>
+                <tr style={{ backgroundColor: '#1E293B', color: 'white' }}>
+                  <th style={{ ...styles.th, color: 'white' }}>No</th>
+                  <th style={{ ...styles.th, color: 'white' }}>NISN</th>
+                  <th style={{ ...styles.th, color: 'white' }}>Nama Siswa</th>
+                  <th style={{ ...styles.th, color: 'white' }}>Mata Pelajaran</th>
+                  <th style={{ ...styles.th, color: 'white' }}>Guru</th>
+                  <th style={{ ...styles.th, textAlign: 'center', color: 'white' }}>Status</th>
+                  <th style={{ ...styles.th, textAlign: 'center', color: 'white' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -647,35 +659,35 @@ export default function KehadiranSiswaGuru({
                     <option value="absent">Tidak Hadir</option>
                     <option value="late">Terlambat</option>
                   </select>
-              </div>
+                </div>
 
-              {/* Keterangan field */}
-              <div style={{ marginTop: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#6B7280', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Keterangan
-                </label>
-                <textarea
-                  value={editingSiswa.keterangan || ''}
-                  onChange={(e) => setEditingSiswa({ ...editingSiswa, keterangan: e.target.value })}
-                  placeholder="Tambahkan keterangan (opsional)..."
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    border: '1px solid #D1D5DB',
-                    fontSize: '15px',
-                    color: '#1F2937',
-                    backgroundColor: 'white',
-                    minHeight: '100px',
-                    resize: 'vertical',
-                    outline: 'none'
-                  }}
-                />
+                {/* Keterangan field */}
+                <div style={{ marginTop: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#6B7280', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Keterangan
+                  </label>
+                  <textarea
+                    value={editingSiswa.keterangan || ''}
+                    onChange={(e) => setEditingSiswa({ ...editingSiswa, keterangan: e.target.value })}
+                    placeholder="Tambahkan keterangan (opsional)..."
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      border: '1px solid #D1D5DB',
+                      fontSize: '15px',
+                      color: '#1F2937',
+                      backgroundColor: 'white',
+                      minHeight: '100px',
+                      resize: 'vertical',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Footer Actions */}
+            {/* Footer Actions */}
             <div style={{
               padding: '20px 24px',
               backgroundColor: '#F9FAFB',
@@ -838,17 +850,19 @@ export default function KehadiranSiswaGuru({
 
               {/* Row Status */}
               <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
+                display: 'grid',
+                gridTemplateColumns: '140px 20px 1fr',
+                alignItems: 'center',
                 marginBottom: 24,
                 paddingBottom: 12,
                 borderBottom: '1px solid #E5E7EB',
               }}>
                 <div style={{ fontWeight: 600, color: '#374151', display: 'flex', alignItems: 'center', gap: 8 }}>
                   {selectedSiswa.status === 'present' && <CheckIcon size={18} color="#1FA83D" />}
-                  Status :
+                  Status
                 </div>
-                <div>
+                <div style={{ fontWeight: 600, color: '#374151', textAlign: 'center' }}>:</div>
+                <div style={{ textAlign: 'right' }}>
                   <span style={{
                     backgroundColor: STATUS_COLORS_HEX[selectedSiswa.status || 'present'], // Fallback to avoid error if null
                     color: '#FFFFFF',
@@ -889,12 +903,20 @@ export default function KehadiranSiswaGuru({
               {(selectedSiswa.status === 'excused' || selectedSiswa.status === 'sick' || selectedSiswa.status === 'late') && selectedSiswa.keterangan && (
                 <div>
                   <div style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: '#374151',
+                    display: 'grid',
+                    gridTemplateColumns: '140px 20px 1fr',
+                    alignItems: 'center',
                     marginBottom: 12,
                   }}>
-                    Keterangan :
+                    <div style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#374151',
+                    }}>
+                      Keterangan
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#374151', textAlign: 'center' }}>:</div>
+                    <div></div>
                   </div>
                   <div style={{
                     padding: '12px 16px',
@@ -914,38 +936,6 @@ export default function KehadiranSiswaGuru({
                 </div>
               )}
 
-              {/* Area Bukti Foto untuk izin, sakit, DAN PULANG */}
-              {(selectedSiswa.status === 'excused' || selectedSiswa.status === 'sick') && (
-                <div style={{ marginTop: selectedSiswa.keterangan ? 24 : 0 }}>
-                  <div style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: '#374151',
-                    marginBottom: 12,
-                  }}>
-                    Bukti Foto :
-                  </div>
-                  <div style={{
-                    padding: '40px 16px',
-                    backgroundColor: '#F9FAFB',
-                    borderRadius: 8,
-                    border: '1px solid #E5E7EB',
-                    minHeight: 100,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
-                    <p style={{
-                      margin: 0,
-                      fontSize: 14,
-                      color: '#9CA3AF',
-                      textAlign: 'center',
-                    }}>
-                      [Area untuk menampilkan bukti foto]
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

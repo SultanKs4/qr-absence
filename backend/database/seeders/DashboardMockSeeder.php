@@ -25,8 +25,8 @@ class DashboardMockSeeder extends Seeder
             $rpl = \App\Models\Major::where('code', 'RPL')->first();
             $tkj = \App\Models\Major::where('code', 'TKJ')->first();
 
-            Classes::create(['grade' => 'XI', 'label' => 'RPL 1', 'major_id' => $rpl?->id]);
-            Classes::create(['grade' => 'XI', 'label' => 'TKJ 1', 'major_id' => $tkj?->id]);
+            Classes::create(['grade' => 'XII', 'label' => 'RPL 1', 'major_id' => $rpl?->id]);
+            Classes::create(['grade' => 'XII', 'label' => 'RPL 2', 'major_id' => $rpl?->id]);
         }
 
         $classes = Classes::all();
@@ -75,7 +75,7 @@ class DashboardMockSeeder extends Seeder
         }
 
         // 4. Setup Schedules (Mon - Sat)
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         foreach ($classes as $class) {
             foreach ($days as $day) {
                 // 2 sessions per day
