@@ -12,6 +12,11 @@ class WhatsAppController extends Controller
 {
     public function __construct(protected WhatsAppService $whatsapp) {}
 
+    /**
+     * Send WhatsApp Text Message
+     *
+     * Send a text message via WhatsApp to a specific number.
+     */
     public function sendText(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -28,6 +33,11 @@ class WhatsAppController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Send WhatsApp Media Message
+     *
+     * Send a media message (image, video, document) via WhatsApp.
+     */
     public function sendMedia(Request $request): JsonResponse
     {
         $data = $request->validate([

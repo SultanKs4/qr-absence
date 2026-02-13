@@ -28,6 +28,7 @@ Route::get('/settings/public', [SettingController::class, 'publicSettings']);
 Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function (): void {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
 
     // Mobile-specific endpoints (backward compatible)
     Route::get('/mobile/notifications', [MobileNotificationController::class, 'index']);

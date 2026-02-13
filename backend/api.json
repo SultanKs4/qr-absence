@@ -439,6 +439,52 @@
                 }
             }
         },
+        "/waka/classes/{class}/attendance-summary": {
+            "get": {
+                "operationId": "attendance.wakaClassSummary",
+                "description": "Retrieve attendance summary for a class.\nAccessible by Waka Kesiswaan/Kurikulum.",
+                "summary": "Get Class Summary (Waka)",
+                "tags": [
+                    "Attendance"
+                ],
+                "parameters": [
+                    {
+                        "name": "class",
+                        "in": "path",
+                        "required": true,
+                        "description": "The class ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/LengthAwarePaginator"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/students/absences": {
             "get": {
                 "operationId": "attendance.studentsAbsences",
@@ -519,9 +565,88 @@
                 }
             }
         },
+        "/teachers/{teacher}/attendance-history": {
+            "get": {
+                "operationId": "attendance.teacherAttendanceHistory",
+                "tags": [
+                    "Attendance"
+                ],
+                "parameters": [
+                    {
+                        "name": "teacher",
+                        "in": "path",
+                        "required": true,
+                        "description": "The teacher ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "teacher": {
+                                            "$ref": "#/components/schemas/TeacherProfile"
+                                        },
+                                        "history": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Attendance"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "teacher",
+                                        "history"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/attendance/scan": {
             "post": {
                 "operationId": "attendance.scan",
+                "description": "Record attendance by scanning a valid QR code.\nAccessible by both Student and Teacher.",
+                "summary": "Scan QR Code (Self)",
                 "tags": [
                     "Attendance"
                 ],
@@ -572,6 +697,8 @@
         "/attendance/manual": {
             "post": {
                 "operationId": "attendance.storeManual",
+                "description": "Manually record attendance for a student.\nAccessible by Teachers (for their class/schedule).",
+                "summary": "Manual Attendance Input",
                 "tags": [
                     "Attendance"
                 ],
@@ -716,6 +843,12 @@
                                                 },
                                                 "status": {
                                                     "type": "string"
+                                                },
+                                                "reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
                                                 }
                                             },
                                             "required": [
@@ -744,10 +877,20 @@
                                     "properties": {
                                         "message": {
                                             "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "minItems": 0,
+                                            "maxItems": 0,
+                                            "additionalItems": false
                                         }
                                     },
                                     "required": [
-                                        "message"
+                                        "message",
+                                        "data"
                                     ]
                                 }
                             }
@@ -1648,6 +1791,8 @@
         "/me/attendance/teaching": {
             "get": {
                 "operationId": "attendance.meTeaching",
+                "description": "Retrieve attendance/teaching history for the currently authenticated teacher.",
+                "summary": "Get My Teaching Attendance",
                 "tags": [
                     "Attendance"
                 ],
@@ -1749,6 +1894,8 @@
         "/me/attendance/teaching/summary": {
             "get": {
                 "operationId": "attendance.summaryTeaching",
+                "description": "Retrieve a statistical summary of teaching activities for the currently authenticated teacher.",
+                "summary": "Get My Teaching Summary",
                 "tags": [
                     "Attendance"
                 ],
@@ -1832,6 +1979,8 @@
         "/me/students/attendance-summary": {
             "get": {
                 "operationId": "attendance.studentsAttendanceSummary",
+                "description": "Retrieve attendance summary for students taught by the currently authenticated teacher.\nUseful for identifying students with high absence rates.",
+                "summary": "Get Taught Students Attendance Summary",
                 "tags": [
                     "Attendance"
                 ],
@@ -1920,6 +2069,8 @@
         "/classes/{class}/attendance": {
             "get": {
                 "operationId": "attendance.classAttendanceByDate",
+                "description": "Retrieve attendance records for a specific class on a specific date.\nAccessible by Homeroom Teacher and Admin.",
+                "summary": "Get Class Attendance by Date",
                 "tags": [
                     "Attendance"
                 ],
@@ -2041,6 +2192,8 @@
         "/classes/{class}/students/attendance-summary": {
             "get": {
                 "operationId": "attendance.classStudentsSummary",
+                "description": "Retrieve attendance summary for all students in a class.\nAccessible by Homeroom Teacher.",
+                "summary": "Get Class Students Summary",
                 "tags": [
                     "Attendance"
                 ],
@@ -2052,39 +2205,6 @@
                         "description": "The class ID",
                         "schema": {
                             "type": "integer"
-                        }
-                    },
-                    {
-                        "name": "from",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "format": "date-time"
-                        }
-                    },
-                    {
-                        "name": "to",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "string",
-                                "null"
-                            ],
-                            "format": "date-time"
-                        }
-                    },
-                    {
-                        "name": "threshold",
-                        "in": "query",
-                        "schema": {
-                            "type": [
-                                "integer",
-                                "null"
-                            ],
-                            "minimum": 1
                         }
                     }
                 ],
@@ -2142,9 +2262,6 @@
                                 }
                             }
                         }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
@@ -2222,25 +2339,7 @@
                                 "schema": {
                                     "anyOf": [
                                         {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "student": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    },
-                                                    "items": {
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "student",
-                                                    "items"
-                                                ]
-                                            }
+                                            "type": "string"
                                         },
                                         {
                                             "$ref": "#/components/schemas/LengthAwarePaginator"
@@ -2302,7 +2401,8 @@
         "/me/schedules/{schedule}/close": {
             "post": {
                 "operationId": "attendance.close",
-                "summary": "Close attendance for a schedule (Bulk Absent)\nMarks all students who haven't scanned as 'absent' (Alpha)",
+                "description": "Close the attendance for a schedule, marking all unscanned students as absent (Alpha).",
+                "summary": "Close Attendance Session",
                 "tags": [
                     "Attendance"
                 ],
@@ -2383,6 +2483,8 @@
         "/attendance/scan-student": {
             "post": {
                 "operationId": "attendance.scanStudent",
+                "description": "Record attendance for a student by scanning their QR code (NISN).\nAccessible only by Teachers.",
+                "summary": "Scan Student QR Code (Teacher)",
                 "tags": [
                     "Attendance"
                 ],
@@ -2556,6 +2658,8 @@
         "/me/attendance": {
             "get": {
                 "operationId": "attendance.me",
+                "description": "Retrieve attendance history for the currently authenticated student.",
+                "summary": "Get My Attendance History",
                 "tags": [
                     "Attendance"
                 ],
@@ -2632,6 +2736,8 @@
         "/me/attendance/summary": {
             "get": {
                 "operationId": "attendance.summaryMe",
+                "description": "Retrieve a statistical summary of attendance for the currently authenticated student.",
+                "summary": "Get My Attendance Summary",
                 "tags": [
                     "Attendance"
                 ],
@@ -2714,6 +2820,8 @@
         "/auth/login": {
             "post": {
                 "operationId": "auth.login",
+                "description": "Authenticate a user and return an access token.\nSupports login via Username/Email, NISN (Students), or NIP/Kode Guru (Teachers).",
+                "summary": "Login User",
                 "tags": [
                     "Auth"
                 ],
@@ -2843,6 +2951,8 @@
         "/me": {
             "get": {
                 "operationId": "auth.me",
+                "description": "Retrieve the currently authenticated user's profile information.",
+                "summary": "Get Current User",
                 "tags": [
                     "Auth"
                 ],
@@ -2937,6 +3047,8 @@
         "/auth/logout": {
             "post": {
                 "operationId": "auth.logout",
+                "description": "Revoke the current access token and log the user out.",
+                "summary": "Logout User",
                 "tags": [
                     "Auth"
                 ],
@@ -2971,6 +3083,8 @@
         "/classes": {
             "get": {
                 "operationId": "class.index",
+                "description": "Retrieve a list of all classes.",
+                "summary": "List Classes",
                 "tags": [
                     "Class"
                 ],
@@ -3012,6 +3126,8 @@
             },
             "post": {
                 "operationId": "classes.store",
+                "description": "Create a new class.",
+                "summary": "Create Class",
                 "tags": [
                     "Class"
                 ],
@@ -3068,6 +3184,8 @@
         "/classes/{class}": {
             "get": {
                 "operationId": "class.show",
+                "description": "Retrieve a specific class by ID.",
+                "summary": "Show Class",
                 "tags": [
                     "Class"
                 ],
@@ -3103,6 +3221,8 @@
             },
             "put": {
                 "operationId": "classes.update",
+                "description": "Update a specific class by ID.",
+                "summary": "Update Class",
                 "tags": [
                     "Class"
                 ],
@@ -3166,6 +3286,8 @@
             },
             "delete": {
                 "operationId": "classes.destroy",
+                "description": "Delete a specific class by ID.",
+                "summary": "Delete Class",
                 "tags": [
                     "Class"
                 ],
@@ -3214,6 +3336,8 @@
         "/classes/{class}/schedule-image": {
             "post": {
                 "operationId": "class.uploadScheduleImage",
+                "description": "Upload a schedule image for a specific class.",
+                "summary": "Upload Schedule Image",
                 "tags": [
                     "Class"
                 ],
@@ -3281,6 +3405,8 @@
             },
             "delete": {
                 "operationId": "class.deleteScheduleImage",
+                "description": "Delete the schedule image for a specific class.",
+                "summary": "Delete Schedule Image",
                 "tags": [
                     "Class"
                 ],
@@ -3327,6 +3453,8 @@
             },
             "get": {
                 "operationId": "class.getScheduleImage",
+                "description": "Retrieve the schedule image for a specific class.",
+                "summary": "Get Schedule Image",
                 "tags": [
                     "Class"
                 ],
@@ -3365,6 +3493,8 @@
         "/me/class": {
             "get": {
                 "operationId": "class.myClass",
+                "description": "Retrieve the class of the currently authenticated student.",
+                "summary": "Get My Class",
                 "tags": [
                     "Class"
                 ],
@@ -3409,6 +3539,8 @@
         "/me/class/schedules": {
             "get": {
                 "operationId": "class.myClassSchedules",
+                "description": "Retrieve the schedules for the class of the currently authenticated student.",
+                "summary": "Get My Class Schedules",
                 "tags": [
                     "Class"
                 ],
@@ -3456,6 +3588,8 @@
         "/me/class/attendance": {
             "get": {
                 "operationId": "class.myClassAttendance",
+                "description": "Retrieve the attendance records for the class of the currently authenticated student.",
+                "summary": "Get My Class Attendance",
                 "tags": [
                     "Class"
                 ],
@@ -3500,10 +3634,60 @@
                 }
             }
         },
+        "/me/class/students": {
+            "get": {
+                "operationId": "class.myClassStudents",
+                "description": "Retrieve a list of students in the class of the currently authenticated student.",
+                "summary": "Get My Class Students",
+                "tags": [
+                    "Class"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/StudentProfile"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Class not found"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/me/dashboard/summary": {
             "get": {
                 "operationId": "dashboard.studentDashboard",
-                "summary": "Get student dashboard summary (Mobile App)\nReturns today's schedule with attendance status",
+                "description": "Retrieve the dashboard summary for a student (Mobile App), including today's schedule and attendance status.",
+                "summary": "Student Dashboard",
                 "tags": [
                     "Dashboard"
                 ],
@@ -3579,16 +3763,19 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "class_id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "time_slot": {
                                                         "type": "string"
                                                     },
                                                     "subject": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "teacher": {
                                                         "anyOf": [
@@ -3695,7 +3882,8 @@
         "/me/dashboard/teacher-summary": {
             "get": {
                 "operationId": "dashboard.teacherDashboard_0",
-                "summary": "Get teacher dashboard summary (Mobile App)\nReturns today's teaching schedule and attendance summary",
+                "description": "Retrieve the dashboard summary for a teacher (Mobile App), including today's teaching schedule and attendance overview.",
+                "summary": "Teacher Dashboard",
                 "tags": [
                     "Dashboard"
                 ],
@@ -3807,13 +3995,16 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "class_id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "subject": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "class_name": {
                                                         "anyOf": [
@@ -3838,7 +4029,261 @@
                                                         "type": "string"
                                                     },
                                                     "room": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "statistics": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "present": {
+                                                                "type": "integer",
+                                                                "minimum": 0
+                                                            },
+                                                            "late": {
+                                                                "type": "integer",
+                                                                "minimum": 0
+                                                            },
+                                                            "sick": {
+                                                                "type": "integer",
+                                                                "minimum": 0
+                                                            },
+                                                            "izin": {
+                                                                "type": "integer",
+                                                                "minimum": 0
+                                                            },
+                                                            "absent": {
+                                                                "type": "integer",
+                                                                "minimum": 0
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "present",
+                                                            "late",
+                                                            "sick",
+                                                            "izin",
+                                                            "absent"
+                                                        ]
+                                                    },
+                                                    "students_on_leave": {
+                                                        "type": "integer",
+                                                        "minimum": 0
+                                                    },
+                                                    "total_students": {
+                                                        "type": "integer",
+                                                        "minimum": 0
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "class_id",
+                                                    "subject",
+                                                    "class_name",
+                                                    "time_slot",
+                                                    "start_time",
+                                                    "end_time",
+                                                    "room",
+                                                    "statistics",
+                                                    "students_on_leave",
+                                                    "total_students"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "date",
+                                        "day_name",
+                                        "teacher",
+                                        "school_hours",
+                                        "attendance_summary",
+                                        "schedule_today"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Teacher profile not found"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/me/teacher/dashboard": {
+            "get": {
+                "operationId": "dashboard.teacherDashboard_0",
+                "description": "Retrieve the dashboard summary for a teacher (Mobile App), including today's teaching schedule and attendance overview.",
+                "summary": "Teacher Dashboard",
+                "tags": [
+                    "Dashboard"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "date": {
+                                            "type": "string"
+                                        },
+                                        "day_name": {
+                                            "type": "string"
+                                        },
+                                        "teacher": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "nip": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "photo_url": {
+                                                    "type": "null"
+                                                },
+                                                "is_homeroom": {
+                                                    "type": "boolean"
+                                                },
+                                                "homeroom_class": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "nip",
+                                                "code",
+                                                "photo_url",
+                                                "is_homeroom",
+                                                "homeroom_class"
+                                            ]
+                                        },
+                                        "school_hours": {
+                                            "type": "object",
+                                            "properties": {
+                                                "start_time": {
+                                                    "type": "string"
+                                                },
+                                                "end_time": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "start_time",
+                                                "end_time"
+                                            ]
+                                        },
+                                        "attendance_summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "present": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "sick": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "excused": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "izin": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "absent": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "late": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "on_leave": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "present",
+                                                "sick",
+                                                "excused",
+                                                "izin",
+                                                "absent",
+                                                "late",
+                                                "on_leave"
+                                            ]
+                                        },
+                                        "schedule_today": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "class_id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "subject": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "class_name": {
+                                                        "anyOf": [
+                                                            {
+                                                                "type": "string"
+                                                            },
+                                                            {
+                                                                "type": "string",
+                                                                "enum": [
+                                                                    "N/A"
+                                                                ]
+                                                            }
+                                                        ]
+                                                    },
+                                                    "time_slot": {
                                                         "type": "string"
+                                                    },
+                                                    "start_time": {
+                                                        "type": "string"
+                                                    },
+                                                    "end_time": {
+                                                        "type": "string"
+                                                    },
+                                                    "room": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "statistics": {
                                                         "type": "object",
@@ -3939,7 +4384,8 @@
         "/me/homeroom/dashboard": {
             "get": {
                 "operationId": "dashboard.homeroomDashboard",
-                "summary": "Get homeroom teacher dashboard (Mobile App)\nReturns homeroom class info, attendance summary, and today's schedule",
+                "description": "Retrieve the dashboard summary for a homeroom teacher, including their class info and today's attendance summary.",
+                "summary": "Homeroom Teacher Dashboard",
                 "tags": [
                     "Dashboard"
                 ],
@@ -3999,10 +4445,13 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "subject": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "teacher": {
                                                         "anyOf": [
@@ -4078,7 +4527,8 @@
         "/guru/dashboard": {
             "get": {
                 "operationId": "dashboard.teacherDashboard_0",
-                "summary": "Get teacher dashboard summary (Mobile App)\nReturns today's teaching schedule and attendance summary",
+                "description": "Retrieve the dashboard summary for a teacher (Mobile App), including today's teaching schedule and attendance overview.",
+                "summary": "Teacher Dashboard",
                 "tags": [
                     "Dashboard"
                 ],
@@ -4190,13 +4640,16 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "class_id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "subject": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "class_name": {
                                                         "anyOf": [
@@ -4221,7 +4674,10 @@
                                                         "type": "string"
                                                     },
                                                     "room": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "statistics": {
                                                         "type": "object",
@@ -4322,9 +4778,19 @@
         "/waka/dashboard/summary": {
             "get": {
                 "operationId": "dashboard.wakaDashboard",
-                "summary": "Get Waka (Vice Principal) dashboard summary\nReturns today's stats and monthly trend",
+                "description": "Retrieve the dashboard summary for Waka (Vice Principal), showing today's statistics and monthly trends.",
+                "summary": "Waka Dashboard",
                 "tags": [
                     "Dashboard"
+                ],
+                "parameters": [
+                    {
+                        "name": "semester_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -4346,6 +4812,8 @@
         "/admin/summary": {
             "get": {
                 "operationId": "dashboard.adminSummary",
+                "description": "Retrieve a statistical summary for the admin dashboard, including counts of students, teachers, classes, and attendance stats for today.",
+                "summary": "Admin Dashboard Summary",
                 "tags": [
                     "Dashboard"
                 ],
@@ -4369,6 +4837,8 @@
         "/attendance/summary": {
             "get": {
                 "operationId": "dashboard.attendanceSummary",
+                "description": "Retrieve a general attendance summary filtered by date range.",
+                "summary": "Attendance Summary",
                 "tags": [
                     "Dashboard"
                 ],
@@ -4420,7 +4890,8 @@
         "/me/class/dashboard": {
             "get": {
                 "operationId": "dashboard.classDashboard",
-                "summary": "Get class dashboard summary for class officers (Pengurus Kelas)\nReturns today's class stats and monthly trend for their class",
+                "description": "Retrieve the dashboard summary for a class officer (Pengurus Kelas), showing today's stats and trends for their class.",
+                "summary": "Class Officer Dashboard",
                 "tags": [
                     "Dashboard"
                 ],
@@ -4513,6 +4984,8 @@
         "/devices": {
             "post": {
                 "operationId": "device.store_0",
+                "description": "Register a new device for the user (Mobile App).\nFor students, this will deactivate other devices as they are allowed only one active device.",
+                "summary": "Register Device",
                 "tags": [
                     "Device"
                 ],
@@ -4571,6 +5044,8 @@
         "/me/devices": {
             "post": {
                 "operationId": "device.store_0",
+                "description": "Register a new device for the user (Mobile App).\nFor students, this will deactivate other devices as they are allowed only one active device.",
+                "summary": "Register Device",
                 "tags": [
                     "Device"
                 ],
@@ -4629,6 +5104,8 @@
         "/me/devices/{device}": {
             "delete": {
                 "operationId": "device.destroy",
+                "description": "Unregister/delete a device.",
+                "summary": "Remove Device",
                 "tags": [
                     "Device"
                 ],
@@ -4697,6 +5174,8 @@
         "/majors": {
             "get": {
                 "operationId": "majors.index",
+                "description": "Retrieve a list of all majors.",
+                "summary": "List Majors",
                 "tags": [
                     "Major"
                 ],
@@ -4738,6 +5217,8 @@
             },
             "post": {
                 "operationId": "majors.store",
+                "description": "Create a new major/department.",
+                "summary": "Create Major",
                 "tags": [
                     "Major"
                 ],
@@ -4795,6 +5276,8 @@
         "/majors/{major}": {
             "get": {
                 "operationId": "majors.show",
+                "description": "Retrieve a specific major by ID.",
+                "summary": "Show Major",
                 "tags": [
                     "Major"
                 ],
@@ -4830,6 +5313,8 @@
             },
             "put": {
                 "operationId": "majors.update",
+                "description": "Update a specific major by ID.",
+                "summary": "Update Major",
                 "tags": [
                     "Major"
                 ],
@@ -4894,6 +5379,8 @@
             },
             "delete": {
                 "operationId": "majors.destroy",
+                "description": "Delete a specific major by ID.",
+                "summary": "Delete Major",
                 "tags": [
                     "Major"
                 ],
@@ -4942,7 +5429,8 @@
         "/mobile/notifications": {
             "get": {
                 "operationId": "mobileNotification.index_0",
-                "summary": "Get notifications for mobile app (generated on-the-fly from attendance data)",
+                "description": "Retrieve notifications for the mobile app, generated on-the-fly based on attendance data.",
+                "summary": "List Notifications",
                 "tags": [
                     "MobileNotification"
                 ],
@@ -4998,7 +5486,8 @@
         "/me/notifications": {
             "get": {
                 "operationId": "mobileNotification.index_0",
-                "summary": "Get notifications for mobile app (generated on-the-fly from attendance data)",
+                "description": "Retrieve notifications for the mobile app, generated on-the-fly based on attendance data.",
+                "summary": "List Notifications",
                 "tags": [
                     "MobileNotification"
                 ],
@@ -5045,6 +5534,8 @@
         "/qrcodes/active": {
             "get": {
                 "operationId": "qrCode.active",
+                "description": "Retrieve a list of currently active QR codes.",
+                "summary": "List Active QR Codes",
                 "tags": [
                     "QrCode"
                 ],
@@ -5068,6 +5559,8 @@
         "/qrcodes/generate": {
             "post": {
                 "operationId": "qrCode.generate_0",
+                "description": "Generate a new QR code for a specific schedule.",
+                "summary": "Generate QR Code",
                 "tags": [
                     "QrCode"
                 ],
@@ -5272,6 +5765,8 @@
         "/me/class/qr-token": {
             "post": {
                 "operationId": "qrCode.generate_0",
+                "description": "Generate a new QR code for a specific schedule.",
+                "summary": "Generate QR Code",
                 "tags": [
                     "QrCode"
                 ],
@@ -5476,6 +5971,8 @@
         "/qrcodes/{token}": {
             "get": {
                 "operationId": "qrCode.show",
+                "description": "Retrieve details of a specific QR code by token.",
+                "summary": "Show QR Code Details",
                 "tags": [
                     "QrCode"
                 ],
@@ -5509,6 +6006,8 @@
         "/qrcodes/{token}/revoke": {
             "post": {
                 "operationId": "qrCode.revoke",
+                "description": "Revoke (deactivate) an existing QR code.",
+                "summary": "Revoke QR Code",
                 "tags": [
                     "QrCode"
                 ],
@@ -5603,6 +6102,8 @@
         "/rooms": {
             "get": {
                 "operationId": "rooms.index",
+                "description": "Retrieve a list of all rooms.",
+                "summary": "List Rooms",
                 "tags": [
                     "Room"
                 ],
@@ -5624,6 +6125,8 @@
             },
             "post": {
                 "operationId": "rooms.store",
+                "description": "Create a new room.",
+                "summary": "Create Room",
                 "tags": [
                     "Room"
                 ],
@@ -5683,6 +6186,8 @@
         "/rooms/{room}": {
             "get": {
                 "operationId": "rooms.show",
+                "description": "Retrieve a specific room by ID.",
+                "summary": "Show Room",
                 "tags": [
                     "Room"
                 ],
@@ -5718,6 +6223,8 @@
             },
             "put": {
                 "operationId": "rooms.update",
+                "description": "Update a specific room by ID.",
+                "summary": "Update Room",
                 "tags": [
                     "Room"
                 ],
@@ -5785,6 +6292,8 @@
             },
             "delete": {
                 "operationId": "rooms.destroy",
+                "description": "Delete a specific room by ID.",
+                "summary": "Delete Room",
                 "tags": [
                     "Room"
                 ],
@@ -5833,6 +6342,8 @@
         "/schedules": {
             "get": {
                 "operationId": "schedule.index",
+                "description": "Retrieve a list of schedules with optional filtering by teacher, class, or date.",
+                "summary": "List Schedules",
                 "tags": [
                     "Schedule"
                 ],
@@ -5871,6 +6382,8 @@
             },
             "post": {
                 "operationId": "schedules.store",
+                "description": "Create a new schedule entry.",
+                "summary": "Create Schedule",
                 "tags": [
                     "Schedule"
                 ],
@@ -5910,6 +6423,8 @@
         "/schedules/{schedule}": {
             "get": {
                 "operationId": "schedule.show",
+                "description": "Retrieve details of a specific schedule.",
+                "summary": "Show Schedule",
                 "tags": [
                     "Schedule"
                 ],
@@ -5965,6 +6480,8 @@
             },
             "put": {
                 "operationId": "schedules.update",
+                "description": "Update an existing schedule entry.",
+                "summary": "Update Schedule",
                 "tags": [
                     "Schedule"
                 ],
@@ -6015,6 +6532,8 @@
             },
             "delete": {
                 "operationId": "schedules.destroy",
+                "description": "Delete a specific schedule.",
+                "summary": "Delete Schedule",
                 "tags": [
                     "Schedule"
                 ],
@@ -6063,6 +6582,8 @@
         "/classes/{class}/schedules/bulk": {
             "post": {
                 "operationId": "schedule.bulkUpsert",
+                "description": "Create or update multiple schedules for a class in a single request.",
+                "summary": "Bulk Upsert Schedules",
                 "tags": [
                     "Schedule"
                 ],
@@ -6204,6 +6725,8 @@
         "/teachers/{teacher}/schedules": {
             "get": {
                 "operationId": "schedule.byTeacher",
+                "description": "Retrieve schedules for a specific teacher, optionally filtered by date range.",
+                "summary": "Get Schedules by Teacher",
                 "tags": [
                     "Schedule"
                 ],
@@ -6276,6 +6799,8 @@
         "/me/schedules": {
             "get": {
                 "operationId": "schedule.me",
+                "description": "Retrieve schedules for the currently authenticated user (Teacher or Student).",
+                "summary": "Get My Schedules",
                 "tags": [
                     "Schedule"
                 ],
@@ -6389,6 +6914,8 @@
         "/school-years": {
             "get": {
                 "operationId": "school-years.index",
+                "description": "Retrieve a list of all school years.",
+                "summary": "List School Years",
                 "tags": [
                     "SchoolYear"
                 ],
@@ -6410,6 +6937,8 @@
             },
             "post": {
                 "operationId": "school-years.store",
+                "description": "Create a new school year.",
+                "summary": "Create School Year",
                 "tags": [
                     "SchoolYear"
                 ],
@@ -6468,6 +6997,8 @@
         "/school-years/{schoolYear}": {
             "get": {
                 "operationId": "school-years.show",
+                "description": "Retrieve a specific school year by ID.",
+                "summary": "Show School Year",
                 "tags": [
                     "SchoolYear"
                 ],
@@ -6503,6 +7034,8 @@
             },
             "put": {
                 "operationId": "school-years.update",
+                "description": "Update a specific school year by ID.",
+                "summary": "Update School Year",
                 "tags": [
                     "SchoolYear"
                 ],
@@ -6567,6 +7100,8 @@
             },
             "delete": {
                 "operationId": "school-years.destroy",
+                "description": "Delete a specific school year by ID.",
+                "summary": "Delete School Year",
                 "tags": [
                     "SchoolYear"
                 ],
@@ -6615,6 +7150,8 @@
         "/semesters": {
             "get": {
                 "operationId": "semesters.index",
+                "description": "Retrieve a list of all semesters with their associated school year.",
+                "summary": "List Semesters",
                 "tags": [
                     "Semester"
                 ],
@@ -6636,6 +7173,8 @@
             },
             "post": {
                 "operationId": "semesters.store",
+                "description": "Create a new semester.",
+                "summary": "Create Semester",
                 "tags": [
                     "Semester"
                 ],
@@ -6690,6 +7229,8 @@
         "/semesters/{semester}": {
             "get": {
                 "operationId": "semesters.show",
+                "description": "Retrieve a specific semester by ID.",
+                "summary": "Show Semester",
                 "tags": [
                     "Semester"
                 ],
@@ -6725,6 +7266,8 @@
             },
             "put": {
                 "operationId": "semesters.update",
+                "description": "Update a specific semester by ID.",
+                "summary": "Update Semester",
                 "tags": [
                     "Semester"
                 ],
@@ -6786,6 +7329,8 @@
             },
             "delete": {
                 "operationId": "semesters.destroy",
+                "description": "Delete a specific semester by ID.",
+                "summary": "Delete Semester",
                 "tags": [
                     "Semester"
                 ],
@@ -6831,10 +7376,33 @@
                 }
             }
         },
+        "/settings/public": {
+            "get": {
+                "operationId": "setting.publicSettings",
+                "description": "Retrieve a subset of settings publicly available (e.g., for login page).",
+                "summary": "Public Settings",
+                "tags": [
+                    "Setting"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/settings": {
             "get": {
                 "operationId": "setting.index",
-                "summary": "Display a listing of the resource",
+                "description": "Retrieve all application settings, including school logo and mascot URLs.",
+                "summary": "List Settings",
                 "tags": [
                     "Setting"
                 ],
@@ -6871,7 +7439,8 @@
             },
             "post": {
                 "operationId": "setting.update",
-                "summary": "Update individual school settings including file upload. LGOO SEKOLAH",
+                "description": "Update school profile settings, including logo and mascot uploads.",
+                "summary": "Update School Settings",
                 "tags": [
                     "Setting"
                 ],
@@ -6929,7 +7498,8 @@
         "/settings/bulk": {
             "post": {
                 "operationId": "setting.bulkUpdate",
-                "summary": "Update bulk settings",
+                "description": "Update multiple settings at once.",
+                "summary": "Bulk Update Settings",
                 "tags": [
                     "Setting"
                 ],
@@ -7009,7 +7579,8 @@
         "/settings/sync": {
             "get": {
                 "operationId": "setting.sync",
-                "summary": "Sync settings and active context. TERMASUK LOGO SEKOLAH",
+                "description": "Retrieve essential application context like active school year, semester, and school settings.",
+                "summary": "Sync App Context",
                 "tags": [
                     "Setting"
                 ],
@@ -7063,6 +7634,8 @@
         "/students": {
             "get": {
                 "operationId": "students.index",
+                "description": "Retrieve a list of all students with filtering options.",
+                "summary": "List Students",
                 "tags": [
                     "Student"
                 ],
@@ -7129,6 +7702,8 @@
             },
             "post": {
                 "operationId": "students.store",
+                "description": "Create a new student and their associated user account.",
+                "summary": "Create Student",
                 "tags": [
                     "Student"
                 ],
@@ -7168,6 +7743,8 @@
         "/students/{student}": {
             "get": {
                 "operationId": "students.show",
+                "description": "Retrieve a specific student profile by ID.",
+                "summary": "Show Student",
                 "tags": [
                     "Student"
                 ],
@@ -7203,6 +7780,8 @@
             },
             "put": {
                 "operationId": "students.update",
+                "description": "Update a specific student profile and associated user account.",
+                "summary": "Update Student",
                 "tags": [
                     "Student"
                 ],
@@ -7253,6 +7832,8 @@
             },
             "delete": {
                 "operationId": "students.destroy",
+                "description": "Delete a specific student and their user account.",
+                "summary": "Delete Student",
                 "tags": [
                     "Student"
                 ],
@@ -7301,6 +7882,8 @@
         "/students/import": {
             "post": {
                 "operationId": "student.import",
+                "description": "Bulk import students from a data array.",
+                "summary": "Import Students",
                 "tags": [
                     "Student"
                 ],
@@ -7436,6 +8019,8 @@
         "/students/{student}/attendance": {
             "get": {
                 "operationId": "student.attendanceHistory",
+                "description": "Retrieve the attendance history for a specific student.",
+                "summary": "Get Student Attendance History",
                 "tags": [
                     "Student"
                 ],
@@ -7464,7 +8049,17 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/LengthAwarePaginator"
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/schemas/LengthAwarePaginator"
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Attendance"
+                                            }
+                                        }
+                                    ]
                                 }
                             }
                         }
@@ -7481,8 +8076,8 @@
         "/classes/{class}/students-on-leave": {
             "get": {
                 "operationId": "studentLeavePermission.studentsOnLeave",
-                "description": "GET /classes/{class}/students-on-leave",
-                "summary": "Get students currently on leave for a specific class",
+                "description": "Retrieve a list of students currently on leave for a specific class.",
+                "summary": "List Students on Leave",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -7529,13 +8124,13 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "student": {
                                                         "type": "object",
                                                         "properties": {
                                                             "id": {
-                                                                "type": "string"
+                                                                "type": "integer"
                                                             },
                                                             "name": {
                                                                 "anyOf": [
@@ -7576,13 +8171,16 @@
                                                         ]
                                                     },
                                                     "is_full_day": {
-                                                        "type": "string"
+                                                        "type": "boolean"
                                                     },
                                                     "is_currently_active": {
                                                         "type": "string"
                                                     },
                                                     "reason": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "granted_by": {
                                                         "anyOf": [
@@ -7596,6 +8194,9 @@
                                                                 ]
                                                             }
                                                         ]
+                                                    },
+                                                    "attachment_url": {
+                                                        "type": "string"
                                                     }
                                                 },
                                                 "required": [
@@ -7608,13 +8209,13 @@
                                                     "is_full_day",
                                                     "is_currently_active",
                                                     "reason",
-                                                    "granted_by"
+                                                    "granted_by",
+                                                    "attachment_url"
                                                 ]
                                             }
                                         },
                                         "total": {
-                                            "type": "integer",
-                                            "minimum": 0
+                                            "type": "string"
                                         }
                                     },
                                     "required": [
@@ -7660,8 +8261,8 @@
         "/leave-permissions": {
             "get": {
                 "operationId": "studentLeavePermission.index",
-                "description": "GET /leave-permissions",
-                "summary": "List all leave permissions with filters",
+                "description": "Retrieve a list of student leave permissions with various filters.",
+                "summary": "List Leave Permissions",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -7751,8 +8352,8 @@
             },
             "post": {
                 "operationId": "studentLeavePermission.store",
-                "description": "POST /leave-permissions",
-                "summary": "Create a new leave permission",
+                "description": "Create a new leave permission for a student (Sick, Permit, Leave Early, Dispensasi).",
+                "summary": "Create Leave Permission",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -7896,8 +8497,8 @@
         "/leave-permissions/{permission}": {
             "get": {
                 "operationId": "studentLeavePermission.show",
-                "description": "GET /leave-permissions/{permission}",
-                "summary": "Show a specific leave permission",
+                "description": "Retrieve details of a specific leave permission.",
+                "summary": "Show Leave Permission",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -7933,8 +8534,8 @@
             },
             "patch": {
                 "operationId": "studentLeavePermission.update",
-                "description": "PATCH /leave-permissions/{permission}",
-                "summary": "Update a leave permission (e.g., change end time)",
+                "description": "Update an active leave permission (e.g., change end time).",
+                "summary": "Update Leave Permission",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -8014,8 +8615,8 @@
         "/leave-permissions/{permission}/return": {
             "post": {
                 "operationId": "studentLeavePermission.markReturn",
-                "description": "POST /leave-permissions/{permission}/return",
-                "summary": "Mark student as returned",
+                "description": "Mark a student as returned from temporary leave.",
+                "summary": "Mark Student Returned",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -8107,8 +8708,8 @@
         "/leave-permissions/{permission}/mark-absent": {
             "post": {
                 "operationId": "studentLeavePermission.markAbsent",
-                "description": "POST /leave-permissions/{permission}/mark-absent",
-                "summary": "Mark student as absent (alpha) - didn't return on time",
+                "description": "Mark a student as absent (alpha) if they didn't return on time.",
+                "summary": "Mark Student Absent (Alpha)",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -8189,8 +8790,8 @@
         "/leave-permissions/{permission}/cancel": {
             "post": {
                 "operationId": "studentLeavePermission.cancel",
-                "description": "POST /leave-permissions/{permission}/cancel",
-                "summary": "Cancel a leave permission",
+                "description": "Cancel an active leave permission and revert associated attendance records.",
+                "summary": "Cancel Leave Permission",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -8271,8 +8872,8 @@
         "/leave-permissions/check-expired": {
             "post": {
                 "operationId": "studentLeavePermission.checkExpired",
-                "description": "POST /leave-permissions/check-expired",
-                "summary": "Check/expire leave permissions that passed their end time\nThis can be called by a scheduler or manually",
+                "description": "Check and expire leave permissions that have passed their end time.",
+                "summary": "Check Expired Permissions",
                 "tags": [
                     "StudentLeavePermission"
                 ],
@@ -8308,6 +8909,8 @@
         "/subjects": {
             "get": {
                 "operationId": "subject.index",
+                "description": "Retrieve a list of all subjects.",
+                "summary": "List Subjects",
                 "tags": [
                     "Subject"
                 ],
@@ -8349,6 +8952,8 @@
             },
             "post": {
                 "operationId": "subjects.store",
+                "description": "Create a new subject key/course.",
+                "summary": "Create Subject",
                 "tags": [
                     "Subject"
                 ],
@@ -8397,6 +9002,8 @@
         "/subjects/{subject}": {
             "get": {
                 "operationId": "subjects.show",
+                "description": "Retrieve a specific subject by ID.",
+                "summary": "Show Subject",
                 "tags": [
                     "Subject"
                 ],
@@ -8432,6 +9039,8 @@
             },
             "put": {
                 "operationId": "subjects.update",
+                "description": "Update a specific subject by ID.",
+                "summary": "Update Subject",
                 "tags": [
                     "Subject"
                 ],
@@ -8487,6 +9096,8 @@
             },
             "delete": {
                 "operationId": "subjects.destroy",
+                "description": "Delete a specific subject by ID.",
+                "summary": "Delete Subject",
                 "tags": [
                     "Subject"
                 ],
@@ -8535,7 +9146,8 @@
         "/me/students/follow-up": {
             "get": {
                 "operationId": "teacher.getStudentsFollowUp",
-                "summary": "Get students requiring follow-up (Mobile App)\nReturns students with concerning attendance patterns",
+                "description": "Retrieve a list of students with concerning attendance patterns across classes taught by the teacher.",
+                "summary": "Get Students Requiring Follow-up",
                 "tags": [
                     "Teacher"
                 ],
@@ -8548,86 +9160,7 @@
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "id": {
-                                                        "type": "string"
-                                                    },
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "nis": {
-                                                        "type": "string"
-                                                    },
-                                                    "class_name": {
-                                                        "anyOf": [
-                                                            {
-                                                                "type": "string"
-                                                            },
-                                                            {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "N/A"
-                                                                ]
-                                                            }
-                                                        ]
-                                                    },
-                                                    "attendance_summary": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "absent": {
-                                                                "type": "string"
-                                                            },
-                                                            "excused": {
-                                                                "type": "string"
-                                                            },
-                                                            "sick": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "absent",
-                                                            "excused",
-                                                            "sick"
-                                                        ]
-                                                    },
-                                                    "badge": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "type": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "success"
-                                                                ]
-                                                            },
-                                                            "label": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                    "Aman"
-                                                                ]
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "type",
-                                                            "label"
-                                                        ]
-                                                    },
-                                                    "severity_score": {
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "id",
-                                                    "name",
-                                                    "nis",
-                                                    "class_name",
-                                                    "attendance_summary",
-                                                    "badge",
-                                                    "severity_score"
-                                                ]
-                                            }
+                                            "type": "string"
                                         }
                                     },
                                     "required": [
@@ -8667,6 +9200,8 @@
         "/teachers": {
             "get": {
                 "operationId": "teacher.index",
+                "description": "Retrieve a list of all teachers with filtering options.",
+                "summary": "List Teachers",
                 "tags": [
                     "Teacher"
                 ],
@@ -8709,6 +9244,8 @@
             },
             "post": {
                 "operationId": "teachers.store",
+                "description": "Create a new teacher and their associated user account.",
+                "summary": "Create Teacher",
                 "tags": [
                     "Teacher"
                 ],
@@ -8748,6 +9285,8 @@
         "/teachers/{teacher}/schedule-image": {
             "post": {
                 "operationId": "teacher.uploadScheduleImage",
+                "description": "Upload a schedule image for a specific teacher.",
+                "summary": "Upload Schedule Image",
                 "tags": [
                     "Teacher"
                 ],
@@ -8815,6 +9354,8 @@
             },
             "delete": {
                 "operationId": "teacher.deleteScheduleImage",
+                "description": "Delete the schedule image for a specific teacher.",
+                "summary": "Delete Schedule Image",
                 "tags": [
                     "Teacher"
                 ],
@@ -8861,6 +9402,8 @@
             },
             "get": {
                 "operationId": "teacher.getScheduleImage",
+                "description": "Retrieve the schedule image for a specific teacher.",
+                "summary": "Get Schedule Image",
                 "tags": [
                     "Teacher"
                 ],
@@ -8899,6 +9442,8 @@
         "/teachers/{teacher}/attendance": {
             "get": {
                 "operationId": "teacher.attendance",
+                "description": "Retrieve the attendance history for a specific teacher.",
+                "summary": "Get Teacher Attendance History",
                 "tags": [
                     "Teacher"
                 ],
@@ -8939,6 +9484,8 @@
         "/teachers/{teacher}": {
             "get": {
                 "operationId": "teachers.show",
+                "description": "Retrieve a specific teacher profile by ID.",
+                "summary": "Show Teacher",
                 "tags": [
                     "Teacher"
                 ],
@@ -8974,6 +9521,8 @@
             },
             "put": {
                 "operationId": "teachers.update",
+                "description": "Update an existing teacher's profile and user account.",
+                "summary": "Update Teacher",
                 "tags": [
                     "Teacher"
                 ],
@@ -9024,6 +9573,8 @@
             },
             "delete": {
                 "operationId": "teachers.destroy",
+                "description": "Delete a specific teacher and their user account.",
+                "summary": "Delete Teacher",
                 "tags": [
                     "Teacher"
                 ],
@@ -9072,6 +9623,8 @@
         "/teachers/import": {
             "post": {
                 "operationId": "teacher.import",
+                "description": "Bulk import teachers from a data array.",
+                "summary": "Import Teachers",
                 "tags": [
                     "Teacher"
                 ],
@@ -9194,6 +9747,8 @@
         "/me/schedule-image": {
             "post": {
                 "operationId": "teacher.uploadMyScheduleImage",
+                "description": "Upload a schedule image for the currently authenticated teacher.",
+                "summary": "Upload My Schedule Image",
                 "tags": [
                     "Teacher"
                 ],
@@ -9246,6 +9801,8 @@
         "/me/homeroom": {
             "get": {
                 "operationId": "teacher.myHomeroom",
+                "description": "Retrieve the homeroom class details for the currently authenticated teacher.",
+                "summary": "Get My Homeroom",
                 "tags": [
                     "Teacher"
                 ],
@@ -9290,6 +9847,8 @@
         "/me/homeroom/schedules": {
             "get": {
                 "operationId": "teacher.myHomeroomSchedules",
+                "description": "Retrieve the schedules for the homeroom class of the currently authenticated teacher.",
+                "summary": "Get My Homeroom Schedules",
                 "tags": [
                     "Teacher"
                 ],
@@ -9337,10 +9896,37 @@
         "/me/homeroom/attendance": {
             "get": {
                 "operationId": "teacher.myHomeroomAttendance",
+                "description": "Retrieve attendance records for the homeroom class.",
+                "summary": "Get My Homeroom Attendance",
                 "tags": [
                     "Teacher"
                 ],
                 "responses": {
+                    "500": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "enum": [
+                                                "Internal Server Error"
+                                            ]
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "200": {
                         "description": "",
                         "content": {
@@ -9384,6 +9970,8 @@
         "/me/homeroom/attendance/summary": {
             "get": {
                 "operationId": "teacher.myHomeroomAttendanceSummary",
+                "description": "Retrieve a statistical summary of attendance for the homeroom class.",
+                "summary": "Get Homeroom Attendance Summary",
                 "tags": [
                     "Teacher"
                 ],
@@ -9429,6 +10017,8 @@
         "/me/homeroom/students": {
             "get": {
                 "operationId": "teacher.myHomeroomStudents",
+                "description": "Retrieve a list of students in the homeroom class.",
+                "summary": "Get My Homeroom Students",
                 "tags": [
                     "Teacher"
                 ],
@@ -9476,8 +10066,8 @@
         "/me/schedules/{schedule}/detail": {
             "get": {
                 "operationId": "teacherScheduleDetail.show",
-                "description": "GET /me/schedules/{schedule}/detail",
-                "summary": "Get schedule details with attendance statistics for a specific schedule\nThis is accessed from teacher dashboard when clicking \"Tampilkan\" button",
+                "description": "Retrieve detailed attendance statistics for a specific schedule.\nAccessible by the teacher who owns the schedule.",
+                "summary": "Get Schedule Details",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -9810,8 +10400,8 @@
         "/me/schedules/{schedule}/students": {
             "get": {
                 "operationId": "teacherScheduleDetail.getStudents",
-                "description": "GET /me/schedules/{schedule}/students",
-                "summary": "Get students eligible for attendance (excludes students on full-day leave)",
+                "description": "Retrieve a list of students eligible for attendance (excluding those on full-day leave).",
+                "summary": "Get Eligible Students",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -9971,8 +10561,8 @@
         "/me/schedules/{schedule}/students/{student}/leave": {
             "post": {
                 "operationId": "teacherScheduleDetail.createStudentLeave",
-                "description": "POST /me/schedules/{schedule}/students/{student}/leave",
-                "summary": "Teacher marks sick/permission for a student (full day)\nThis affects ALL subjects for the day",
+                "description": "Mark a student as sick or having permission for the full day.\nThis affects all subjects for the day.",
+                "summary": "Create Student Leave (Full Day)",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -10093,8 +10683,8 @@
         "/me/schedules/{schedule}/students/{student}/leave-early": {
             "post": {
                 "operationId": "teacherScheduleDetail.createLeaveEarly",
-                "description": "POST /me/schedules/{schedule}/students/{student}/leave-early",
-                "summary": "Teacher grants permission to leave early (izin pulang)\nStudent will be hidden from attendance until return or end of school",
+                "description": "Grant permission for a student to leave early (izin pulang) or dispensasi.\nStudent will be hidden from attendance until return or end of school.",
+                "summary": "Create Leave Early Permission",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -10239,8 +10829,8 @@
         "/me/leave-permissions/{leavePermission}/return": {
             "post": {
                 "operationId": "teacherScheduleDetail.markReturned",
-                "description": "POST /me/leave-permissions/{leavePermission}/return",
-                "summary": "Mark student as returned from leave early",
+                "description": "Mark a student as returned from early leave or dispensasi.",
+                "summary": "Mark Student Returned",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -10353,8 +10943,8 @@
         "/me/leave-permissions/{leavePermission}/mark-absent": {
             "post": {
                 "operationId": "teacherScheduleDetail.markAbsent",
-                "description": "POST /me/leave-permissions/{leavePermission}/mark-absent",
-                "summary": "Mark student as alpha (absent) if they didn't return on time",
+                "description": "Mark a student as absent (alpha) if they did not return from leave on time.",
+                "summary": "Mark Student Absent (Alpha)",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -10456,8 +11046,8 @@
         "/classes/{class}/leave-permissions": {
             "get": {
                 "operationId": "teacherScheduleDetail.getClassLeavePermissions",
-                "description": "GET /classes/{class}/leave-permissions",
-                "summary": "Get active leave permissions for a class today",
+                "description": "Retrieve active leave permissions for a specific class today.",
+                "summary": "Get Class Leave Permissions",
                 "tags": [
                     "TeacherScheduleDetail"
                 ],
@@ -10495,13 +11085,13 @@
                                                 "type": "object",
                                                 "properties": {
                                                     "id": {
-                                                        "type": "string"
+                                                        "type": "integer"
                                                     },
                                                     "student": {
                                                         "type": "object",
                                                         "properties": {
                                                             "id": {
-                                                                "type": "string"
+                                                                "type": "integer"
                                                             },
                                                             "name": {
                                                                 "anyOf": [
@@ -10542,13 +11132,16 @@
                                                         ]
                                                     },
                                                     "reason": {
-                                                        "type": "string"
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "status": {
                                                         "type": "string"
                                                     },
                                                     "is_full_day": {
-                                                        "type": "string"
+                                                        "type": "boolean"
                                                     },
                                                     "granted_by": {
                                                         "anyOf": [
@@ -10822,6 +11415,8 @@
         "/time-slots": {
             "get": {
                 "operationId": "time-slots.index",
+                "description": "Retrieve a list of all time slots.",
+                "summary": "List Time Slots",
                 "tags": [
                     "TimeSlot"
                 ],
@@ -10843,6 +11438,8 @@
             },
             "post": {
                 "operationId": "time-slots.store",
+                "description": "Create a new time slot.",
+                "summary": "Create Time Slot",
                 "tags": [
                     "TimeSlot"
                 ],
@@ -10895,6 +11492,8 @@
         "/time-slots/{timeSlot}": {
             "get": {
                 "operationId": "time-slots.show",
+                "description": "Retrieve a specific time slot by ID.",
+                "summary": "Show Time Slot",
                 "tags": [
                     "TimeSlot"
                 ],
@@ -10930,6 +11529,8 @@
             },
             "put": {
                 "operationId": "time-slots.update",
+                "description": "Update a specific time slot by ID.",
+                "summary": "Update Time Slot",
                 "tags": [
                     "TimeSlot"
                 ],
@@ -10988,6 +11589,8 @@
             },
             "delete": {
                 "operationId": "time-slots.destroy",
+                "description": "Delete a specific time slot by ID.",
+                "summary": "Delete Time Slot",
                 "tags": [
                     "TimeSlot"
                 ],
@@ -11036,6 +11639,8 @@
         "/wa/send-text": {
             "post": {
                 "operationId": "whatsApp.sendText",
+                "description": "Send a text message via WhatsApp to a specific number.",
+                "summary": "Send WhatsApp Text Message",
                 "tags": [
                     "WhatsApp"
                 ],
@@ -11237,6 +11842,8 @@
         "/wa/send-media": {
             "post": {
                 "operationId": "whatsApp.sendMedia",
+                "description": "Send a media message (image, video, document) via WhatsApp.",
+                "summary": "Send WhatsApp Media Message",
                 "tags": [
                     "WhatsApp"
                 ],
@@ -11685,6 +12292,9 @@
                             "null"
                         ],
                         "format": "date-time"
+                    },
+                    "url": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -11695,7 +12305,8 @@
                     "mime_type",
                     "size",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "url"
                 ],
                 "title": "AttendanceAttachment"
             },
@@ -12573,6 +13184,39 @@
                             "null"
                         ],
                         "maxLength": 100
+                    },
+                    "jabatan": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "Guru",
+                            "Waka",
+                            "Kapro",
+                            "Wali Kelas"
+                        ]
+                    },
+                    "bidang": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "konsentrasi_keahlian": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "kode_guru": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 50
                     }
                 },
                 "required": [
@@ -12666,6 +13310,9 @@
                             "null"
                         ],
                         "format": "date-time"
+                    },
+                    "attachment_url": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -12685,7 +13332,8 @@
                     "returned_by",
                     "is_full_day",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "attachment_url"
                 ],
                 "title": "StudentLeavePermission"
             },
@@ -12786,6 +13434,9 @@
                         "type": "string"
                     },
                     "class_name": {
+                        "type": "string"
+                    },
+                    "major_id": {
                         "type": "string"
                     },
                     "major_name": {
@@ -12903,6 +13554,27 @@
                             "string",
                             "null"
                         ]
+                    },
+                    "jabatan": {
+                        "type": "string"
+                    },
+                    "bidang": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "konsentrasi_keahlian": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "kode_guru": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     }
                 },
                 "required": [
@@ -12913,7 +13585,11 @@
                     "updated_at",
                     "homeroom_class_id",
                     "subject",
-                    "schedule_image_path"
+                    "schedule_image_path",
+                    "jabatan",
+                    "bidang",
+                    "konsentrasi_keahlian",
+                    "kode_guru"
                 ],
                 "title": "TeacherProfile"
             },
@@ -13365,6 +14041,39 @@
                     },
                     "username": {
                         "type": "string",
+                        "maxLength": 50
+                    },
+                    "jabatan": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "Guru",
+                            "Waka",
+                            "Kapro",
+                            "Wali Kelas"
+                        ]
+                    },
+                    "bidang": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "konsentrasi_keahlian": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "kode_guru": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "maxLength": 50
                     }
                 },

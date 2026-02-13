@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Storage;
 
 class TeacherController extends Controller
 {
+    /**
+     * List Teachers
+     *
+     * Retrieve a list of all teachers with filtering options.
+     */
     public function index(Request $request): JsonResponse
     {
         $query = TeacherProfile::query()->with(['user', 'homeroomClass']);
@@ -30,6 +35,11 @@ class TeacherController extends Controller
         return TeacherResource::collection($teachers)->response();
     }
 
+    /**
+     * Import Teachers
+     *
+     * Bulk import teachers from a data array.
+     */
     public function import(Request $request): JsonResponse
     {
         $dto = \App\Data\TeacherImportData::fromRequest($request);
@@ -75,6 +85,11 @@ class TeacherController extends Controller
         ], 201);
     }
 
+    /**
+     * Create Teacher
+     *
+     * Create a new teacher and their associated user account.
+     */
     public function store(\App\Http\Requests\StoreTeacherRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -104,11 +119,21 @@ class TeacherController extends Controller
         return response()->json($teacher->load(['user', 'homeroomClass']), 201);
     }
 
+    /**
+     * Show Teacher
+     *
+     * Retrieve a specific teacher profile by ID.
+     */
     public function show(TeacherProfile $teacher): JsonResponse
     {
         return response()->json($teacher->load(['user', 'homeroomClass', 'schedules']));
     }
 
+    /**
+     * Update Teacher
+     *
+     * Update an existing teacher's profile and user account.
+     */
     public function update(\App\Http\Requests\UpdateTeacherRequest $request, TeacherProfile $teacher): JsonResponse
     {
         $data = $request->validated();
@@ -138,6 +163,11 @@ class TeacherController extends Controller
         return response()->json($teacher->fresh()->load(['user', 'homeroomClass']));
     }
 
+    /**
+     * Delete Teacher
+     *
+     * Delete a specific teacher and their user account.
+     */
     public function destroy(TeacherProfile $teacher): JsonResponse
     {
         $teacher->user()->delete();
@@ -145,6 +175,11 @@ class TeacherController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 
+    /**
+     * Upload Schedule Image
+     *
+     * Upload a schedule image for a specific teacher.
+     */
     public function uploadScheduleImage(Request $request, TeacherProfile $teacher): JsonResponse
     {
         $request->validate([
@@ -161,6 +196,11 @@ class TeacherController extends Controller
         return response()->json(['url' => asset('storage/'.$path)]);
     }
 
+    /**
+     * Upload My Schedule Image
+     *
+     * Upload a schedule image for the currently authenticated teacher.
+     */
     public function uploadMyScheduleImage(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -172,6 +212,11 @@ class TeacherController extends Controller
         return $this->uploadScheduleImage($request, $user->teacherProfile);
     }
 
+    /**
+     * Get Schedule Image
+     *
+     * Retrieve the schedule image for a specific teacher.
+     */
     public function getScheduleImage(TeacherProfile $teacher)
     {
         if (! $teacher->schedule_image_path || ! Storage::disk('public')->exists($teacher->schedule_image_path)) {
@@ -181,6 +226,11 @@ class TeacherController extends Controller
         return response()->file(Storage::disk('public')->path($teacher->schedule_image_path));
     }
 
+    /**
+     * Delete Schedule Image
+     *
+     * Delete the schedule image for a specific teacher.
+     */
     public function deleteScheduleImage(TeacherProfile $teacher): JsonResponse
     {
         if ($teacher->schedule_image_path) {
@@ -191,6 +241,11 @@ class TeacherController extends Controller
         return response()->json(['message' => 'Image deleted']);
     }
 
+    /**
+     * Get Teacher Attendance History
+     *
+     * Retrieve the attendance history for a specific teacher.
+     */
     public function attendance(Request $request, TeacherProfile $teacher): JsonResponse
     {
         // Waka/Admin viewing teacher's attendance history
@@ -213,6 +268,11 @@ class TeacherController extends Controller
     }
 
     // Walikelas endpoints
+    /**
+     * Get My Homeroom
+     *
+     * Retrieve the homeroom class details for the currently authenticated teacher.
+     */
     public function myHomeroom(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -223,6 +283,11 @@ class TeacherController extends Controller
         return response()->json($user->teacherProfile->homeroomClass->load('major'));
     }
 
+    /**
+     * Get My Homeroom Schedules
+     *
+     * Retrieve the schedules for the homeroom class of the currently authenticated teacher.
+     */
     public function myHomeroomSchedules(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -241,6 +306,11 @@ class TeacherController extends Controller
         return response()->json($query->with(['subject', 'teacher.user'])->get());
     }
 
+    /**
+     * Get My Homeroom Students
+     *
+     * Retrieve a list of students in the homeroom class.
+     */
     public function myHomeroomStudents(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -257,6 +327,11 @@ class TeacherController extends Controller
         return response()->json($students);
     }
 
+    /**
+     * Get My Homeroom Attendance
+     *
+     * Retrieve attendance records for the homeroom class.
+     */
     public function myHomeroomAttendance(Request $request): JsonResponse
     {
         try {
@@ -283,11 +358,17 @@ class TeacherController extends Controller
 
             return response()->json($query->with(['student.user', 'schedule.teacher.user'])->latest('date')->get());
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Error fetching homeroom attendance: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Error fetching homeroom attendance: '.$e->getMessage());
+
             return response()->json(['message' => 'Internal Server Error', 'error' => $e->getMessage()], 500);
         }
     }
 
+    /**
+     * Get Homeroom Attendance Summary
+     *
+     * Retrieve a statistical summary of attendance for the homeroom class.
+     */
     public function myHomeroomAttendanceSummary(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -319,6 +400,11 @@ class TeacherController extends Controller
     /**
      * Get students requiring follow-up (Mobile App)
      * Returns students with concerning attendance patterns
+     */
+    /**
+     * Get Students Requiring Follow-up
+     *
+     * Retrieve a list of students with concerning attendance patterns across classes taught by the teacher.
      */
     public function getStudentsFollowUp(Request $request): JsonResponse
     {
@@ -402,6 +488,11 @@ class TeacherController extends Controller
         return response()->json(['data' => $students]);
     }
 
+    /**
+     * Report Inability to Teach
+     *
+     * Submit a request for absence or inability to teach.
+     */
     public function unableToTeach(Request $request): JsonResponse
     {
         $data = $request->validate([

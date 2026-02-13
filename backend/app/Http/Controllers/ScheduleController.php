@@ -16,6 +16,11 @@ use Illuminate\Validation\ValidationException;
 
 class ScheduleController extends Controller
 {
+    /**
+     * List Schedules
+     *
+     * Retrieve a list of schedules with optional filtering by teacher, class, or date.
+     */
     public function index(Request $request): JsonResponse
     {
         $query = Schedule::query()->with(['teacher.user:id,name', 'class:id,grade,label']);
@@ -36,6 +41,11 @@ class ScheduleController extends Controller
         return response()->json($query->latest()->paginate());
     }
 
+    /**
+     * Get Schedules by Teacher
+     *
+     * Retrieve schedules for a specific teacher, optionally filtered by date range.
+     */
     public function byTeacher(Request $request, TeacherProfile $teacher): JsonResponse
     {
         $request->validate([
@@ -63,6 +73,11 @@ class ScheduleController extends Controller
         return response()->json($perPage ? $query->paginate($perPage) : $query->get());
     }
 
+    /**
+     * Get Schedules by Class
+     *
+     * Retrieve schedules for a specific class, optionally filtered by date range.
+     */
     public function byClass(Request $request, Classes $class): JsonResponse
     {
         $request->validate([
@@ -90,6 +105,11 @@ class ScheduleController extends Controller
         return response()->json($perPage ? $query->paginate($perPage) : $query->get());
     }
 
+    /**
+     * Get My Schedules
+     *
+     * Retrieve schedules for the currently authenticated user (Teacher or Student).
+     */
     public function me(Request $request): JsonResponse
     {
         if ($request->user()->user_type === 'teacher') {
@@ -138,6 +158,11 @@ class ScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Create Schedule
+     *
+     * Create a new schedule entry.
+     */
     public function store(\App\Http\Requests\StoreScheduleRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -166,6 +191,11 @@ class ScheduleController extends Controller
         return response()->json($schedule->load(['teacher.user:id,name', 'class:id,grade,label']), 201);
     }
 
+    /**
+     * Show Schedule
+     *
+     * Retrieve details of a specific schedule.
+     */
     public function show(Request $request, Schedule $schedule): JsonResponse
     {
         if ($request->user()->user_type === 'teacher' && $schedule->teacher_id !== optional($request->user()->teacherProfile)->id) {
@@ -175,6 +205,11 @@ class ScheduleController extends Controller
         return response()->json($schedule->load(['teacher.user:id,name', 'class:id,grade,label', 'qrcodes', 'attendances']));
     }
 
+    /**
+     * Update Schedule
+     *
+     * Update an existing schedule entry.
+     */
     public function update(\App\Http\Requests\UpdateScheduleRequest $request, Schedule $schedule): JsonResponse
     {
         $data = $request->validated();
@@ -206,6 +241,11 @@ class ScheduleController extends Controller
         return response()->json($schedule->load(['teacher.user:id,name', 'class:id,grade,label']));
     }
 
+    /**
+     * Bulk Upsert Schedules
+     *
+     * Create or update multiple schedules for a class in a single request.
+     */
     public function bulkUpsert(Request $request, Classes $class): JsonResponse
     {
         $dto = \App\Data\BulkScheduleData::fromRequest($request);
@@ -311,6 +351,11 @@ class ScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Delete Schedule
+     *
+     * Delete a specific schedule.
+     */
     public function destroy(Schedule $schedule): JsonResponse
     {
         $schedule->delete();

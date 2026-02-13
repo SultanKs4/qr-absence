@@ -56,7 +56,7 @@ class CloseDailyAttendance extends Command
                 ->where('attendee_type', 'student')
                 ->whereDate('date', $dateStr)
                 ->pluck('student_id')
-                ->toArray();
+                ->all();
 
             foreach ($students as $student) {
                 if (! in_array($student->id, $existing)) {

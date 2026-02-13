@@ -11,7 +11,9 @@ use Illuminate\Http\Request;
 class AdminDataController extends Controller
 {
     /**
-     * Check for duplicate data across users, students, and teachers.
+     * Check for duplicate data
+     *
+     * Check for duplicate username, NISN, NIP, or email across users, students, and teachers.
      * This helps avoid "Unique constraint" errors during bulk imports or master data sync.
      */
     public function validateDuplicates(Request $request): JsonResponse

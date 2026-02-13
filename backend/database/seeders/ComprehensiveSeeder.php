@@ -36,7 +36,7 @@ class ComprehensiveSeeder extends Seeder
             );
 
             // Assign a subject randomly from categories
-            $subjects = ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Fisika', 'Kimia', 'Biologi', 'Sejarah', 'PKN', 'Agama', 'PJOK'];
+            $subjects = ['Matematika', 'Bahasa Indonesia', 'Bahasa Inggris', 'Sejarah', 'PKN', 'Agama', 'PJOK', 'MPKK', 'DPK', 'PKDK', '.'];
 
             $teacher = TeacherProfile::updateOrCreate(
                 ['user_id' => $user->id],

@@ -47,7 +47,7 @@ class SendAttendanceNotification implements ShouldQueue
         Cache::forget('dashboard.admin');
 
         // Clear Waka Dashboard for today
-        $today = now()->format('Y-m-d');
+        $today = now()->format('d-m-Y');
         Cache::forget("dashboard.waka.{$today}");
     }
 }

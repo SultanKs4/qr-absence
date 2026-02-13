@@ -34,7 +34,7 @@ class DashboardMockSeeder extends Seeder
 
         // 2. Setup Teachers
         if (TeacherProfile::count() < 3) {
-            $teacherNames = ['ALIFAH DIANTEBES AINDRA, S.Pd', 'ZULKIFLI ABDILLAH, S.Kom', 'RR. HENNING GRATYANIS ANGGRAENI, S.Pd    '];
+            $teacherNames = ['ALIFAH DIANTEBES AINDRA, S.Pd', 'ZULKIFLI ABDILLAH, S.Kom', 'RR. HENNING GRATYANIS ANGGRAENI, S.Pd '];
             foreach ($teacherNames as $i => $name) {
                 $user = User::create([
                     'name' => $name,

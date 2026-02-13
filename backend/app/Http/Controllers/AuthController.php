@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,17 +14,20 @@ class AuthController extends Controller
 {
     use \App\Traits\IpMasker;
 
-    public function login(Request $request): JsonResponse
+    /**
+     * Login User
+     *
+     * Authenticate a user and return an access token.
+     * Supports login via Username/Email, NISN (Students), or NIP/Kode Guru (Teachers).
+     */
+    public function login(LoginRequest $request): JsonResponse
     {
         Log::info('auth.login.attempt', [
             'ip' => $this->maskIp($request->ip()),
             'login' => $request->input('login'),
         ]);
 
-        $data = $request->validate([
-            'login' => ['required', 'string'],
-            'password' => ['nullable', 'string'], // Password optional for NISN login
-        ]);
+        $data = $request->validated();
 
         // Try to find user by username or email first
         $user = User::query()
@@ -122,8 +126,13 @@ class AuthController extends Controller
             $actualRole = $user->adminProfile?->type ?? 'admin';
         }
 
+        // Get token expiration in minutes from config
+        $expiresInMinutes = config('sanctum.expiration', 60);
+
         return response()->json([
             'token' => $token,
+            'expires_in' => $expiresInMinutes * 60, // Convert to seconds for compatibility
+            'token_type' => 'Bearer',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -137,6 +146,40 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Refresh Token
+     *
+     * Revoke the current token and issue a new one for extended session.
+     */
+    public function refresh(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Revoke current token
+        $request->user()->currentAccessToken()?->delete();
+
+        // Create new token
+        $token = $user->createToken('api')->plainTextToken;
+
+        $expiresInMinutes = config('sanctum.expiration', 60);
+
+        Log::info('auth.token.refreshed', [
+            'user_id' => $user->id,
+            'user_type' => $user->user_type,
+        ]);
+
+        return response()->json([
+            'token' => $token,
+            'expires_in' => $expiresInMinutes * 60,
+            'token_type' => 'Bearer',
+        ]);
+    }
+
+    /**
+     * Get Current User
+     *
+     * Retrieve the currently authenticated user's profile information.
+     */
     public function me(Request $request): JsonResponse
     {
         $user = $request->user()->load(['adminProfile', 'teacherProfile', 'studentProfile', 'studentProfile.classRoom']);
@@ -183,6 +226,11 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Logout User
+     *
+     * Revoke the current access token and log the user out.
+     */
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()?->delete();

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreClassRequest;
+use App\Http\Requests\UpdateClassRequest;
+use App\Http\Requests\UploadScheduleImageRequest;
 use App\Models\Classes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,6 +12,11 @@ use Illuminate\Support\Facades\Storage;
 
 class ClassController extends Controller
 {
+    /**
+     * List Classes
+     *
+     * Retrieve a list of all classes.
+     */
     public function index(Request $request): JsonResponse
     {
         $perPage = $request->integer('per_page', 15);
@@ -20,37 +28,49 @@ class ClassController extends Controller
         return response()->json(Classes::query()->with(['major', 'homeroomTeacher.user'])->latest()->paginate($perPage));
     }
 
-    public function store(Request $request): JsonResponse
+    /**
+     * Create Class
+     *
+     * Create a new class.
+     */
+    public function store(StoreClassRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'grade' => ['required', 'string', 'max:10'],
-            'label' => ['required', 'string', 'max:20'],
-            'major_id' => ['nullable', 'exists:majors,id'],
-        ]);
+        $data = $request->validated();
 
         $class = Classes::create($data);
 
         return response()->json($class, 201);
     }
 
+    /**
+     * Show Class
+     *
+     * Retrieve a specific class by ID.
+     */
     public function show(Classes $class): JsonResponse
     {
         return response()->json($class->load(['students.user', 'homeroomTeacher', 'major']));
     }
 
-    public function update(Request $request, Classes $class): JsonResponse
+    /**
+     * Update Class
+     *
+     * Update a specific class by ID.
+     */
+    public function update(UpdateClassRequest $request, Classes $class): JsonResponse
     {
-        $data = $request->validate([
-            'grade' => ['sometimes', 'string', 'max:10'],
-            'label' => ['sometimes', 'string', 'max:20'],
-            'major_id' => ['nullable', 'exists:majors,id'],
-        ]);
+        $data = $request->validated();
 
         $class->update($data);
 
         return response()->json($class);
     }
 
+    /**
+     * Delete Class
+     *
+     * Delete a specific class by ID.
+     */
     public function destroy(Classes $class): JsonResponse
     {
         $class->delete();
@@ -58,11 +78,13 @@ class ClassController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 
-    public function uploadScheduleImage(Request $request, Classes $class): JsonResponse
+    /**
+     * Upload Schedule Image
+     *
+     * Upload a schedule image for a specific class.
+     */
+    public function uploadScheduleImage(UploadScheduleImageRequest $request, Classes $class): JsonResponse
     {
-        $request->validate([
-            'file' => 'required|image|max:2048', // 2MB Max
-        ]);
 
         if ($class->schedule_image_path) {
             Storage::disk('public')->delete($class->schedule_image_path);
@@ -74,6 +96,11 @@ class ClassController extends Controller
         return response()->json(['url' => asset('storage/'.$path)]);
     }
 
+    /**
+     * Get Schedule Image
+     *
+     * Retrieve the schedule image for a specific class.
+     */
     public function getScheduleImage(Classes $class)
     {
         if (! $class->schedule_image_path || ! Storage::disk('public')->exists($class->schedule_image_path)) {
@@ -83,6 +110,11 @@ class ClassController extends Controller
         return response()->file(Storage::disk('public')->path($class->schedule_image_path));
     }
 
+    /**
+     * Delete Schedule Image
+     *
+     * Delete the schedule image for a specific class.
+     */
     public function deleteScheduleImage(Classes $class): JsonResponse
     {
         if ($class->schedule_image_path) {
@@ -93,6 +125,11 @@ class ClassController extends Controller
         return response()->json(['message' => 'Image deleted']);
     }
 
+    /**
+     * Get My Class
+     *
+     * Retrieve the class of the currently authenticated student.
+     */
     public function myClass(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -104,6 +141,11 @@ class ClassController extends Controller
         return response()->json($user->studentProfile->classRoom->load('major'));
     }
 
+    /**
+     * Get My Class Schedules
+     *
+     * Retrieve the schedules for the class of the currently authenticated student.
+     */
     public function myClassSchedules(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -125,6 +167,11 @@ class ClassController extends Controller
         return response()->json($query->with(['teacher.user'])->get());
     }
 
+    /**
+     * Get My Class Attendance
+     *
+     * Retrieve the attendance records for the class of the currently authenticated student.
+     */
     public function myClassAttendance(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -157,6 +204,11 @@ class ClassController extends Controller
         return response()->json($query->with(['student.user', 'schedule.teacher.user'])->latest()->get());
     }
 
+    /**
+     * Get My Class Students
+     *
+     * Retrieve a list of students in the class of the currently authenticated student.
+     */
     public function myClassStudents(Request $request): JsonResponse
     {
         $user = $request->user();

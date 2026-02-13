@@ -28,7 +28,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'key' => 'school_name',
-                'value' => 'SMK NEGERI 2 SINGOSARI',
+                'value' => 'SMKN 2 Singosari',
                 'type' => 'string',
                 'group' => 'general',
                 'description' => 'Nama sekolah',
@@ -119,7 +119,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'key' => 'school_headmaster',
-                'value' => 'SUMIJAH, S.Pd., M.Si',
+                'value' => 'SUMIJAH, S.Pd., M.SI. S. KOM',
                 'type' => 'string',
                 'group' => 'profile',
                 'description' => 'Nama Kepala Sekolah',

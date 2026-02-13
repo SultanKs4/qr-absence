@@ -8,14 +8,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-
-// untuk update mascot baru 
- // setup untuk fitur mascot yang di implementasikan
+// untuk update mascot baru
+// setup untuk fitur mascot yang di implementasikan
 
 class SettingController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List Settings
+     *
+     * Retrieve all application settings, including school logo and mascot URLs.
      */
     public function index(): JsonResponse
     {
@@ -36,7 +37,9 @@ class SettingController extends Controller
     }
 
     /**
-     * Update bulk settings.
+     * Bulk Update Settings
+     *
+     * Update multiple settings at once.
      */
     public function bulkUpdate(Request $request): JsonResponse
     {
@@ -59,7 +62,9 @@ class SettingController extends Controller
     }
 
     /**
-     * Update individual school settings including file upload. LGOO SEKOLAH
+     * Update School Settings
+     *
+     * Update school profile settings, including logo and mascot uploads.
      */
     public function update(UpdateSettingRequest $request): JsonResponse
     {
@@ -122,7 +127,9 @@ class SettingController extends Controller
     }
 
     /**
-     * Sync settings and active context. TERMASUK LOGO SEKOLAH
+     * Sync App Context
+     *
+     * Retrieve essential application context like active school year, semester, and school settings.
      */
     public function sync(): JsonResponse
     {
@@ -135,6 +142,11 @@ class SettingController extends Controller
         ]);
     }
 
+    /**
+     * Public Settings
+     *
+     * Retrieve a subset of settings publicly available (e.g., for login page).
+     */
     public function publicSettings(): JsonResponse
     {
         $keys = [
@@ -146,7 +158,7 @@ class SettingController extends Controller
             'school_email',
             'school_phone',
             'school_npsn',
-            'school_accreditation'
+            'school_accreditation',
         ];
 
         $settings = \App\Models\Setting::whereIn('key', $keys)->get()->pluck('value', 'key');

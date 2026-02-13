@@ -68,7 +68,7 @@ class ManualAttendanceSeeder extends Seeder
             Schedule::create([
                 'teacher_id' => $teacherProfile->id,
                 'class_id' => $class->id,
-                'subject_name' => 'Matematika Dasar',
+                'subject_name' => 'Matematika',
                 'title' => 'Pelajaran Hari Ini',
                 'day' => $dayName,
                 'start_time' => '07:00:00',

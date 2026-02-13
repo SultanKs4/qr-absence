@@ -2,48 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreSemesterRequest;
+use App\Http\Requests\UpdateSemesterRequest;
 use App\Models\Semester;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class SemesterController extends Controller
 {
+    /**
+     * List Semesters
+     *
+     * Retrieve a list of all semesters with their associated school year.
+     */
     public function index(): JsonResponse
     {
         return response()->json(Semester::with('schoolYear')->latest()->paginate());
     }
 
-    public function store(Request $request): JsonResponse
+    /**
+     * Create Semester
+     *
+     * Create a new semester.
+     */
+    public function store(StoreSemesterRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['required', 'string'],
-            'school_year_id' => ['required', 'exists:school_years,id'],
-            'active' => ['nullable', 'boolean'],
-        ]);
+        $data = $request->validated();
 
         $semester = Semester::create($data);
 
         return response()->json($semester->load('schoolYear'), 201);
     }
 
+    /**
+     * Show Semester
+     *
+     * Retrieve a specific semester by ID.
+     */
     public function show(Semester $semester): JsonResponse
     {
         return response()->json($semester->load('schoolYear'));
     }
 
-    public function update(Request $request, Semester $semester): JsonResponse
+    /**
+     * Update Semester
+     *
+     * Update a specific semester by ID.
+     */
+    public function update(UpdateSemesterRequest $request, Semester $semester): JsonResponse
     {
-        $data = $request->validate([
-            'name' => ['sometimes', 'string'],
-            'school_year_id' => ['sometimes', 'exists:school_years,id'],
-            'active' => ['nullable', 'boolean'],
-        ]);
+        $data = $request->validated();
 
         $semester->update($data);
 
         return response()->json($semester->load('schoolYear'));
     }
 
+    /**
+     * Delete Semester
+     *
+     * Delete a specific semester by ID.
+     */
     public function destroy(Semester $semester): JsonResponse
     {
         $semester->delete();

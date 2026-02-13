@@ -10,18 +10,21 @@ it('allows admin to manage rooms', function () {
 
     // Create
     $response = $this->actingAs($admin)->postJson('/api/rooms', [
-        'name' => 'Lab Komputer 1',
+        'name' => 'Lab Komputer',
         'location' => 'Lantai 2',
         'capacity' => 40,
     ]);
     $response->assertStatus(201);
     $roomId = $response->json('id');
 
-    // List
-    $this->getJson('/api/rooms')->assertStatus(200);
+    // Show
+    $this->getJson("/api/rooms/{$roomId}")->assertStatus(200);
 
     // Update
     $this->putJson("/api/rooms/{$roomId}", ['name' => 'Lab RPL'])->assertStatus(200);
+
+    // List
+    $this->getJson('/api/rooms')->assertStatus(200);
 
     // Delete
     $this->deleteJson("/api/rooms/{$roomId}")->assertStatus(200);

@@ -17,9 +17,9 @@ use Illuminate\Support\Carbon;
 class StudentLeavePermissionController extends Controller
 {
     /**
-     * List all leave permissions with filters
+     * List Leave Permissions
      *
-     * GET /leave-permissions
+     * Retrieve a list of student leave permissions with various filters.
      */
     public function index(Request $request): JsonResponse
     {
@@ -79,9 +79,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Create a new leave permission
+     * Create Leave Permission
      *
-     * POST /leave-permissions
+     * Create a new leave permission for a student (Sick, Permit, Leave Early, Dispensasi).
      */
     public function store(Request $request): JsonResponse
     {
@@ -167,9 +167,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Show a specific leave permission
+     * Show Leave Permission
      *
-     * GET /leave-permissions/{permission}
+     * Retrieve details of a specific leave permission.
      */
     public function show(Request $request, StudentLeavePermission $permission): JsonResponse
     {
@@ -179,9 +179,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Update a leave permission (e.g., change end time)
+     * Update Leave Permission
      *
-     * PATCH /leave-permissions/{permission}
+     * Update an active leave permission (e.g., change end time).
      */
     public function update(Request $request, StudentLeavePermission $permission): JsonResponse
     {
@@ -205,9 +205,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Mark student as returned
+     * Mark Student Returned
      *
-     * POST /leave-permissions/{permission}/return
+     * Mark a student as returned from temporary leave.
      */
     public function markReturn(Request $request, StudentLeavePermission $permission): JsonResponse
     {
@@ -230,9 +230,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Mark student as absent (alpha) - didn't return on time
+     * Mark Student Absent (Alpha)
      *
-     * POST /leave-permissions/{permission}/mark-absent
+     * Mark a student as absent (alpha) if they didn't return on time.
      */
     public function markAbsent(Request $request, StudentLeavePermission $permission): JsonResponse
     {
@@ -254,9 +254,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Cancel a leave permission
+     * Cancel Leave Permission
      *
-     * POST /leave-permissions/{permission}/cancel
+     * Cancel an active leave permission and revert associated attendance records.
      */
     public function cancel(Request $request, StudentLeavePermission $permission): JsonResponse
     {
@@ -278,9 +278,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Get students currently on leave for a specific class
+     * List Students on Leave
      *
-     * GET /classes/{class}/students-on-leave
+     * Retrieve a list of students currently on leave for a specific class.
      */
     public function studentsOnLeave(Request $request, Classes $class): JsonResponse
     {
@@ -342,10 +342,9 @@ class StudentLeavePermissionController extends Controller
     }
 
     /**
-     * Check/expire leave permissions that passed their end time
-     * This can be called by a scheduler or manually
+     * Check Expired Permissions
      *
-     * POST /leave-permissions/check-expired
+     * Check and expire leave permissions that have passed their end time.
      */
     public function checkExpired(): JsonResponse
     {

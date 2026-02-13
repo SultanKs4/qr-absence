@@ -13,6 +13,11 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode as QrCodeFacade;
 
 class QrCodeController extends Controller
 {
+    /**
+     * List Active QR Codes
+     *
+     * Retrieve a list of currently active QR codes.
+     */
     public function active(Request $request): JsonResponse
     {
         $items = Qrcode::query()
@@ -24,6 +29,11 @@ class QrCodeController extends Controller
         return response()->json($items);
     }
 
+    /**
+     * Generate QR Code
+     *
+     * Generate a new QR code for a specific schedule.
+     */
     public function generate(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -147,6 +157,11 @@ class QrCodeController extends Controller
         ], 201);
     }
 
+    /**
+     * Show QR Code Details
+     *
+     * Retrieve details of a specific QR code by token.
+     */
     public function show(string $token): JsonResponse
     {
         $qr = Qrcode::with(['schedule.class', 'schedule.teacher.user', 'issuer'])->where('token', $token)->firstOrFail();
@@ -159,6 +174,11 @@ class QrCodeController extends Controller
         return response()->json($qr);
     }
 
+    /**
+     * Revoke QR Code
+     *
+     * Revoke (deactivate) an existing QR code.
+     */
     public function revoke(Request $request, string $token): JsonResponse
     {
         $qr = Qrcode::with('schedule.class.homeroomTeacher')->where('token', $token)->firstOrFail();

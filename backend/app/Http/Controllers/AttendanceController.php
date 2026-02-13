@@ -29,6 +29,12 @@ class AttendanceController extends Controller
         $this->whatsapp = $whatsapp;
     }
 
+    /**
+     * Scan QR Code (Self)
+     *
+     * Record attendance by scanning a valid QR code.
+     * Accessible by both Student and Teacher.
+     */
     public function scan(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -140,6 +146,12 @@ class AttendanceController extends Controller
         });
     }
 
+    /**
+     * Scan Student QR Code (Teacher)
+     *
+     * Record attendance for a student by scanning their QR code (NISN).
+     * Accessible only by Teachers.
+     */
     public function scanStudent(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -279,6 +291,12 @@ class AttendanceController extends Controller
         return 'present';
     }
 
+    /**
+     * Manual Attendance Input
+     *
+     * Manually record attendance for a student.
+     * Accessible by Teachers (for their class/schedule).
+     */
     public function storeManual(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -336,8 +354,9 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Close attendance for a schedule (Bulk Absent)
-     * Marks all students who haven't scanned as 'absent' (Alpha)
+     * Close Attendance Session
+     *
+     * Close the attendance for a schedule, marking all unscanned students as absent (Alpha).
      */
     public function close(Request $request, Schedule $schedule): JsonResponse
     {
@@ -358,7 +377,7 @@ class AttendanceController extends Controller
             ->where('attendee_type', 'student')
             ->whereDate('date', $today)
             ->pluck('student_id')
-            ->toArray();
+            ->all();
 
         // 4. Get students on leave today
         $leavePermissions = \App\Models\StudentLeavePermission::where('class_id', $schedule->class_id)
@@ -432,6 +451,11 @@ class AttendanceController extends Controller
         };
     }
 
+    /**
+     * Get My Attendance History
+     *
+     * Retrieve attendance history for the currently authenticated student.
+     */
     public function me(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'student' || ! $request->user()->studentProfile) {
@@ -462,6 +486,11 @@ class AttendanceController extends Controller
         return \App\Http\Resources\AttendanceResource::collection($attendances)->response();
     }
 
+    /**
+     * Get My Attendance Summary
+     *
+     * Retrieve a statistical summary of attendance for the currently authenticated student.
+     */
     public function summaryMe(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'student' || ! $request->user()->studentProfile) {
@@ -502,6 +531,11 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Get My Teaching Attendance
+     *
+     * Retrieve attendance/teaching history for the currently authenticated teacher.
+     */
     public function meTeaching(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'teacher' || ! $request->user()->teacherProfile) {
@@ -536,6 +570,11 @@ class AttendanceController extends Controller
         return \App\Http\Resources\AttendanceResource::collection($query->latest('date')->paginate())->response();
     }
 
+    /**
+     * Get My Teaching Summary
+     *
+     * Retrieve a statistical summary of teaching activities for the currently authenticated teacher.
+     */
     public function summaryTeaching(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'teacher' || ! $request->user()->teacherProfile) {
@@ -572,6 +611,12 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Get Taught Students Attendance Summary
+     *
+     * Retrieve attendance summary for students taught by the currently authenticated teacher.
+     * Useful for identifying students with high absence rates.
+     */
     public function studentsAttendanceSummary(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'teacher' || ! $request->user()->teacherProfile) {
@@ -672,6 +717,12 @@ class AttendanceController extends Controller
         return response()->json($response);
     }
 
+    /**
+     * Get Class Attendance by Date
+     *
+     * Retrieve attendance records for a specific class on a specific date.
+     * Accessible by Homeroom Teacher and Admin.
+     */
     public function classAttendanceByDate(Request $request, Classes $class): JsonResponse
     {
         $user = $request->user();
@@ -721,6 +772,12 @@ class AttendanceController extends Controller
         ]);
     }
 
+    /**
+     * Get Class Students Summary
+     *
+     * Retrieve attendance summary for all students in a class.
+     * Accessible by Homeroom Teacher.
+     */
     public function classStudentsSummary(Request $request, Classes $class): JsonResponse
     {
         if ($request->user()->user_type !== 'teacher' || ! $request->user()->teacherProfile) {
@@ -734,6 +791,12 @@ class AttendanceController extends Controller
         return $this->calculateClassSummary($request, $class);
     }
 
+    /**
+     * Get Class Summary (Waka)
+     *
+     * Retrieve attendance summary for a class.
+     * Accessible by Waka Kesiswaan/Kurikulum.
+     */
     public function wakaClassSummary(Request $request, Classes $class): JsonResponse
     {
         return $this->calculateClassSummary($request, $class);

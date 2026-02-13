@@ -3,10 +3,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import NavbarAdmin from '../../components/Admin/NavbarAdmin';
 import './Profilesekolah.css';
 import defaultLogo from '../../assets/logo.png';
-import { settingService } from '../../services/setting';
+import { useSettings } from '../../context/SettingContext';
 
 function ProfileSekolah() {
-  // const navigate = useNavigate();
+  const { settings, refreshSettings } = useSettings();
   const logoInputRef = useRef(null);
   const maskotInputRef = useRef(null);
 
@@ -32,17 +32,8 @@ function ProfileSekolah() {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Load data from API
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      setLoading(true);
-      const settings = await settingService.getSettings();
-      
-      // Map API response to state
+    if (settings) {
       setFormData({
         school_name: settings.school_name || '',
         school_npsn: settings.school_npsn || '',
@@ -71,14 +62,10 @@ function ProfileSekolah() {
       } else {
         setMaskot(null);
       }
-
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      // alert('Gagal mengambil data profil sekolah.');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [settings]);
+
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -130,12 +117,12 @@ function ProfileSekolah() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (window.confirm('Apakah Anda yakin ingin menyimpan perubahan?')) {
       try {
         setLoading(true);
         const data = new FormData();
-        
+
         // Append all text fields
         Object.keys(formData).forEach(key => {
           data.append(key, formData[key] || '');
@@ -144,13 +131,13 @@ function ProfileSekolah() {
         // Append files if changed (checked by ref presence or explicit logic needed?)
         // The simple way: check if refs have files. 
         // Better way: use state to track files directly since previews are just strings.
-        
+
         if (logoInputRef.current && logoInputRef.current.files[0]) {
-            data.append('school_logo', logoInputRef.current.files[0]);
+          data.append('school_logo', logoInputRef.current.files[0]);
         }
 
         if (maskotInputRef.current && maskotInputRef.current.files[0]) {
-            data.append('school_mascot', maskotInputRef.current.files[0]);
+          data.append('school_mascot', maskotInputRef.current.files[0]);
         }
 
         // Handle case where we want to clear them? Backend needs a way to clear. 
@@ -159,11 +146,11 @@ function ProfileSekolah() {
         // For now, let's just upload what we have.
 
         await settingService.updateSettings(data);
-        
+
         alert('Data berhasil diperbarui!');
         setIsEditing(false);
-        fetchSettings(); // Refresh to ensure sync
-        
+        refreshSettings(); // Refresh context data
+
         // Optional: Trigger global event or context update if navbar needs it
       } catch (error) {
         console.error('Error saving settings:', error);
@@ -176,24 +163,25 @@ function ProfileSekolah() {
 
   const handleCancel = () => {
     if (window.confirm('Batalkan perubahan?')) {
-       setIsEditing(false);
-       fetchSettings(); // Revert to server data
-       
-       // Reset inputs
-       if (logoInputRef.current) logoInputRef.current.value = '';
-       if (maskotInputRef.current) maskotInputRef.current.value = '';
+      setIsEditing(false);
+      // Revert logic is handled by useEffect dependency on settings
+      // Trigger re-render with existing settings by just disabling edit mode
+
+      // Reset inputs
+      if (logoInputRef.current) logoInputRef.current.value = '';
+      if (maskotInputRef.current) maskotInputRef.current.value = '';
     }
   };
 
   if (loading && !formData.school_name) {
-      return (
-          <div className="profil-sekolah-wrapper">
-            <NavbarAdmin />
-            <div className="profil-sekolah-konten">
-                <div style={{textAlign: 'center', marginTop: '50px'}}>Loading...</div>
-            </div>
-          </div>
-      );
+    return (
+      <div className="profil-sekolah-wrapper">
+        <NavbarAdmin />
+        <div className="profil-sekolah-konten">
+          <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -232,9 +220,9 @@ function ProfileSekolah() {
                   style={{ display: 'none' }}
                   disabled={!isEditing}
                 />
-                <button 
-                  type="button" 
-                  onClick={handleResetLogo} 
+                <button
+                  type="button"
+                  onClick={handleResetLogo}
                   className="profil-btn-reset"
                   disabled={!isEditing}
                 >
@@ -271,9 +259,9 @@ function ProfileSekolah() {
                   disabled={!isEditing}
                 />
                 {maskot && (
-                  <button 
-                    type="button" 
-                    onClick={handleRemoveMaskot} 
+                  <button
+                    type="button"
+                    onClick={handleRemoveMaskot}
                     className="profil-btn-hapus"
                     disabled={!isEditing}
                   >
@@ -353,7 +341,7 @@ function ProfileSekolah() {
 
             <div className="profil-form-bagian">
               <h3 className="profil-bagian-judul">Kepala Sekolah</h3>
-              
+
               <div className="profil-form-baris">
                 <div className="profil-form-grup">
                   <label className="profil-form-label">Nama Kepala Sekolah</label>
@@ -385,7 +373,7 @@ function ProfileSekolah() {
 
             <div className="profil-form-bagian">
               <h3 className="profil-bagian-judul">Alamat & Kontak</h3>
-              
+
               <div className="profil-form-grup lebar-penuh">
                 <label className="profil-form-label">Alamat Jalan</label>
                 <input
@@ -500,9 +488,9 @@ function ProfileSekolah() {
             {/* Action Buttons */}
             <div className="profil-form-aksi">
               {!isEditing ? (
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditing(true)} 
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
                   className="profil-btn-edit"
                 >
                   <i className="fas fa-edit"></i>
@@ -510,16 +498,16 @@ function ProfileSekolah() {
                 </button>
               ) : (
                 <>
-                  <button 
-                    type="button" 
-                    onClick={handleCancel} 
+                  <button
+                    type="button"
+                    onClick={handleCancel}
                     className="profil-btn-batal"
                   >
                     <i className="fas fa-times"></i>
                     Batal
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="profil-btn-simpan"
                     disabled={loading}
                   >

@@ -8,11 +8,21 @@ use Illuminate\Http\Request;
 
 class SchoolYearController extends Controller
 {
+    /**
+     * List School Years
+     *
+     * Retrieve a list of all school years.
+     */
     public function index(): JsonResponse
     {
         return response()->json(SchoolYear::latest()->paginate());
     }
 
+    /**
+     * Create School Year
+     *
+     * Create a new school year.
+     */
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -27,11 +37,21 @@ class SchoolYearController extends Controller
         return response()->json($year, 201);
     }
 
+    /**
+     * Show School Year
+     *
+     * Retrieve a specific school year by ID.
+     */
     public function show(SchoolYear $schoolYear): JsonResponse
     {
         return response()->json($schoolYear);
     }
 
+    /**
+     * Update School Year
+     *
+     * Update a specific school year by ID.
+     */
     public function update(Request $request, SchoolYear $schoolYear): JsonResponse
     {
         $data = $request->validate([
@@ -46,6 +66,11 @@ class SchoolYearController extends Controller
         return response()->json($schoolYear);
     }
 
+    /**
+     * Delete School Year
+     *
+     * Delete a specific school year by ID.
+     */
     public function destroy(SchoolYear $schoolYear): JsonResponse
     {
         $schoolYear->delete();

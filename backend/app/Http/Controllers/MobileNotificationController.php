@@ -9,7 +9,9 @@ use Illuminate\Http\Request;
 class MobileNotificationController extends Controller
 {
     /**
-     * Get notifications for mobile app (generated on-the-fly from attendance data)
+     * List Notifications
+     *
+     * Retrieve notifications for the mobile app, generated on-the-fly based on attendance data.
      */
     public function index(Request $request): JsonResponse
     {

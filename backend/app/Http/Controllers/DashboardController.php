@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
+    /**
+     * Admin Dashboard Summary
+     *
+     * Retrieve a statistical summary for the admin dashboard, including counts of students, teachers, classes, and attendance stats for today.
+     */
     public function adminSummary(Request $request): JsonResponse
     {
         $today = now()->format('Y-m-d');
@@ -45,6 +50,11 @@ class DashboardController extends Controller
         return response()->json($stats);
     }
 
+    /**
+     * Attendance Summary
+     *
+     * Retrieve a general attendance summary filtered by date range.
+     */
     public function attendanceSummary(Request $request): JsonResponse
     {
         $request->validate([
@@ -71,8 +81,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get student dashboard summary (Mobile App)
-     * Returns today's schedule with attendance status
+     * Student Dashboard
+     *
+     * Retrieve the dashboard summary for a student (Mobile App), including today's schedule and attendance status.
      */
     public function studentDashboard(Request $request): JsonResponse
     {
@@ -138,8 +149,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get teacher dashboard summary (Mobile App)
-     * Returns today's teaching schedule and attendance summary
+     * Teacher Dashboard
+     *
+     * Retrieve the dashboard summary for a teacher (Mobile App), including today's teaching schedule and attendance overview.
      */
     public function teacherDashboard(Request $request): JsonResponse
     {
@@ -254,8 +266,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get homeroom teacher dashboard (Mobile App)
-     * Returns homeroom class info, attendance summary, and today's schedule
+     * Homeroom Teacher Dashboard
+     *
+     * Retrieve the dashboard summary for a homeroom teacher, including their class info and today's attendance summary.
      */
     public function homeroomDashboard(Request $request): JsonResponse
     {
@@ -317,8 +330,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get Waka (Vice Principal) dashboard summary
-     * Returns today's stats and monthly trend
+     * Waka Dashboard
+     *
+     * Retrieve the dashboard summary for Waka (Vice Principal), showing today's statistics and monthly trends.
      */
     public function wakaDashboard(Request $request): JsonResponse
     {
@@ -416,8 +430,9 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get class dashboard summary for class officers (Pengurus Kelas)
-     * Returns today's class stats and monthly trend for their class
+     * Class Officer Dashboard
+     *
+     * Retrieve the dashboard summary for a class officer (Pengurus Kelas), showing today's stats and trends for their class.
      */
     public function classDashboard(Request $request): JsonResponse
     {

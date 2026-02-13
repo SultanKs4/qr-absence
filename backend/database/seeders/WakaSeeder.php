@@ -14,7 +14,7 @@ class WakaSeeder extends Seeder
         $user = User::updateOrCreate(
             ['username' => 'waka1'],
             [
-                'name' => 'Wakil Kepala Sekolah',
+                'name' => 'ZULKIFLI ABDILLAH, S.Kom',
                 'email' => 'waka@example.com',
                 'password' => Hash::make('password123'),
                 'user_type' => 'admin',

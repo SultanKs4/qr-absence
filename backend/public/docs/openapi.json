@@ -6871,7 +6871,7 @@
             },
             "post": {
                 "operationId": "setting.update",
-                "summary": "Update individual school settings including file upload. LGOO SEKOLAH",
+                "summary": "Update individual school settings including file upload. ! LOGO SEKOLAH",
                 "tags": [
                     "Setting"
                 ],

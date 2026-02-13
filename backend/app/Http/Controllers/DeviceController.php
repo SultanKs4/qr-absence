@@ -8,6 +8,12 @@ use Illuminate\Http\Request;
 
 class DeviceController extends Controller
 {
+    /**
+     * Register Device
+     *
+     * Register a new device for the user (Mobile App).
+     * For students, this will deactivate other devices as they are allowed only one active device.
+     */
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -35,6 +41,11 @@ class DeviceController extends Controller
         return response()->json($device, 201);
     }
 
+    /**
+     * Remove Device
+     *
+     * Unregister/delete a device.
+     */
     public function destroy(Request $request, Device $device): JsonResponse
     {
         if ($device->user_id !== $request->user()->id) {

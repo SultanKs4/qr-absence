@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreSubjectRequest;
+use App\Http\Requests\UpdateSubjectRequest;
 use App\Models\Subject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SubjectController extends Controller
 {
+    /**
+     * List Subjects
+     *
+     * Retrieve a list of all subjects.
+     */
     public function index(Request $request): JsonResponse
     {
         $perPage = $request->integer('per_page', 15);
@@ -19,35 +26,49 @@ class SubjectController extends Controller
         return response()->json(Subject::query()->latest()->paginate($perPage));
     }
 
-    public function store(Request $request): JsonResponse
+    /**
+     * Create Subject
+     *
+     * Create a new subject key/course.
+     */
+    public function store(StoreSubjectRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'code' => ['required', 'string', 'unique:subjects,code'],
-            'name' => ['required', 'string'],
-        ]);
+        $data = $request->validated();
 
         $subject = Subject::create($data);
 
         return response()->json($subject, 201);
     }
 
+    /**
+     * Show Subject
+     *
+     * Retrieve a specific subject by ID.
+     */
     public function show(Subject $subject): JsonResponse
     {
         return response()->json($subject);
     }
 
-    public function update(Request $request, Subject $subject): JsonResponse
+    /**
+     * Update Subject
+     *
+     * Update a specific subject by ID.
+     */
+    public function update(UpdateSubjectRequest $request, Subject $subject): JsonResponse
     {
-        $data = $request->validate([
-            'code' => ['sometimes', 'string', 'unique:subjects,code,'.$subject->id],
-            'name' => ['sometimes', 'string'],
-        ]);
+        $data = $request->validated();
 
         $subject->update($data);
 
         return response()->json($subject);
     }
 
+    /**
+     * Delete Subject
+     *
+     * Delete a specific subject by ID.
+     */
     public function destroy(Subject $subject): JsonResponse
     {
         $subject->delete();

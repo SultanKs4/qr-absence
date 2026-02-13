@@ -21,7 +21,7 @@ class MajorSeeder extends Seeder
             [
                 'code' => 'MT',
                 'name' => 'Mekatronika',
-                'category' => 'Teknik Mesin',
+                'category' => 'Teknik Mekatronika',
             ],
             [
                 'code' => 'ANM',

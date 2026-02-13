@@ -17,10 +17,10 @@ use Illuminate\Support\Carbon;
 class TeacherScheduleDetailController extends Controller
 {
     /**
-     * Get schedule details with attendance statistics for a specific schedule
-     * This is accessed from teacher dashboard when clicking "Tampilkan" button
+     * Get Schedule Details
      *
-     * GET /me/schedules/{schedule}/detail
+     * Retrieve detailed attendance statistics for a specific schedule.
+     * Accessible by the teacher who owns the schedule.
      */
     public function show(Request $request, Schedule $schedule): JsonResponse
     {
@@ -163,9 +163,9 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Get students eligible for attendance (excludes students on full-day leave)
+     * Get Eligible Students
      *
-     * GET /me/schedules/{schedule}/students
+     * Retrieve a list of students eligible for attendance (excluding those on full-day leave).
      */
     public function getStudents(Request $request, Schedule $schedule): JsonResponse
     {
@@ -190,7 +190,7 @@ class TeacherScheduleDetailController extends Controller
             ->where('status', 'active')
             ->where('is_full_day', true)
             ->pluck('student_id')
-            ->toArray();
+            ->all();
 
         // Get temporary leaves that overlap with this schedule
         $temporaryLeaves = StudentLeavePermission::where('class_id', $class->id)
@@ -241,10 +241,10 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Teacher marks sick/permission for a student (full day)
-     * This affects ALL subjects for the day
+     * Create Student Leave (Full Day)
      *
-     * POST /me/schedules/{schedule}/students/{student}/leave
+     * Mark a student as sick or having permission for the full day.
+     * This affects all subjects for the day.
      */
     public function createStudentLeave(Request $request, Schedule $schedule, StudentProfile $student): JsonResponse
     {
@@ -311,10 +311,10 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Teacher grants permission to leave early (izin pulang)
-     * Student will be hidden from attendance until return or end of school
+     * Create Leave Early Permission
      *
-     * POST /me/schedules/{schedule}/students/{student}/leave-early
+     * Grant permission for a student to leave early (izin pulang) or dispensasi.
+     * Student will be hidden from attendance until return or end of school.
      */
     public function createLeaveEarly(Request $request, Schedule $schedule, StudentProfile $student): JsonResponse
     {
@@ -387,9 +387,9 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Mark student as returned from leave early
+     * Mark Student Returned
      *
-     * POST /me/leave-permissions/{leavePermission}/return
+     * Mark a student as returned from early leave or dispensasi.
      */
     public function markReturned(Request $request, StudentLeavePermission $leavePermission): JsonResponse
     {
@@ -422,9 +422,9 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Mark student as alpha (absent) if they didn't return on time
+     * Mark Student Absent (Alpha)
      *
-     * POST /me/leave-permissions/{leavePermission}/mark-absent
+     * Mark a student as absent (alpha) if they did not return from leave on time.
      */
     public function markAbsent(Request $request, StudentLeavePermission $leavePermission): JsonResponse
     {
@@ -459,9 +459,9 @@ class TeacherScheduleDetailController extends Controller
     }
 
     /**
-     * Get active leave permissions for a class today
+     * Get Class Leave Permissions
      *
-     * GET /classes/{class}/leave-permissions
+     * Retrieve active leave permissions for a specific class today.
      */
     public function getClassLeavePermissions(Request $request, \App\Models\Classes $class): JsonResponse
     {

@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Hash;
 
 class StudentController extends Controller
 {
+    /**
+     * List Students
+     *
+     * Retrieve a list of all students with filtering options.
+     */
     public function index(Request $request): JsonResponse
     {
         $query = StudentProfile::query()->with(['user', 'classRoom']);
@@ -40,6 +45,11 @@ class StudentController extends Controller
         return \App\Http\Resources\StudentResource::collection($query->latest()->paginate($perPage)->appends($request->all()))->response();
     }
 
+    /**
+     * Import Students
+     *
+     * Bulk import students from a data array.
+     */
     public function import(Request $request): JsonResponse
     {
         $dto = \App\Data\StudentImportData::fromRequest($request);
@@ -91,6 +101,11 @@ class StudentController extends Controller
         ], 201);
     }
 
+    /**
+     * Create Student
+     *
+     * Create a new student and their associated user account.
+     */
     public function store(\App\Http\Requests\StoreStudentRequest $request): JsonResponse
     {
         $data = $request->validated();
@@ -120,11 +135,21 @@ class StudentController extends Controller
         return response()->json(new \App\Http\Resources\StudentResource($student->load(['user', 'classRoom'])), 201);
     }
 
+    /**
+     * Show Student
+     *
+     * Retrieve a specific student profile by ID.
+     */
     public function show(StudentProfile $student): JsonResponse
     {
         return response()->json(new \App\Http\Resources\StudentResource($student->load(['user', 'classRoom', 'attendances'])));
     }
 
+    /**
+     * Update Student
+     *
+     * Update a specific student profile and associated user account.
+     */
     public function update(\App\Http\Requests\UpdateStudentRequest $request, StudentProfile $student): JsonResponse
     {
         $data = $request->validated();
@@ -152,6 +177,11 @@ class StudentController extends Controller
         return response()->json(new \App\Http\Resources\StudentResource($student->fresh()->load(['user', 'classRoom'])));
     }
 
+    /**
+     * Delete Student
+     *
+     * Delete a specific student and their user account.
+     */
     public function destroy(StudentProfile $student): JsonResponse
     {
         $student->user()->delete();
@@ -159,6 +189,11 @@ class StudentController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 
+    /**
+     * Get Student Attendance History
+     *
+     * Retrieve the attendance history for a specific student.
+     */
     public function attendanceHistory(Request $request, StudentProfile $student): JsonResponse
     {
         $query = $student->attendances()
