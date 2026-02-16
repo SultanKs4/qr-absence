@@ -22,7 +22,7 @@ return new class extends Migration
             $table->foreignId('student_id')->constrained('student_profiles')->cascadeOnDelete();
             $table->foreignId('class_id')->constrained('classes')->cascadeOnDelete();
             $table->foreignId('granted_by')->constrained('users')->cascadeOnDelete(); // Teacher who granted
-            $table->foreignId('schedule_id')->nullable()->constrained('schedules')->nullOnDelete(); // The schedule when permission was granted
+            $table->foreignId('schedule_id')->nullable()->constrained('schedule_items')->nullOnDelete(); // The schedule when permission was granted
 
             // Type of permission: 'izin_pulang' (leave early), 'dispensasi', 'sakit' (sick full day), 'izin' (permission full day)
             $table->enum('type', ['izin_pulang', 'dispensasi', 'sakit', 'izin'])->default('izin_pulang');

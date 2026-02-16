@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
-use App\Models\Schedule;
 use App\Models\StudentLeavePermission;
 use App\Models\StudentProfile;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +21,7 @@ class TeacherScheduleDetailController extends Controller
      * Retrieve detailed attendance statistics for a specific schedule.
      * Accessible by the teacher who owns the schedule.
      */
-    public function show(Request $request, Schedule $schedule): JsonResponse
+    public function show(Request $request, \App\Models\ScheduleItem $schedule): JsonResponse
     {
         $user = $request->user();
         $teacher = $user->teacherProfile;
@@ -39,7 +38,7 @@ class TeacherScheduleDetailController extends Controller
         $today = now()->toDateString();
 
         // Get class info
-        $class = $schedule->class;
+        $class = $schedule->dailySchedule->classSchedule->class;
         if (! $class) {
             return response()->json(['message' => 'Class not found for this schedule'], 404);
         }
@@ -144,9 +143,9 @@ class TeacherScheduleDetailController extends Controller
         return response()->json([
             'schedule' => [
                 'id' => $schedule->id,
-                'subject_name' => $schedule->subject_name,
-                'title' => $schedule->title,
-                'day' => $schedule->day,
+                'subject_name' => $schedule->subject?->name ?? 'Unknown',
+                'title' => $schedule->subject?->name ?? 'Unknown',
+                'day' => $schedule->dailySchedule->day,
                 'start_time' => Carbon::parse($schedule->start_time)->format('H:i'),
                 'end_time' => Carbon::parse($schedule->end_time)->format('H:i'),
                 'room' => $schedule->room,
@@ -167,7 +166,7 @@ class TeacherScheduleDetailController extends Controller
      *
      * Retrieve a list of students eligible for attendance (excluding those on full-day leave).
      */
-    public function getStudents(Request $request, Schedule $schedule): JsonResponse
+    public function getStudents(Request $request, \App\Models\ScheduleItem $schedule): JsonResponse
     {
         $user = $request->user();
         $teacher = $user->teacherProfile;
@@ -177,7 +176,7 @@ class TeacherScheduleDetailController extends Controller
         }
 
         $today = now()->toDateString();
-        $class = $schedule->class;
+        $class = $schedule->dailySchedule->classSchedule->class;
 
         // Get all students
         $students = StudentProfile::where('class_id', $class->id)
@@ -246,7 +245,7 @@ class TeacherScheduleDetailController extends Controller
      * Mark a student as sick or having permission for the full day.
      * This affects all subjects for the day.
      */
-    public function createStudentLeave(Request $request, Schedule $schedule, StudentProfile $student): JsonResponse
+    public function createStudentLeave(Request $request, \App\Models\ScheduleItem $schedule, StudentProfile $student): JsonResponse
     {
         $user = $request->user();
         $teacher = $user->teacherProfile;
@@ -255,8 +254,10 @@ class TeacherScheduleDetailController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        $classId = $schedule->dailySchedule->classSchedule->class_id;
+
         // Validate student is in the class
-        if ($student->class_id !== $schedule->class_id) {
+        if ($student->class_id !== $classId) {
             return response()->json(['message' => 'Student is not in this class'], 422);
         }
 
@@ -288,7 +289,7 @@ class TeacherScheduleDetailController extends Controller
 
         $leavePermission = StudentLeavePermission::create([
             'student_id' => $student->id,
-            'class_id' => $schedule->class_id,
+            'class_id' => $classId,
             'granted_by' => $user->id,
             'schedule_id' => $schedule->id,
             'type' => $data['type'],
@@ -316,7 +317,7 @@ class TeacherScheduleDetailController extends Controller
      * Grant permission for a student to leave early (izin pulang) or dispensasi.
      * Student will be hidden from attendance until return or end of school.
      */
-    public function createLeaveEarly(Request $request, Schedule $schedule, StudentProfile $student): JsonResponse
+    public function createLeaveEarly(Request $request, \App\Models\ScheduleItem $schedule, StudentProfile $student): JsonResponse
     {
         $user = $request->user();
         $teacher = $user->teacherProfile;
@@ -325,7 +326,9 @@ class TeacherScheduleDetailController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if ($student->class_id !== $schedule->class_id) {
+        $classId = $schedule->dailySchedule->classSchedule->class_id;
+
+        if ($student->class_id !== $classId) {
             return response()->json(['message' => 'Student is not in this class'], 422);
         }
 
@@ -359,7 +362,7 @@ class TeacherScheduleDetailController extends Controller
 
         $leavePermission = StudentLeavePermission::create([
             'student_id' => $student->id,
-            'class_id' => $schedule->class_id,
+            'class_id' => $classId,
             'granted_by' => $user->id,
             'schedule_id' => $schedule->id,
             'type' => $data['type'],
@@ -400,9 +403,19 @@ class TeacherScheduleDetailController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Validate teacher teaches this class or is homeroom
         $class = $leavePermission->classRoom;
-        $isTeachingClass = $class->schedules()->where('teacher_id', $teacher->id)->exists();
+        
+        // This check is slightly wrong in old code, updated logic:
+        // Check if teacher has ANY schedule for this class today?
+        // Or if teacher is currently teaching this class?
+        // Old logic: $class->schedules() -> relation to old Schedule modle.
+        // New logic: Check via new structure.
+        
+        $isTeachingClass = \App\Models\ScheduleItem::where('teacher_id', $teacher->id)
+            ->whereHas('dailySchedule.classSchedule', function($q) use ($class) {
+                $q->where('class_id', $class->id);
+            })->exists();
+
         $isHomeroom = $teacher->homeroom_class_id === $class->id;
 
         if (! $isTeachingClass && ! $isHomeroom) {
@@ -436,7 +449,12 @@ class TeacherScheduleDetailController extends Controller
         }
 
         $class = $leavePermission->classRoom;
-        $isTeachingClass = $class->schedules()->where('teacher_id', $teacher->id)->exists();
+        
+        $isTeachingClass = \App\Models\ScheduleItem::where('teacher_id', $teacher->id)
+            ->whereHas('dailySchedule.classSchedule', function($q) use ($class) {
+                $q->where('class_id', $class->id);
+            })->exists();
+            
         $isHomeroom = $teacher->homeroom_class_id === $class->id;
 
         if (! $isTeachingClass && ! $isHomeroom) {
@@ -472,7 +490,11 @@ class TeacherScheduleDetailController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $isTeachingClass = $class->schedules()->where('teacher_id', $teacher->id)->exists();
+        $isTeachingClass = \App\Models\ScheduleItem::where('teacher_id', $teacher->id)
+            ->whereHas('dailySchedule.classSchedule', function($q) use ($class) {
+                $q->where('class_id', $class->id);
+            })->exists();
+
         $isHomeroom = $teacher->homeroom_class_id === $class->id;
 
         if (! $isTeachingClass && ! $isHomeroom) {
@@ -522,8 +544,12 @@ class TeacherScheduleDetailController extends Controller
     {
         $dayName = Carbon::parse($date)->format('l');
 
-        $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', $dayName)
+        $schedules = \App\Models\ScheduleItem::whereHas('dailySchedule', function($q) use ($dayName, $student) {
+                $q->where('day', $dayName)
+                  ->whereHas('classSchedule', function($cq) use ($student) {
+                      $cq->where('class_id', $student->class_id);
+                  });
+            })
             ->get();
 
         foreach ($schedules as $schedule) {
@@ -550,8 +576,12 @@ class TeacherScheduleDetailController extends Controller
     {
         $dayName = Carbon::parse($date)->format('l');
 
-        $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', $dayName)
+        $schedules = \App\Models\ScheduleItem::whereHas('dailySchedule', function($q) use ($dayName, $student) {
+                $q->where('day', $dayName)
+                  ->whereHas('classSchedule', function($cq) use ($student) {
+                      $cq->where('class_id', $student->class_id);
+                  });
+            })
             ->where('start_time', '>=', $fromTime)
             ->get();
 
@@ -585,8 +615,12 @@ class TeacherScheduleDetailController extends Controller
             ? Carbon::parse($leavePermission->end_time)->format('H:i')
             : '23:59';
 
-        $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', $dayName)
+        $schedules = \App\Models\ScheduleItem::whereHas('dailySchedule', function($q) use ($dayName, $student) {
+                $q->where('day', $dayName)
+                  ->whereHas('classSchedule', function($cq) use ($student) {
+                      $cq->where('class_id', $student->class_id);
+                  });
+            })
             ->where('start_time', '>=', $startTime)
             ->where('start_time', '<=', $endTime)
             ->get();

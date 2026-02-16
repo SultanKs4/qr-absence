@@ -1,305 +1,211 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import GuruLayout from "../../component/Guru/GuruLayout";
+import BookIcon from "../../assets/Icon/open-book.png";
+import ClockIcon from "../../assets/Icon/clock.png";
 
-interface LihatJadwalGuruProps {
+interface DataJadwalGuruProps {
   user: { name: string; role: string };
   currentPage: string;
   onMenuClick: (page: string) => void;
   onLogout: () => void;
 }
 
-type Cell = { label: string; sub?: string };
-type ScheduleGrid = Cell[][];
+interface ScheduleItem {
+  id: string;
+  subject: string;
+  className: string;
+  active: boolean;
+  jam: string;
+  room: string;
+  day: string;
+  start_time: string;
+}
 
-const SUBJECT_COLORS: Record<string, string> = {
-  MTK: "#bbf7d0",
-  FISIKA: "#fecaca",
-  KIMIA: "#e9d5ff",
-  BIOLOGI: "#bfdbfe",
-  "B.IND": "#fef3c7",
-  "B.ING": "#fed7aa",
-};
-
-export default function LihatJadwalGuru({
+export default function DetailJadwalGuru({
   user,
   currentPage,
   onMenuClick,
   onLogout,
-}: LihatJadwalGuruProps) {
-  const [selectedClass, setSelectedClass] = useState<string>("X Mekatronika 1");
+}: DataJadwalGuruProps) {
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const CLASS_CONFIG: Record<string, { waliKelas: string; timeSlots: string[] }> = {
-    "X Mekatronika 1": {
-      waliKelas: "Ewit Erniyah S.pd",
-      timeSlots: Array.from({ length: 10 }, (_, i) => {
-        const start = 7 + i;
-        const end = 8 + i;
-        return `${start.toString().padStart(2, "0")}.00-${end.toString().padStart(2, "0")}.00`;
-      }),
-    },
-    "XI Mekatronika 2": {
-      waliKelas: "Wali Kelas XI Mekatronika 2",
-      timeSlots: Array.from({ length: 9 }, (_, i) => {
-        const start = 7 + i;
-        const end = 8 + i;
-        return `${start.toString().padStart(2, "0")}.00-${end.toString().padStart(2, "0")}.00`;
-      }),
-    },
-    "XII Mekatronika 2": {
-      waliKelas: "Wali Kelas XII Mekatronika 2",
-      timeSlots: Array.from({ length: 8 }, (_, i) => {
-        const start = 7 + i;
-        const end = 8 + i;
-        return `${start.toString().padStart(2, "0")}.00-${end.toString().padStart(2, "0")}.00`;
-      }),
-    },
-    "XII Mekatronika 1": {
-      waliKelas: "Wali Kelas XII Mekatronika 1",
-      timeSlots: Array.from({ length: 12 }, (_, i) => {
-        const start = 7 + i;
-        const end = 8 + i;
-        return `${start.toString().padStart(2, "0")}.00-${end.toString().padStart(2, "0")}.00`;
-      }),
-    },
-  };
-
-  const kelasInfo = {
-    namaKelas: selectedClass,
-    waliKelas: CLASS_CONFIG[selectedClass]?.waliKelas || "-",
-  };
-
-  const waktuJadwal = useMemo(() => {
-    const cfg = CLASS_CONFIG[selectedClass];
-    return cfg ? cfg.timeSlots : [];
-  }, [selectedClass]);
-
-  const headers = useMemo(() => Array.from({ length: waktuJadwal.length }, (_, i) => (i + 1).toString()), [waktuJadwal.length]);
-  const rows = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-
-  const grid: ScheduleGrid = useMemo(() => {
-    const schedule: ScheduleGrid = [];
-    for (let i = 0; i < rows.length; i++) {
-      schedule[i] = [];
-      for (let j = 0; j < headers.length; j++) {
-        schedule[i][j] = { label: "", sub: "" };
-      }
-    }
-
-    // Senin
-    schedule[0][0] = { label: "MTK", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[0][2] = { label: "FISIKA", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[0][4] = { label: "KIMIA", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[0][6] = { label: "BIOLOGI", sub: "RR.Henning Gratyanis S.pd" };
-
-    // Selasa
-    schedule[1][0] = { label: "B.IND", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[1][2] = { label: "MTK", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[1][4] = { label: "B.ING", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[1][6] = { label: "FISIKA", sub: "RR.Henning Gratyanis S.pd" };
-
-    // Rabu
-    schedule[2][0] = { label: "KIMIA", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[2][3] = { label: "BIOLOGI", sub: "RR.Henning Gratyanis S.pd" };
-    schedule[2][6] = { label: "MTK", sub: "RR.Henning Gratyanis S.pd" };
-
-    return schedule;
+  useEffect(() => {
+    fetchSchedules();
   }, []);
+
+  const fetchSchedules = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:8000/api/me/schedules", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.items || [];
+
+        const mappedItems = items.map((item: any) => ({
+          id: item.id.toString(),
+          subject: item.subject,
+          className: item.class,
+          active: true, // Assuming active if returned
+          jam: `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
+          room: item.room || "-",
+          day: item.day,
+          start_time: item.start_time
+        }));
+
+        setSchedules(mappedItems);
+      }
+    } catch (error) {
+      console.error("Error fetching schedules:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Group by Day
+  // Use Indonesian day names if backend returns English, we map them
+  // But wait, the previous code in GuruDashboard assumed English from backend for filtering.
+  // Actually, let's assume backend returns English day names (e.g. "Monday") or Indonesian?
+  // The new seeder uses 'Monday', 'Tuesday' etc. or indices?
+  // Let's assume English day names are returned by the API as per `ScheduleController`.
+  // I will map them to Indonesian for display.
+
+  const dayMap: Record<string, string> = {
+    'Monday': 'Senin',
+    'Tuesday': 'Selasa',
+    'Wednesday': 'Rabu',
+    'Thursday': 'Kamis',
+    'Friday': 'Jumat',
+    'Saturday': 'Sabtu',
+    'Sunday': 'Minggu'
+  };
+
+  const dayOrder: Record<string, number> = {
+    'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7
+  };
+
+  const groupedSchedules = schedules.reduce((acc: any, item) => {
+    const day = item.day || 'Unknown';
+    if (!acc[day]) acc[day] = [];
+    acc[day].push(item);
+    return acc;
+  }, {});
+
+  const sortedDays = Object.keys(groupedSchedules).sort((a, b) => (dayOrder[a] || 8) - (dayOrder[b] || 8));
+
 
   return (
     <GuruLayout
-      pageTitle="Jadwal Kelas"
+      pageTitle="Jadwal Mengajar"
       currentPage={currentPage}
       onMenuClick={onMenuClick}
       user={user}
       onLogout={onLogout}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div
-          style={{
-            background: "#0B2948",
-            borderRadius: 12,
-            padding: "20px 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 8,
-              background: "rgba(255, 255, 255, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 21H21M5 21V7L13 2L21 7V21M5 21H9M21 21H17M9 21V13H15V21M9 21H15"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-            <div>
-              <div style={{ color: "#FFFFFF", fontSize: "18px", fontWeight: 700, marginBottom: 4 }}>
-                {kelasInfo.namaKelas}
-              </div>
-              <div style={{ color: "rgba(255, 255, 255, 0.8)", fontSize: "14px", fontWeight: 500 }}>
-                {kelasInfo.waliKelas}
-              </div>
-            </div>
-            <div>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                style={{
-                  background: "white",
+        {/* Header simple */}
+        <div style={{
+          backgroundColor: "#0B2948",
+          color: "white",
+          padding: "20px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 10,
+            background: "rgba(255,255,255,0.1)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 24
+          }}>
+            📅
+          </div>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Jadwal Mengajar Anda</h2>
+            <p style={{ margin: "4px 0 0", opacity: 0.8, fontSize: 14 }}>
+              Semester Genap 2024/2025
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>
+            Memuat jadwal...
+          </div>
+        ) : sortedDays.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>
+            Belum ada jadwal mengajar.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 24 }}>
+            {sortedDays.map(day => (
+              <div key={day} style={{
+                backgroundColor: "white",
+                borderRadius: 12,
+                overflow: "hidden",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                border: "1px solid #E2E8F0"
+              }}>
+                <div style={{
+                  backgroundColor: "#F1F5F9",
+                  padding: "12px 16px",
+                  borderBottom: "1px solid #E2E8F0",
+                  fontWeight: 700,
                   color: "#0F172A",
-                  borderRadius: 8,
-                  border: "1px solid #E2E8F0",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                }}
-              >
-                {Object.keys(CLASS_CONFIG).map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
+                  <span>{dayMap[day] || day}</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: "#64748B", background: "white", padding: "2px 8px", borderRadius: 10, border: "1px solid #E2E8F0" }}>
+                    {groupedSchedules[day].length} Kelas
+                  </span>
+                </div>
 
-        <div
-          style={{
-            background: "#FFFFFF",
-            borderRadius: 12,
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                borderCollapse: "collapse",
-                width: "100%",
-                minWidth: 160 + headers.length * 120,
-              }}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      border: "1px solid #E2E8F0",
-                      padding: "12px 16px",
-                      background: "#F8FAFC",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                      color: "#0F172A",
-                      textAlign: "left",
-                    }}
-                  >
-                    Hari
-                  </th>
-                  {headers.map((h, i) => (
-                    <th
-                      key={i}
-                      style={{
-                        border: "1px solid #E2E8F0",
-                        padding: "12px 8px",
-                        background: "#F8FAFC",
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        color: "#0F172A",
-                        textAlign: "center",
-                        minWidth: 100,
-                      }}
-                    >
-                      <div>{h}</div>
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 500,
-                          color: "#64748B",
-                          marginTop: 4,
-                        }}
-                      >
-                        ({waktuJadwal[i]})
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, ri) => (
-                  <tr key={ri}>
-                    <td
-                      style={{
-                        border: "1px solid #E2E8F0",
-                        padding: "12px 16px",
-                        fontWeight: 600,
-                        fontSize: "14px",
-                        color: "#0F172A",
-                        background: "#FFFFFF",
-                      }}
-                    >
-                      {row}
-                    </td>
-                    {grid[ri].map((cell, ci) => (
-                      <td
-                        key={ci}
-                        style={{
-                          border: "1px solid #E2E8F0",
-                          padding: "12px 8px",
-                          background: cell.label
-                            ? SUBJECT_COLORS[cell.label] || "#E5E7EB"
-                            : "#FFFFFF",
-                          textAlign: "center",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {cell.label && (
-                          <>
-                            <div
-                              style={{
-                                fontWeight: 700,
-                                fontSize: "14px",
-                                color: "#0F172A",
-                                marginBottom: 4,
-                              }}
-                            >
-                              {cell.label}
+                <div style={{ padding: 0 }}>
+                  {groupedSchedules[day]
+                    .sort((a: any, b: any) => a.start_time.localeCompare(b.start_time))
+                    .map((item: any, idx: number) => (
+                      <div key={idx} style={{
+                        padding: "16px",
+                        borderBottom: idx === groupedSchedules[day].length - 1 ? "none" : "1px solid #F1F5F9",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
+                              {item.subject}
                             </div>
-                            {cell.sub && (
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  color: "#475569",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {cell.sub}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </td>
+                            <div style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>
+                              {item.className}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", background: "#EFF6FF", padding: "4px 8px", borderRadius: 6 }}>
+                            {item.jam}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 13, color: "#475569", marginTop: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span>📍 Ruang: {item.room}</span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
       </div>
     </GuruLayout>
   );

@@ -22,7 +22,7 @@ import PresensiKelas from './pages/PengurusKelas/PresensiKelas';
 import DashboardWakel from './pages/WaliKelas/DashboardWakel';
 import Data from './pages/WaliKelas/Data';
 import RiwayatKehadiran from './pages/WaliKelas/RiwayatKehadiran';
-import JadwalWakel from './pages/WaliKelas/JadwalWakel'; 
+import JadwalWakel from './pages/WaliKelas/JadwalWakel';
 import Presensi from './pages/WaliKelas/Presensi';
 
 import DashboardWaka from './pages/Waka/DashboardWaka';
@@ -64,7 +64,7 @@ function App() {
       {/* Siswa Routes */}
       <Route path="/siswa/dashboard" element={<DashboardSiswa />} />
       <Route path="/siswa/riwayat" element={<Riwayat />} />
-      
+
       {/* Pengurus Kelas Routes */}
       <Route path="/pengurus-kelas/dashboard" element={<DashboardKelas />} />
       <Route path="/pengurus-kelas/riwayat" element={<RiwayatKelas />} />
@@ -83,6 +83,7 @@ function App() {
       <Route path="/waka/jadwal-guru/:id" element={<JadwalGuruShow />} />
       <Route path="/waka/jadwal-guru/:id/edit" element={<JadwalGuruEdit />} />
       <Route path="/waka/jadwal-siswa" element={<JadwalSiswaIndex />} />
+      <Route path="/waka/jadwal-siswa/create" element={<JadwalSiswaEdit />} /> {/* Reusing Edit component for Create for now, or make a new one */}
       <Route path="/waka/jadwal-siswa/:id" element={<JadwalSiswaShow />} />
       <Route path="/waka/jadwal-siswa/:id/edit" element={<JadwalSiswaEdit />} />
       <Route path="/waka/kehadiran-siswa" element={<KehadiranSiswaIndex />} />
@@ -90,7 +91,7 @@ function App() {
       <Route path="/waka/kehadiran-siswa/:id" element={<KehadiranSiswaShow />} />
       <Route path="/waka/kehadiran-guru" element={<KehadiranGuruIndex />} />
       <Route path="/waka/kehadiran-guru/:id" element={<KehadiranGuruShow />} />
-      
+
 
       {/* Route lain yang nggak ada, balik ke landing */}
       <Route path="*" element={<Navigate to="/" replace />} />

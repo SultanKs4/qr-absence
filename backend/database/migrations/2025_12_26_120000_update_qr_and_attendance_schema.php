@@ -31,7 +31,7 @@ return new class extends Migration
 
         Schema::table('qrcodes', function (Blueprint $table) {
             $table->enum('type', ['student', 'teacher'])->default('student')->after('token');
-            $table->foreignId('schedule_id')->nullable()->after('type')->constrained('schedules')->nullOnDelete();
+            $table->foreignId('schedule_id')->nullable()->after('type')->constrained('schedule_items')->nullOnDelete();
             $table->foreignId('issued_by')->nullable()->after('schedule_id')->constrained('users')->nullOnDelete();
             $table->dateTime('expires_at')->nullable()->after('status');
             $table->boolean('is_active')->default(true)->after('expires_at');
@@ -41,7 +41,7 @@ return new class extends Migration
             $table->enum('attendee_type', ['student', 'teacher'])->after('id');
             $table->enum('status', ['present', 'late', 'excused', 'sick', 'absent', 'dinas', 'izin'])->default('present')->after('reason_file');
             $table->dateTime('checked_in_at')->nullable()->after('status');
-            $table->foreignId('schedule_id')->nullable()->after('qrcode_id')->constrained('schedules')->nullOnDelete();
+            $table->foreignId('schedule_id')->nullable()->after('qrcode_id')->constrained('schedule_items')->nullOnDelete();
             $table->string('source')->nullable()->after('schedule_id');
 
             $table->unique(['attendee_type', 'student_id', 'teacher_id', 'schedule_id'], 'attendance_unique_per_session');

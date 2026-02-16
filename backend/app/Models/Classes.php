@@ -27,23 +27,29 @@ class Classes extends Model
         'major_id',
     ];
 
+    // Siswa untuk 
     public function students(): HasMany
     {
         return $this->hasMany(StudentProfile::class, 'class_id');
     }
 
-    public function schedules(): HasMany
-    {
-        return $this->hasMany(Schedule::class, 'class_id');
-    }
 
+
+    // Guru yang mengajar kelas
     public function homeroomTeacher(): HasOne
     {
         return $this->hasOne(TeacherProfile::class, 'homeroom_class_id');
     }
 
+    // Jurusan yang diikuti kelas
     public function major(): BelongsTo
     {
         return $this->belongsTo(Major::class, 'major_id');
+    }
+
+    // Jadwal untuk kelas
+    public function classSchedules(): HasMany
+    {
+        return $this->hasMany(ClassSchedule::class, 'class_id');
     }
 }

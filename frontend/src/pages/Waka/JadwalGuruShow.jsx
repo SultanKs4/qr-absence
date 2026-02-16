@@ -5,47 +5,52 @@ import NavbarWaka from '../../components/Waka/NavbarWaka';
 import {
   FaArrowLeft,
   FaChalkboardTeacher,
-  FaChevronRight,
-  FaDownload,
-  FaImage,
-  FaSpinner,
-  FaTimes,
-  FaTrash
+  FaPrint,
+  FaPhone,
+  FaEnvelope
 } from 'react-icons/fa';
 
 function JadwalGuruShow() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [jadwal, setJadwal] = useState(null);
-  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [teacher, setTeacher] = useState(null);
+  const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
-    fetchJadwalGuru();
+    fetchData();
   }, [id]);
 
-  const fetchJadwalGuru = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/jadwal-guru/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const headers = { 'Authorization': `Bearer ${token}` };
 
-      if (response.ok) {
-        const data = await response.json();
-        setJadwal(data);
+      // Fetch Teacher Profile and Schedule Items in parallel
+      const [teacherRes, scheduleRes] = await Promise.all([
+        fetch(`http://localhost:8000/api/teachers/${id}`, { headers }),
+        fetch(`http://localhost:8000/api/teachers/${id}/schedules`, { headers })
+      ]);
+
+      if (teacherRes.ok) {
+        const teacherData = await teacherRes.json();
+        setTeacher(teacherData.data || teacherData);
       } else {
-        console.error('Gagal memuat data jadwal guru');
-        alert('Gagal memuat data jadwal guru');
-        navigate('/waka/jadwal-guru');
+        throw new Error('Gagal memuat data guru');
       }
+
+      if (scheduleRes.ok) {
+        const scheduleData = await scheduleRes.json();
+        setSchedules(scheduleData); // Assuming simple list of items
+      } else {
+        console.warn('Gagal memuat jadwal guru or empty');
+        setSchedules([]);
+      }
+
     } catch (error) {
-      console.error('Error fetching jadwal guru:', error);
+      console.error('Error fetching data:', error);
       alert('Terjadi kesalahan saat memuat data');
       navigate('/waka/jadwal-guru');
     } finally {
@@ -53,177 +58,110 @@ function JadwalGuruShow() {
     }
   };
 
-  const handleDeleteImage = async () => {
-    if (!window.confirm('Yakin ingin menghapus jadwal ini?')) return;
-
-    setDeleteLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/jadwal-guru/${id}/delete-image`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        alert('Jadwal berhasil dihapus');
-        setJadwal(prev => ({
-          ...prev,
-          gambar_jadwal: null
-        }));
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Gagal menghapus jadwal');
-      }
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      alert('Terjadi kesalahan saat menghapus jadwal');
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && setShowFullscreen(false);
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, []);
-
   if (loading) {
     return (
-      <div className="jadwal-guru-show-loading-screen">
-        <FaSpinner />Loading...
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-xl font-semibold">Memuat jadwal guru...</div>
       </div>
     );
   }
 
-  if (!jadwal) {
-    return (
-      <div className="jadwal-guru-show-loading-screen">
-        <p>Data tidak ditemukan</p>
-        <Link to="/waka/jadwal-guru">Kembali</Link>
-      </div>
-    );
-  }
+  if (!teacher) return null;
 
-  const imageUrl = jadwal.gambar_jadwal
-    ? `http://localhost:5000${jadwal.gambar_jadwal}`
-    : null;
+  // Group items by day
+  const dayOrder = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7 };
+  const groupedSchedules = schedules.reduce((acc, item) => {
+    const day = item.daily_schedule?.day || item.day || 'Unknown';
+    if (!acc[day]) acc[day] = [];
+    acc[day].push(item);
+    return acc;
+  }, {});
+
+  // Sort days
+  const sortedDays = Object.keys(groupedSchedules).sort((a, b) => (dayOrder[a] || 8) - (dayOrder[b] || 8));
 
   return (
     <div className="jadwal-guru-show-root">
       <NavbarWaka />
-      {/* ================= BREADCRUMB ================= */}
-      <div className="jadwal-guru-show-breadcrumb">
-        <Link to="/waka/jadwal-guru" className="jadwal-guru-show-breadcrumb-link">
-          <FaChalkboardTeacher />
-          <span>Jadwal Guru</span>
-        </Link>
-        <FaChevronRight />
-        <span>{jadwal.nama_guru}</span>
-      </div>
 
-      {/* ================= HEADER CARD ================= */}
-      <div className="jadwal-guru-show-header">
+      <div className="page-offset">
+        {/* BREADCRUMB */}
+        <div className="jadwal-guru-show-breadcrumb">
+          <Link to="/waka/jadwal-guru" className="jadwal-guru-show-breadcrumb-link">
+            <FaChalkboardTeacher />
+            <span>Jadwal Guru</span>
+          </Link>
+          <span className="mx-2">/</span>
+          <span>{teacher.user?.name || teacher.nama_guru}</span>
+        </div>
 
-        {/* HEADER TOP */}
-        <div className="jadwal-guru-show-header-top">
-          <div className="jadwal-guru-show-header-left">
-            <div className="jadwal-guru-show-icon">
-              <FaChalkboardTeacher />
-            </div>
-            <div className="jadwal-guru-show-title">
-              <h1>Jadwal Mengajar</h1>
-              <p>{jadwal.nama_guru}</p>
+        {/* HEADER */}
+        <div className="jadwal-guru-show-header">
+          <div>
+            <h1 className="text-2xl font-bold">{teacher.user?.name || teacher.nama_guru}</h1>
+            <p className="text-gray-600">
+              {teacher.kode_guru} - {teacher.nip || 'NIP Tidak Ada'}
+            </p>
+            <div className="mt-2 text-sm text-gray-500 flex gap-4">
+              <span className="flex items-center gap-1"><FaEnvelope /> {teacher.user?.email || '-'}</span>
+              <span className="flex items-center gap-1"><FaPhone /> {teacher.no_hp || '-'}</span>
             </div>
           </div>
 
-          <div className="jadwal-guru-show-header-action">
-            <Link
-              to="/waka/jadwal-guru"
-              className="jadwal-guru-show-btn-back"
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
             >
-              <FaArrowLeft />
-              <span>Kembali</span>
-            </Link>
+              <FaPrint /> Cetak Jadwal
+            </button>
           </div>
         </div>
 
-        {/* INFO GRID */}
-        <div className="jadwal-guru-show-header-info">
-          <div className="jadwal-guru-show-info-box">
-            <span>Kode Guru</span>
-            <strong>{jadwal.kode_guru}</strong>
-          </div>
-
-          <div className="jadwal-guru-show-info-box">
-            <span>Mata Pelajaran</span>
-            <strong>{jadwal.mata_pelajaran}</strong>
-          </div>
-
-          <div className="jadwal-guru-show-info-box">
-            <span>Email</span>
-            <strong>{jadwal.email}</strong>
-          </div>
-
-          <div className="jadwal-guru-show-info-box">
-            <span>No. HP</span>
-            <strong>{jadwal.no_hp}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* ================= JADWAL CARD ================= */}
-      <div className="jadwal-guru-show-card">
-
-        <div className="jadwal-guru-show-card-header">
-          <h2>
-            <FaImage />
-            Jadwal Mengajar Guru
-          </h2>
-          <p>Jadwal mengajar untuk guru ini</p>
-        </div>
-
-        <div className="jadwal-guru-show-card-body">
-          {imageUrl ? (
-            <>
-              <div
-                className="jadwal-guru-show-image-wrapper"
-                onClick={() => setShowFullscreen(true)}
-              >
-                <img
-                  src={imageUrl}
-                  alt={`Jadwal ${jadwal.nama_guru}`}
-                />
+        {/* CONTENT */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+          {sortedDays.map((day) => (
+            <div key={day} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 font-bold text-lg text-gray-800 uppercase">
+                {day}
               </div>
-            </>
-          ) : (
-            <div className="jadwal-guru-show-empty">
-              <FaImage />
-              <h3>Belum Ada Jadwal</h3>
-              <p>Jadwal mengajar belum tersedia</p>
+              <div className="divide-y divide-gray-100">
+                {groupedSchedules[day].length > 0 ? (
+                  groupedSchedules[day].sort((a, b) => a.start_time.localeCompare(b.start_time)).map((item) => (
+                    <div key={item.id} className="p-4 hover:bg-gray-50 transition">
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="font-semibold text-gray-800">
+                          {item.daily_schedule?.class_schedule?.class?.name || item.class_name || 'Unknown Class'}
+                        </div>
+                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                          {item.room || '-'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-1">
+                        {item.subject?.name || 'Unknown Subject'}
+                      </div>
+                      <div className="text-xs text-blue-600 font-medium">
+                        {item.start_time?.substring(0, 5)} - {item.end_time?.substring(0, 5)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-500 italic">
+                    Tidak ada pelajaran
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {sortedDays.length === 0 && (
+            <div className="col-span-full text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
+              <p className="text-gray-500">Guru ini belum memiliki jadwal mengajar.</p>
             </div>
           )}
         </div>
-      </div>
 
-      {/* ================= FULLSCREEN ================= */}
-      {showFullscreen && imageUrl && (
-        <div
-          className="jadwal-guru-show-fullscreen"
-          onClick={() => setShowFullscreen(false)}
-        >
-          <button className="jadwal-guru-show-fullscreen-close">
-            <FaTimes />
-          </button>
-          <img
-            src={imageUrl}
-            alt="Jadwal Fullscreen"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use App\Models\ScheduleItem;
 
 class Qrcode extends Model
 {
@@ -28,7 +29,7 @@ class Qrcode extends Model
 
     public function schedule(): BelongsTo
     {
-        return $this->belongsTo(Schedule::class);
+        return $this->belongsTo(ScheduleItem::class, 'schedule_id');
     }
 
     public function issuer(): BelongsTo

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use App\Models\ScheduleItem;
 
 class StudentLeavePermission extends Model
 {
@@ -61,7 +62,7 @@ class StudentLeavePermission extends Model
 
     public function schedule(): BelongsTo
     {
-        return $this->belongsTo(Schedule::class);
+        return $this->belongsTo(ScheduleItem::class, 'schedule_id');
     }
 
     public function returner(): BelongsTo
@@ -103,7 +104,7 @@ class StudentLeavePermission extends Model
     /**
      * Check if student should be hidden from attendance list for a specific schedule
      */
-    public function shouldHideFromAttendance(Schedule $schedule): bool
+    public function shouldHideFromAttendance(ScheduleItem $schedule): bool
     {
         if ($this->status !== 'active') {
             return false;

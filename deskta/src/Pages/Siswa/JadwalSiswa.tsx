@@ -1,6 +1,5 @@
+import { useState, useEffect } from "react";
 import SiswaLayout from "../../component/Siswa/SiswaLayout";
-
-import JadwalImg from "../../assets/Icon/DummyJadwal.png";
 
 type SiswaPage = "dashboard" | "jadwal-anda" | "notifikasi";
 
@@ -11,21 +10,56 @@ interface JadwalSiswaProps {
     onLogout: () => void;
 }
 
-/**
- * Catatan:
- * - Pastikan jadwal berupa file: .png / .jpg / .jpeg
- * - Simpan file di /src/assets/jadwal/ (atau folder lain), lalu import seperti di atas
- */
 export default function JadwalSiswa({
     user,
     currentPage,
     onMenuClick,
     onLogout,
 }: JadwalSiswaProps) {
-      const kelasInfo = {
-        namaKelas: "XII RPL 2",
-        waliKelas: "Triana Ardiane S.pd",
-      };
+    const [profile, setProfile] = useState<any>(null);
+    const [schedules, setSchedules] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const token = localStorage.getItem('token');
+                const headers = { 'Authorization': `Bearer ${token}` };
+
+                const [meRes, scheduleRes] = await Promise.all([
+                    fetch('http://localhost:8000/api/me', { headers }),
+                    fetch('http://localhost:8000/api/me/schedules', { headers })
+                ]);
+
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    setProfile(meData.data || meData);
+                }
+
+                if (scheduleRes.ok) {
+                    const scheduleData = await scheduleRes.json();
+                    setSchedules(scheduleData.items || []);
+                }
+            } catch (error) {
+                console.error("Error loading schedule", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    // Group items by day
+    const dayOrder: any = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7 };
+    const groupedSchedules = schedules.reduce((acc: any, item: any) => {
+        const day = item.day || 'Unknown';
+        if (!acc[day]) acc[day] = [];
+        acc[day].push(item);
+        return acc;
+    }, {});
+
+    const sortedDays = Object.keys(groupedSchedules).sort((a, b) => (dayOrder[a] || 8) - (dayOrder[b] || 8));
 
     return (
         <SiswaLayout
@@ -46,126 +80,124 @@ export default function JadwalSiswa({
                         alignItems: "center",
                         gap: 16,
                         boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                        color: "white"
                     }}
                 >
                     <div
                         style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 8,
+                            width: 48,
+                            height: 48,
+                            borderRadius: 10,
                             background: "rgba(255, 255, 255, 0.1)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             flexShrink: 0,
+                            fontSize: 24
                         }}
                     >
-                        <svg
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                        >
-                            <path
-                                d="M3 21H21M5 21V7L13 2L21 7V21M5 21H9M21 21H17M9 21V13H15V21M9 21H15"
-                                stroke="white"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
+                        📅
                     </div>
 
                     <div style={{ flex: 1 }}>
-            <div
-              style={{
-                color: "#FFFFFF",
-                fontSize: "18px",
-                fontWeight: 700,
-                marginBottom: 4,
-              }}
-            >
-              {kelasInfo.namaKelas}
-
-            </div>
-            <div
-              style={{
-                color: "rgba(255, 255, 255, 0.8)",
-                fontSize: "14px",
-                fontWeight: 500,
-              }}
-            >
-              {kelasInfo.waliKelas}
-            </div>
-          </div>
-                </div>
-
-                {/* Jadwal sebagai Gambar */}
-                <div
-                    style={{
-                        background: "#FFFFFF",
-                        borderRadius: 12,
-                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-                        overflow: "hidden",
-                    }}
-                >
-                    <div style={{ padding: 16, borderBottom: "1px solid #E2E8F0" }}>
-                        <div style={{ fontWeight: 800, fontSize: 16, color: "#0F172A" }}>
-                            Jadwal Pelajaran
-                        </div>
-                        <div style={{ marginTop: 6, fontSize: 13, color: "#64748B" }}>
-                            Jadwal ditampilkan sebagai gambar (PNG/JPG/JPEG).
-                        </div>
-                    </div>
-
-                    <div style={{ padding: 16 }}>
-                         <div
+                        <div
                             style={{
-                                width: "100%",
-                                overflowX: "auto",
-                                borderRadius: 10,
-                                border: "1px solid #E2E8F0",
-                                background: "#F8FAFC",
+                                fontSize: "18px",
+                                fontWeight: 700,
+                                marginBottom: 4,
                             }}
                         >
-                            <img
-                                src={JadwalImg}
-                                // alt={`Jadwal ${kelasInfo.namaKelas}`}
-                                alt={`Jadwal Kelas`}
-                                style={{
-                                    display: "block",
-                                    width: "100%",
-                                    height: "auto",
-                                    maxWidth: 1200, // biar tetap enak di desktop
-                                    margin: "0 auto",
-                                }}
-                            /> 
+                            {profile?.student_profile?.class?.name || "Memuat Kelas..."}
                         </div>
-
-                        {/* tombol opsional: buka gambar full */}
-                        <div style={{ marginTop: 12, textAlign: "right" }}>
-                            <a
-                                href={JadwalImg}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                    display: "inline-block",
-                                    padding: "10px 12px",
-                                    borderRadius: 10,
-                                    border: "1px solid #E2E8F0",
-                                    background: "#FFFFFF",
-                                    color: "#0F172A",
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    textDecoration: "none",
-                                }}
-                            >
-                                Buka jadwal (tab baru)
-                            </a>
+                        <div
+                            style={{
+                                color: "rgba(255, 255, 255, 0.8)",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                            }}
+                        >
+                            Wali Kelas: {profile?.student_profile?.class?.homeroom_teacher?.user?.name || "Belum ditentukan"}
                         </div>
                     </div>
                 </div>
+
+                {loading ? (
+                    <div style={{ textAlign: "center", padding: 20 }}>Memuat jadwal...</div>
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        {sortedDays.map(day => (
+                            <div key={day} style={{
+                                background: "#FFFFFF",
+                                borderRadius: 12,
+                                boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+                                overflow: "hidden"
+                            }}>
+                                <div style={{
+                                    background: "#F1F5F9",
+                                    padding: "12px 20px",
+                                    fontSize: 16,
+                                    fontWeight: 700,
+                                    color: "#334155",
+                                    borderBottom: "1px solid #E2E8F0"
+                                }}>
+                                    {day}
+                                </div>
+                                <div style={{ padding: "0 10px" }}>
+                                    {groupedSchedules[day]
+                                        .sort((a: any, b: any) => a.start_time.localeCompare(b.start_time))
+                                        .map((item: any, idx: number) => (
+                                            <div key={idx} style={{
+                                                padding: "16px 10px",
+                                                borderBottom: idx === groupedSchedules[day].length - 1 ? "none" : "1px solid #F1F5F9",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between"
+                                            }}>
+                                                <div>
+                                                    <div style={{ fontSize: 16, fontWeight: 600, color: "#1E293B", marginBottom: 4 }}>
+                                                        {item.subject}
+                                                    </div>
+                                                    <div style={{ fontSize: 14, color: "#64748B" }}>
+                                                        Pengajar: {item.teacher}
+                                                    </div>
+                                                </div>
+                                                <div style={{ textAlign: "right" }}>
+                                                    <div style={{
+                                                        fontSize: 14,
+                                                        fontWeight: 600,
+                                                        color: "#2563EB",
+                                                        marginBottom: 4,
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "flex-end",
+                                                        gap: 4
+                                                    }}>
+                                                        🕒 {item.start_time?.substring(0, 5)} - {item.end_time?.substring(0, 5)}
+                                                    </div>
+                                                    <div style={{
+                                                        fontSize: 12,
+                                                        background: "#F1F5F9",
+                                                        padding: "2px 8px",
+                                                        borderRadius: 4,
+                                                        color: "#475569",
+                                                        display: "inline-block"
+                                                    }}>
+                                                        Ruang: {item.room || "-"}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        ))}
+
+                        {sortedDays.length === 0 && (
+                            <div style={{ textAlign: "center", padding: 40, color: "#94A3B8" }}>
+                                Belum ada jadwal yang tersedia.
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </SiswaLayout>
     );

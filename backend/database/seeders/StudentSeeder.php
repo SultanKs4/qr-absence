@@ -140,32 +140,7 @@ class StudentSeeder extends Seeder
                 ]
             );
         }
-        // 4. Dummy Data Ketidakhadiran
-        $faker = \Faker\Factory::create('id_ID');
-        $statuses = ['sick', 'excused', 'dinas', 'izin', 'absent'];
-
-        // Ambil beberapa siswa secara acak untuk diberi data absen
-        $randomStudents = StudentProfile::inRandomOrder()->limit(15)->get();
-
-        foreach ($randomStudents as $student) {
-            // Generate 1-3 absence records per selected student
-            $count = rand(1, 3);
-            for ($i = 0; $i < $count; $i++) {
-                $status = $statuses[array_rand($statuses)];
-                $daysAgo = rand(1, 30);
-                $date = \Carbon\Carbon::now()->subDays($daysAgo)->setTime(7, 0, 0);
-
-                \App\Models\Attendance::updateOrCreate([
-                    'student_id' => $student->id,
-                    'date' => $date->format('Y-m-d'),
-                ], [
-                    'attendee_type' => 'student',
-                    'status' => $status,
-                    'reason' => $faker->sentence(),
-                    'created_at' => $date,
-                    'updated_at' => $date,
-                ]);
-            }
-        }
+        // 4. Dummy Data Ketidakhadiran - REMOVED to avoid conflict with AttendanceSeeder
+        // Attendance data is handled by AttendanceSeeder.php
     }
 }

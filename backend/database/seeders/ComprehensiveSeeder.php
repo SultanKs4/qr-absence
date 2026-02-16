@@ -42,7 +42,7 @@ class ComprehensiveSeeder extends Seeder
                 ['user_id' => $user->id],
                 [
                     'nip' => $faker->unique()->numerify('19##########'),
-                    'subject' => $faker->randomElement($subjects),
+                    // 'subject' => $faker->randomElement($subjects), // Column likely removed or not created
                 ]
             );
             $teachers[] = $teacher;

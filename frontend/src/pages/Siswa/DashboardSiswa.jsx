@@ -10,10 +10,9 @@ const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
 const API_CONFIG = {
   BASE_URL: API_BASE_URL,
   ENDPOINTS: {
-    PROFILE: '/student/profile',
-    SCHEDULE: '/student/schedule',
-    WEEKLY_STATS: '/student/attendance/weekly-stats',
-    MONTHLY_TREND: '/student/attendance/monthly-trend'
+    PROFILE: '/me',
+    SCHEDULE: '/me/schedules',
+    SUMMARY: '/me/attendance/summary'
   }
 };
 
@@ -23,6 +22,7 @@ const apiService = {
     const token = localStorage.getItem('authToken');
     const headers = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
       ...options.headers
     };
@@ -48,39 +48,40 @@ const apiService = {
     return this.request(API_CONFIG.ENDPOINTS.PROFILE);
   },
 
-  async getSchedule(classId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.SCHEDULE}/${classId}`);
+  async getSchedule() {
+    return this.request(API_CONFIG.ENDPOINTS.SCHEDULE);
   },
 
-  async getWeeklyStats(studentId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.WEEKLY_STATS}?studentId=${studentId}`);
-  },
-
-  async getMonthlyTrend(studentId, months = 6) {
-    return this.request(`${API_CONFIG.ENDPOINTS.MONTHLY_TREND}?studentId=${studentId}&months=${months}`);
+  async getAttendanceSummary() {
+    // defaults to all time if no dates provided, backend handles filtering
+    return this.request(API_CONFIG.ENDPOINTS.SUMMARY);
   }
 };
 
 // ==================== UTILITY FUNCTIONS ====================
 const getTodaySubjectCount = (scheduleData) => {
-  if (!scheduleData || !scheduleData.weeklySchedule) return 0;
-  const today = new Date().getDay();
-  return scheduleData.weeklySchedule[today]?.length || 0;
+  if (!scheduleData || !scheduleData.dailySchedules) return 0;
+
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayName = days[new Date().getDay()];
+
+  const todaySchedule = scheduleData.dailySchedules.find(d => d.day === todayName);
+  return todaySchedule?.scheduleItems?.length || 0;
 };
 
 // ==================== COMPONENTS ====================
 const ProfileIcon = ({ gender, size = 80 }) => {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="12" cy="12" r="12" fill="#E5E7EB"/>
-      <circle cx="12" cy="9" r="4" fill="#9CA3AF"/>
-      <path d="M4 20c0-4 3-6 8-6s8 2 8 6" fill="#9CA3AF"/>
+      <circle cx="12" cy="12" r="12" fill="#E5E7EB" />
+      <circle cx="12" cy="9" r="4" fill="#9CA3AF" />
+      <path d="M4 20c0-4 3-6 8-6s8 2 8 6" fill="#9CA3AF" />
     </svg>
   );
 };
@@ -93,8 +94,8 @@ const SubjectsModal = ({ isOpen, onClose, scheduleData }) => {
   return (
     <div className="siswa-overlay-modal-semua-riwayat" onClick={onClose}>
       <NavbarSiswa />
-      <div className="siswa-modal-semua-riwayat" style={{ 
-        maxWidth: '800px', 
+      <div className="siswa-modal-semua-riwayat" style={{
+        maxWidth: '800px',
         maxHeight: 'calc(100vh - 105px)',
         width: '90%',
         margin: '0 auto'
@@ -105,9 +106,9 @@ const SubjectsModal = ({ isOpen, onClose, scheduleData }) => {
           </button>
           <h2>Jadwal Pembelajaran</h2>
         </div>
-        
-        <div className="siswa-kartu-semua-riwayat" style={{ 
-          overflowX: 'auto', 
+
+        <div className="siswa-kartu-semua-riwayat" style={{
+          overflowX: 'auto',
           overflowY: 'auto',
           padding: '24px',
           maxHeight: 'calc(100vh - 205px)'
@@ -127,9 +128,9 @@ const SubjectsModal = ({ isOpen, onClose, scheduleData }) => {
                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
                 border: '2px solid #e5e7eb'
               }}>
-                <img 
-                  src={scheduleData.scheduleImageUrl} 
-                  alt="Jadwal Pembelajaran" 
+                <img
+                  src={scheduleData.scheduleImageUrl}
+                  alt="Jadwal Pembelajaran"
                   style={{
                     width: '100%',
                     height: 'auto',
@@ -162,14 +163,14 @@ const SubjectsModal = ({ isOpen, onClose, scheduleData }) => {
               }}>
                 <BookOpen size={60} color="#9ca3af" />
               </div>
-              
+
               <h3 style={{
                 fontSize: '22px',
                 fontWeight: '700',
                 color: '#374151',
                 marginBottom: '12px'
               }}>Belum Ada Jadwal</h3>
-              
+
               <p style={{
                 fontSize: '15px',
                 color: '#6b7280',
@@ -191,7 +192,7 @@ const LineChart = ({ data }) => {
   const chartHeight = 240;
   const chartWidth = 600;
   const padding = { top: 30, right: 30, bottom: 40, left: 50 };
-  
+
   if (!data || data.length === 0) {
     return (
       <div style={{
@@ -208,18 +209,18 @@ const LineChart = ({ data }) => {
       </div>
     );
   }
-  
+
   const maxValue = Math.max(...data.map(d => d.percentage));
   const minValue = Math.min(...data.map(d => d.percentage));
   const range = maxValue - minValue || 10;
-  
+
   const points = data.map((item, index) => {
     const x = padding.left + (index / (data.length - 1)) * (chartWidth - padding.left - padding.right);
     const y = padding.top + ((maxValue + 5 - item.percentage) / (range + 10)) * (chartHeight - padding.top - padding.bottom);
     return { x, y, ...item };
   });
 
-  const linePath = points.map((point, index) => 
+  const linePath = points.map((point, index) =>
     `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
   ).join(' ');
 
@@ -287,7 +288,7 @@ const LineChart = ({ data }) => {
               const trend = lastPoint.percentage - firstPoint.percentage;
               const trendColor = trend >= 0 ? '#22c55e' : '#ef4444';
               const trendText = trend >= 0 ? `+${trend.toFixed(1)}%` : `${trend.toFixed(1)}%`;
-              
+
               return (
                 <text x={chartWidth - padding.right} y={padding.top - 10} textAnchor="end" fontSize="14" fontWeight="bold" fill={trendColor}>
                   {trendText} {trend >= 0 ? '↑' : '↓'}
@@ -297,7 +298,7 @@ const LineChart = ({ data }) => {
           </g>
         )}
       </svg>
-      
+
       {hoveredPoint && (
         <div style={{
           position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
@@ -305,8 +306,10 @@ const LineChart = ({ data }) => {
           boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)', border: '2px solid #3b82f6',
           pointerEvents: 'none', zIndex: 1000, minWidth: '200px'
         }}>
-          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '12px',
-            textAlign: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px' }}>
+          <div style={{
+            fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '12px',
+            textAlign: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px'
+          }}>
             {hoveredPoint.month}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -329,7 +332,7 @@ const LineChart = ({ data }) => {
 
 const DonutChart = ({ data }) => {
   const [hoveredSegment, setHoveredSegment] = useState(null);
-  
+
   if (!data) {
     return (
       <div style={{
@@ -344,9 +347,9 @@ const DonutChart = ({ data }) => {
         border: '2px dashed #d1d5db'
       }}>
         <PieChart size={48} color="#9ca3af" style={{ marginBottom: '8px' }} />
-        <p style={{ 
-          fontSize: '12px', 
-          color: '#6b7280', 
+        <p style={{
+          fontSize: '12px',
+          color: '#6b7280',
           fontWeight: '600',
           textAlign: 'center',
           padding: '0 20px',
@@ -357,7 +360,7 @@ const DonutChart = ({ data }) => {
   }
 
   const total = Object.values(data).reduce((sum, val) => sum + val, 0);
-  
+
   if (total === 0) {
     return (
       <div style={{
@@ -372,9 +375,9 @@ const DonutChart = ({ data }) => {
         border: '2px dashed #d1d5db'
       }}>
         <PieChart size={48} color="#9ca3af" style={{ marginBottom: '8px' }} />
-        <p style={{ 
-          fontSize: '12px', 
-          color: '#6b7280', 
+        <p style={{
+          fontSize: '12px',
+          color: '#6b7280',
           fontWeight: '600',
           textAlign: 'center',
           padding: '0 20px',
@@ -398,7 +401,7 @@ const DonutChart = ({ data }) => {
     izin: '#EDD329',
     sakit: '#9A0898',
     alpha: '#D90000',
-    terlambat: '#FF5F1A', 
+    terlambat: '#FF5F1A',
     pulang: '#243CB5'
   };
 
@@ -423,14 +426,14 @@ const DonutChart = ({ data }) => {
     const rect = chart.getBoundingClientRect();
     const x = e.clientX - rect.left - rect.width / 2;
     const y = e.clientY - rect.top - rect.height / 2;
-    
+
     const angle = Math.atan2(y, x) * (180 / Math.PI);
     const normalizedAngle = (angle + 90 + 360) % 360;
-    
+
     const outerRadius = 75;
     const innerRadius = 50;
     const distance = Math.sqrt(x * x + y * y);
-    
+
     if (distance >= innerRadius && distance <= outerRadius) {
       let cumulative = 0;
       for (const [key, percent] of Object.entries(percentages)) {
@@ -447,9 +450,9 @@ const DonutChart = ({ data }) => {
 
   return (
     <div className="siswa-pembungkus-chart-donut" style={{ width: '180px', height: '180px' }}>
-      <div 
+      <div
         className="siswa-chart-donut"
-        style={{ 
+        style={{
           background: `conic-gradient(${gradientStops})`,
           width: '150px',
           height: '150px'
@@ -467,7 +470,7 @@ const DonutChart = ({ data }) => {
           </div>
         </div>
       </div>
-      
+
       {hoveredSegment && (
         <div className="siswa-tooltip-chart">
           <div className="siswa-warna-tooltip" style={{ background: hoveredSegment.color }}></div>
@@ -511,40 +514,88 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
+
         // Fetch profile data
-        const profile = await apiService.getProfile();
+        const profileResponse = await apiService.getProfile();
+        // The /me endpoint returns user data directly
+        const profile = profileResponse.profile || {};
+
         setProfileData({
-          name: profile.name || '',
-          kelas: profile.kelas || '',
-          id: profile.id || '',
-          gender: profile.gender || 'perempuan',
-          studentId: profile.studentId
+          name: profileResponse.name || '-',
+          kelas: profile.class_name || '-',
+          id: profile.nis || '-',
+          gender: profile.gender || 'perempuan', // Backend might not send gender, fallback needed
+          studentId: profileResponse.id
         });
-        setProfileImage(profile.profileImageUrl);
+        setProfileImage(profile.photo_url);
 
         // Fetch schedule data
-        if (profile.classId) {
-          const schedule = await apiService.getSchedule(profile.classId);
-          setScheduleData(schedule);
-        }
+        // API /me/schedules returns full schedule object or items
+        const scheduleResponse = await apiService.getSchedule();
+        setScheduleData(scheduleResponse);
 
-        // Fetch weekly stats
-        if (profile.studentId) {
-          const weekly = await apiService.getWeeklyStats(profile.studentId);
-          setWeeklyStats({
-            hadir: weekly.hadir || 0,
-            terlambat: weekly.terlambat || 0,
-            pulang: weekly.pulang || 0,
-            izin: weekly.izin || 0,
-            sakit: weekly.sakit || 0,
-            alpha: weekly.alpha || 0
+        // Fetch attendance summary
+        const summaryResponse = await apiService.getAttendanceSummary();
+        const dailySummary = summaryResponse.daily_summary || [];
+
+        // --- Process Weekly Stats (Last 7 Days) ---
+        const today = new Date();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - 6); // Last 7 days including today
+
+        const weeklyData = {
+          hadir: 0, terlambat: 0, pulang: 0, izin: 0, sakit: 0, alpha: 0
+        };
+
+        dailySummary.forEach(item => {
+          const itemDate = new Date(item.day);
+          if (itemDate >= startOfWeek && itemDate <= today) {
+            const status = (item.status || 'alpha').toLowerCase();
+            // Map backend status to frontend keys if needed
+            if (status === 'present') weeklyData.hadir += item.total;
+            else if (status === 'late') weeklyData.terlambat += item.total;
+            else if (status === 'return') weeklyData.pulang += item.total;
+            else if (status === 'sick') weeklyData.sakit += item.total;
+            else if (['izin', 'excused'].includes(status)) weeklyData.izin += item.total;
+            else if (status === 'absent') weeklyData.alpha += item.total;
+            // Add fallback for direct matching
+            else if (weeklyData[status] !== undefined) weeklyData[status] += item.total;
+          }
+        });
+
+        setWeeklyStats(weeklyData);
+
+        // --- Process Monthly Trend (Last 6 Months) ---
+        const monthlyData = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = d.toLocaleDateString('id-ID', { month: 'short' });
+
+          let totalDays = 0;
+          let presentDays = 0;
+
+          dailySummary.forEach(item => {
+            // item.day is YYYY-MM-DD
+            if (item.day.startsWith(monthKey)) {
+              totalDays += item.total;
+              const status = (item.status || '').toLowerCase();
+              if (['present', 'late', 'return'].includes(status)) {
+                presentDays += item.total;
+              }
+            }
           });
 
-          // Fetch monthly trend
-          const monthly = await apiService.getMonthlyTrend(profile.studentId, 6);
-          setMonthlyTrend(monthly || []);
+          const percentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+          monthlyData.push({
+            month: monthName,
+            percentage: percentage,
+            hadir: presentDays,
+            total: totalDays
+          });
         }
+        setMonthlyTrend(monthlyData);
 
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -608,7 +659,7 @@ const Dashboard = () => {
 
           <button className="btn-logout" onClick={handleLogout}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
             </svg>
             Keluar
           </button>
@@ -619,7 +670,7 @@ const Dashboard = () => {
             <div className="siswa-bagian-konten">
               <div className="siswa-kartu-kehadiran">
                 <h3 className="siswa-judul-kehadiran">Kehadiran Siswa</h3>
-                
+
                 <div className="siswa-baris-info-waktu">
                   <div className="siswa-lencana-waktu">
                     <Calendar size={18} />
@@ -630,7 +681,7 @@ const Dashboard = () => {
                     <span>{formatTime()}</span>
                   </div>
                 </div>
-                
+
                 <div className="siswa-tampilan-rentang-waktu">
                   <div className="siswa-kotak-tampilan-waktu">07:00:00</div>
                   <div className="siswa-pemisah-rentang-waktu">—</div>
@@ -712,7 +763,7 @@ const Dashboard = () => {
                       Statistik Minggu Ini
                     </h3>
                   </div>
-                  
+
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '24px',
                     justifyContent: 'center', padding: '10px'
@@ -720,7 +771,7 @@ const Dashboard = () => {
                     <div style={{ flex: '0 0 auto' }}>
                       <DonutChart data={weeklyStats} />
                     </div>
-                    
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: '1' }}>
                       {[
                         { label: 'Hadir', value: weeklyStats.hadir, color: '#1FA83D' },
@@ -751,7 +802,7 @@ const Dashboard = () => {
           </div>
         </main>
 
-        <SubjectsModal isOpen={showSubjects} onClose={() => setShowSubjects(false)} 
+        <SubjectsModal isOpen={showSubjects} onClose={() => setShowSubjects(false)}
           scheduleData={scheduleData} />
       </div>
     </>

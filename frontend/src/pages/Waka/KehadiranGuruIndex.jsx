@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './KehadiranGuruIndex.css';
 import NavbarWaka from '../../components/Waka/NavbarWaka';
-import { FaCalendar, FaClock, FaFileExport, FaFilePdf, FaFileExcel, FaEye } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaFileExport, FaFilePdf, FaFileExcel, FaEye, FaTrash } from 'react-icons/fa';
 
-// Import library untuk fungsi ekspor
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -13,25 +12,25 @@ function KehadiranGuruIndex() {
   const navigate = useNavigate();
   const [kehadirans, setKehadirans] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({});
 
-  const [filterJam, setFilterJam] = useState('');
   const [filterTanggal, setFilterTanggal] = useState(
     new Date().toISOString().split('T')[0]
   );
 
   const [deleteModal, setDeleteModal] = useState({ show: false, id: null, namaGuru: '' });
-  const [qrModal, setQrModal] = useState({ show: false, kodeGuru: '', namaGuru: '' });
-  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [showExport, setShowExport] = useState(false);
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
 
   const statusConfig = {
-    Hadir: { bg: 'status-hadir', icon: 'fa-check-circle' },
-    Terlambat: { bg: 'status-terlambat', icon: 'fa-clock' },
-    Izin: { bg: 'status-izin', icon: 'fa-info-circle' },
-    Sakit: { bg: 'status-sakit', icon: 'fa-heartbeat' },
-    Alfa: { bg: 'status-alfa', icon: 'fa-times-circle' },
-    Pulang: { bg: 'status-pulang', icon: 'fas fa-sign-out-alt' },
-    'Belum Absen': { bg: 'status-belum', icon: 'fa-question-circle' },
-    'Tidak Mengajar': { bg: 'status-tidak-mengajar', icon: 'fa-minus-circle' }
+    present: { label: 'Hadir', bg: 'status-hadir', icon: 'fa-check-circle' },
+    late: { label: 'Terlambat', bg: 'status-terlambat', icon: 'fa-clock' },
+    excused: { label: 'Izin', bg: 'status-izin', icon: 'fa-info-circle' },
+    sick: { label: 'Sakit', bg: 'status-sakit', icon: 'fa-heartbeat' },
+    absent: { label: 'Alfa', bg: 'status-alfa', icon: 'fa-times-circle' },
+    return: { label: 'Pulang', bg: 'status-pulang', icon: 'fas fa-sign-out-alt' },
+    dinas: { label: 'Dinas', bg: 'status-dinas', icon: 'fa-briefcase' },
   };
 
   useEffect(() => {
@@ -44,15 +43,17 @@ function KehadiranGuruIndex() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/kehadiran-guru?tanggal=${filterTanggal}`, {
+      const response = await fetch(`http://localhost:8000/api/attendance/teachers/daily?date=${filterTanggal}&per_page=100`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setKehadirans(data);
+        const result = await response.json();
+        // Backend returns: { date: "...", items: { data: [...], ... } }
+        setKehadirans(result.items.data || []);
+        setPagination(result.items); // Store pagination meta if needed
       } else {
         console.error('Gagal memuat data kehadiran guru');
         alert('Gagal memuat data kehadiran guru');
@@ -66,20 +67,30 @@ function KehadiranGuruIndex() {
   };
 
   const handleDelete = async (id) => {
+    if (!id) return;
+
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/kehadiran-guru/${id}`, {
-        method: 'DELETE',
+      // Using void endpoint to delete/cancel attendance
+      const response = await fetch(`http://localhost:8000/api/attendance/${id}/void`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
       if (response.ok) {
-        setKehadirans(prev => prev.filter(k => k.id !== id));
-        alert('Data kehadiran berhasil dihapus');
+        // Update local state to reflect removal (status becomes absent or null)
+        setKehadirans(prev => prev.map(item => {
+          if (item.attendance && item.attendance.id === id) {
+            return { ...item, attendance: null, status: 'absent' };
+          }
+          return item;
+        }));
+        alert('Data kehadiran berhasil dibatalkan');
       } else {
-        alert('Gagal menghapus data kehadiran');
+        const err = await response.json();
+        alert(err.message || 'Gagal membatalkan kehadiran');
       }
     } catch (error) {
       console.error('Error deleting kehadiran:', error);
@@ -89,54 +100,21 @@ function KehadiranGuruIndex() {
     }
   };
 
-  useEffect(() => {
-    const esc = (e) => {
-      if (e.key === 'Escape') {
-        setDeleteModal({ show: false, id: null, namaGuru: '' });
-        setQrModal({ show: false, kodeGuru: '', namaGuru: '' });
-      }
-    };
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, []);
-
-  const hitungStatus = (jamArray) => {
-    const count = {
-      Hadir: 0,
-      Terlambat: 0,
-      Alfa: 0,
-      Izin: 0,
-      Sakit: 0
-    };
-
-    jamArray.forEach(j => {
-      if (count[j] !== undefined) count[j]++;
-    });
-
-    return Object.keys(count).reduce((a, b) =>
-      count[a] > count[b] ? a : b
-    );
-  };
-
-  const [showExport, setShowExport] = useState(false);
-  const [exportFrom, setExportFrom] = useState('');
-  const [exportTo, setExportTo] = useState('');
-
   // --- FUNGSI EKSPOR PDF ---
   const handleExportPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
-    const title = `Laporan Kehadiran Guru - ${exportFrom || filterTanggal} s/d ${exportTo || filterTanggal}`;
-    
+    const title = `Laporan Kehadiran Guru - ${filterTanggal}`;
+
     doc.setFontSize(14);
     doc.text(title, 14, 15);
 
-    const headers = [["No", "Kode Guru", "Nama Guru", "Kelas", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]];
+    const headers = [["No", "Kode Guru", "Nama Guru", "Status", "Waktu Check-in"]];
     const data = kehadirans.map((k, i) => [
       i + 1,
-      k.guru.kode_guru,
-      k.guru.nama,
-      k.guru.kelas,
-      ...k.jam.map(j => j || '-')
+      k.teacher.kode_guru || '-',
+      k.teacher.user?.name || '-',
+      statusConfig[k.status]?.label || k.status,
+      k.attendance ? new Date(k.attendance.checked_in_at).toLocaleTimeString() : '-'
     ]);
 
     autoTable(doc, {
@@ -146,7 +124,7 @@ function KehadiranGuruIndex() {
       theme: 'grid',
       styles: { fontSize: 8, halign: 'center' },
       headStyles: { fillColor: [44, 62, 80] },
-      columnStyles: { 2: { halign: 'left' } } // Nama guru rata kiri
+      columnStyles: { 2: { halign: 'left' } }
     });
 
     doc.save(`Kehadiran_Guru_${filterTanggal}.pdf`);
@@ -155,18 +133,13 @@ function KehadiranGuruIndex() {
 
   // --- FUNGSI EKSPOR EXCEL ---
   const handleExportExcel = () => {
-    const dataExcel = kehadirans.map((k, i) => {
-      const row = {
-        No: i + 1,
-        'Kode Guru': k.guru.kode_guru,
-        'Nama Guru': k.guru.nama,
-        'Kelas': k.guru.kelas,
-      };
-      k.jam.forEach((status, idx) => {
-        row[`Jam ${idx + 1}`] = status || 'Tidak Mengajar';
-      });
-      return row;
-    });
+    const dataExcel = kehadirans.map((k, i) => ({
+      No: i + 1,
+      'Kode Guru': k.teacher.kode_guru || '-',
+      'Nama Guru': k.teacher.user?.name || '-',
+      'Status': statusConfig[k.status]?.label || k.status,
+      'Waktu Check-in': k.attendance ? new Date(k.attendance.checked_in_at).toLocaleTimeString() : '-'
+    }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataExcel);
     const workbook = XLSX.utils.book_new();
@@ -181,7 +154,7 @@ function KehadiranGuruIndex() {
       <div className="kehadiran-guru-index-header">
         <div>
           <h1>Kehadiran Guru</h1>
-          <p>Kelola dan monitor kehadiran mengajar guru</p>
+          <p>Kelola dan monitor kehadiran harian guru</p>
         </div>
 
         <div className="kehadiran-guru-index-export-wrapper">
@@ -195,35 +168,11 @@ function KehadiranGuruIndex() {
 
           {showExport && (
             <div className="kehadiran-guru-index-export-menu">
-              <div className="export-date-range">
-                <label>Dari Tanggal</label>
-                <input
-                  type="date"
-                  value={exportFrom}
-                  onChange={(e) => setExportFrom(e.target.value)}
-                />
-
-                <label>Sampai Tanggal</label>
-                <input
-                  type="date"
-                  value={exportTo}
-                  onChange={(e) => setExportTo(e.target.value)}
-                />
-              </div>
-
               <div className="export-divider"></div>
-
-              <button
-                className="export-item pdf"
-                onClick={handleExportPDF}
-              >
+              <button className="export-item pdf" onClick={handleExportPDF}>
                 <FaFilePdf /> PDF
               </button>
-
-              <button
-                className="export-item excel"
-                onClick={handleExportExcel}
-              >
+              <button className="export-item excel" onClick={handleExportExcel}>
                 <FaFileExcel /> Excel
               </button>
             </div>
@@ -252,19 +201,18 @@ function KehadiranGuruIndex() {
         <div className="kehadiran-guru-index-table-header">
           <div className="kehadiran-guru-index-table-header-inner">
             <h3 className="kehadiran-guru-index-table-title">
-              Daftar Kehadiran Guru ({kehadirans.length})
+              Daftar Kehadiran ({kehadirans.length})
             </h3>
           </div>
         </div>
 
         <div className="kehadiran-guru-legend">
-          <div className="legend-item"><span className="legend-dot legend-hadir"></span><span className="legend-text">Hadir</span></div>
-          <div className="legend-item"><span className="legend-dot legend-terlambat"></span><span className="legend-text">Terlambat</span></div>
-          <div className="legend-item"><span className="legend-dot legend-alfa"></span><span className="legend-text">Alfa</span></div>
-          <div className="legend-item"><span className="legend-dot legend-izin"></span><span className="legend-text">Izin</span></div>
-          <div className="legend-item"><span className="legend-dot legend-sakit"></span><span className="legend-text">Sakit</span></div>
-          <div className="legend-item"><span className="legend-dot legend-pulang"></span><span className="legend-text">Pulang</span></div>
-          <div className="legend-item"><span className="legend-dot legend-tidak-mengajar"></span><span className="legend-text">Tidak Mengajar</span></div>
+          {Object.entries(statusConfig).map(([key, config]) => (
+            <div className="legend-item" key={key}>
+              <span className={`legend-dot ${config.bg}`}></span>
+              <span className="legend-text">{config.label}</span>
+            </div>
+          ))}
         </div>
 
         <div className="kehadiran-guru-index-table-wrapper">
@@ -280,42 +228,46 @@ function KehadiranGuruIndex() {
             <table>
               <thead>
                 <tr>
-                  <th rowSpan={2}>No</th>
-                  <th rowSpan={2}>Kode Guru</th>
-                  <th rowSpan={2}>Nama Guru</th>
-                  <th rowSpan={2}>Kelas</th>
-                  <th colSpan={10} style={{ textAlign: 'center', fontWeight: '800' }}>Jam Pelajaran Ke-</th>
-                  <th rowSpan={2}>Aksi</th>
-                </tr>
-                <tr>
-                  {[...Array(10)].map((_, i) => (
-                    <th key={i} style={{ textAlign: 'center' }}>{i + 1}</th>
-                  ))}
+                  <th>No</th>
+                  <th>Kode Guru</th>
+                  <th>Nama Guru</th>
+                  <th>Status</th>
+                  <th>Waktu</th>
+                  <th style={{ textAlign: 'center' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {kehadirans.map((k, i) => {
+                  const statusInfo = statusConfig[k.status] || { label: k.status, bg: 'status-belum' };
+
                   return (
-                    <tr key={k.id}>
+                    <tr key={k.teacher.id}>
                       <td>{i + 1}</td>
-                      <td><span className="kehadiran-guru-index-badge">{k.guru.kode_guru}</span></td>
-                      <td>{k.guru.nama}</td>
-                      <td><span className="kehadiran-guru-kelas-badge">{k.guru.kelas}</span></td>
-                      {k.jam.map((j, idx) => {
-                        const status = j && j !== '' ? j : 'Tidak Mengajar';
-                        return (
-                          <td key={idx} style={{ textAlign: 'center' }}>
-                            <span className={`jam-box jam-${status.toLowerCase().replace(' ', '-')}`}></span>
-                          </td>
-                        );
-                      })}
+                      <td><span className="kehadiran-guru-index-badge">{k.teacher.kode_guru || '-'}</span></td>
+                      <td>{k.teacher.user?.name}</td>
+                      <td>
+                        <span className={`status-badge ${statusInfo.bg}`}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td>
+                        {k.attendance ? (
+                          <span className="time-badge">
+                            <FaClock style={{ marginRight: '4px' }} />
+                            {new Date(k.attendance.checked_in_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td style={{ textAlign: 'center' }}>
-                        <button
-                          className="kehadiran-guru-action-btn"
-                          onClick={() => navigate(`/waka/kehadiran-guru/${k.guru.kode_guru}`)}
-                        >
-                          <FaEye />
-                        </button>
+                        {k.attendance && (
+                          <button
+                            className="kehadiran-guru-delete-btn"
+                            onClick={() => setDeleteModal({ show: true, id: k.attendance.id, namaGuru: k.teacher.user?.name })}
+                            title="Batalkan Kehadiran"
+                          >
+                            <FaTrash />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -325,6 +277,29 @@ function KehadiranGuruIndex() {
           )}
         </div>
       </div>
+
+      {deleteModal.show && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Konfirmasi Pembatalan</h3>
+            <p>Apakah Anda yakin ingin membatalkan kehadiran untuk <strong>{deleteModal.namaGuru}</strong>?</p>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => setDeleteModal({ show: false, id: null, namaGuru: '' })}
+              >
+                Batal
+              </button>
+              <button
+                className="btn-delete"
+                onClick={() => handleDelete(deleteModal.id)}
+              >
+                Ya, Batalkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

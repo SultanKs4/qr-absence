@@ -72,7 +72,7 @@ export const API_ENDPOINTS = {
   ME_CLASS_ATTENDANCE: '/api/me/class/attendance',
   ME_CLASS_QR_TOKEN: '/api/me/class/qr-token',
 
-  // Waka
+  // Waka (Wakil Kepala Sekolah)
   WAKA_ATTENDANCE_SUMMARY: '/api/waka/attendance/summary',
   WAKA_DASHBOARD_SUMMARY: '/api/waka/dashboard/summary',
   TEACHERS_DAILY_ATTENDANCE: '/api/attendance/teachers/daily',

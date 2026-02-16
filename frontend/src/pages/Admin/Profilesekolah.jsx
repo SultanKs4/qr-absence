@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavbarAdmin from '../../components/Admin/NavbarAdmin';
-import './ProfileSekolah.css';
+// import './ProfileSekolah.css';
+import './Profilesekolah.css'
 import defaultLogo from '../../assets/logo.png';
 
 // ==================== DUMMY DATA SERVICE (NO BACKEND) ====================
@@ -12,23 +13,23 @@ const dummyDataService = {
     if (savedData) {
       return JSON.parse(savedData);
     }
-    
+
     // Default dummy data
     return {
-    namaSekolah: 'SMKN 2 SINGOSARI',
-    npsn: '20517748',
-    akreditasi: 'A',
-    jenisSekolah: 'SMK',
-    kepalaSekolah: 'SUMIJAH, S.Pd., M,Si',
-    nipKepalaSekolah: '97002101998022009',
-    jalan: 'Jl. Perusahaan No.20, Tanjungtirto',
-    kelurahan: 'Tanjungtirto',
-    kecamatan: 'Singosari',
-    kabupatenKota: 'Kab. Malang',
-    provinsi: 'Jawa Timur',
-    kodePos: '65153',
-    nomorTelepon: '(0341) 458823',
-    email: 'smkn2.singosari@yahoo.co.id'
+      namaSekolah: 'SMKN 2 SINGOSARI',
+      npsn: '20517748',
+      akreditasi: 'A',
+      jenisSekolah: 'SMK',
+      kepalaSekolah: 'SUMIJAH, S.Pd., M,Si',
+      nipKepalaSekolah: '97002101998022009',
+      jalan: 'Jl. Perusahaan No.20, Tanjungtirto',
+      kelurahan: 'Tanjungtirto',
+      kecamatan: 'Singosari',
+      kabupatenKota: 'Kab. Malang',
+      provinsi: 'Jawa Timur',
+      kodePos: '65153',
+      nomorTelepon: '(0341) 458823',
+      email: 'smkn2.singosari@yahoo.co.id'
     };
   },
 
@@ -112,11 +113,11 @@ function ProfileSekolah() {
   const fetchSchoolProfile = () => {
     try {
       setLoading(true);
-      
+
       // Simulate API delay
       setTimeout(() => {
         const data = dummyDataService.getSchoolProfile();
-        
+
         const profileData = {
           namaSekolah: data.namaSekolah || '',
           npsn: data.npsn || '',
@@ -161,7 +162,7 @@ function ProfileSekolah() {
         alert('File harus berupa gambar!');
         return;
       }
-      
+
       if (file.size > 5 * 1024 * 1024) {
         alert('Ukuran file maksimal 5MB!');
         return;
@@ -183,7 +184,7 @@ function ProfileSekolah() {
         alert('File harus berupa gambar!');
         return;
       }
-      
+
       if (file.size > 5 * 1024 * 1024) {
         alert('Ukuran file maksimal 5MB!');
         return;
@@ -200,10 +201,10 @@ function ProfileSekolah() {
 
   const handleResetLogo = () => {
     if (!window.confirm('Kembalikan logo ke default?')) return;
-    
+
     try {
       setSaving(true);
-      
+
       // Simulate API delay
       setTimeout(() => {
         dummyDataService.resetLogo();
@@ -224,10 +225,10 @@ function ProfileSekolah() {
 
   const handleRemoveMaskot = () => {
     if (!window.confirm('Hapus maskot?')) return;
-    
+
     try {
       setSaving(true);
-      
+
       // Simulate API delay
       setTimeout(() => {
         dummyDataService.deleteMascot();
@@ -248,9 +249,9 @@ function ProfileSekolah() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (!window.confirm('Apakah Anda yakin ingin menyimpan perubahan?')) return;
-    
+
     try {
       setSaving(true);
 
@@ -273,7 +274,7 @@ function ProfileSekolah() {
         setIsEditing(false);
         setLogoFile(null);
         setMaskotFile(null);
-        
+
         // Refresh data
         fetchSchoolProfile();
         setSaving(false);
@@ -287,15 +288,15 @@ function ProfileSekolah() {
 
   const handleCancel = () => {
     if (!window.confirm('Batalkan perubahan?')) return;
-    
+
     // Reset to original data
     if (originalData) {
       setFormData(originalData);
     }
-    
+
     // Reset images
     fetchSchoolProfile();
-    
+
     // Reset file inputs
     if (logoInputRef.current) {
       logoInputRef.current.value = '';
@@ -303,7 +304,7 @@ function ProfileSekolah() {
     if (maskotInputRef.current) {
       maskotInputRef.current.value = '';
     }
-    
+
     setLogoFile(null);
     setMaskotFile(null);
     setIsEditing(false);
@@ -363,9 +364,9 @@ function ProfileSekolah() {
                   style={{ display: 'none' }}
                   disabled={!isEditing || saving}
                 />
-                <button 
-                  type="button" 
-                  onClick={handleResetLogo} 
+                <button
+                  type="button"
+                  onClick={handleResetLogo}
                   className="profil-btn-reset"
                   disabled={!isEditing || saving}
                 >
@@ -402,9 +403,9 @@ function ProfileSekolah() {
                   disabled={!isEditing || saving}
                 />
                 {maskot && (
-                  <button 
-                    type="button" 
-                    onClick={handleRemoveMaskot} 
+                  <button
+                    type="button"
+                    onClick={handleRemoveMaskot}
                     className="profil-btn-hapus"
                     disabled={!isEditing || saving}
                   >
@@ -484,7 +485,7 @@ function ProfileSekolah() {
 
             <div className="profil-form-bagian">
               <h3 className="profil-bagian-judul">Kepala Sekolah</h3>
-              
+
               <div className="profil-form-baris">
                 <div className="profil-form-grup">
                   <label className="profil-form-label">Nama Kepala Sekolah</label>
@@ -516,7 +517,7 @@ function ProfileSekolah() {
 
             <div className="profil-form-bagian">
               <h3 className="profil-bagian-judul">Alamat & Kontak</h3>
-              
+
               <div className="profil-form-grup lebar-penuh">
                 <label className="profil-form-label">Alamat Jalan</label>
                 <input
@@ -631,9 +632,9 @@ function ProfileSekolah() {
             {/* Action Buttons */}
             <div className="profil-form-aksi">
               {!isEditing ? (
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditing(true)} 
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
                   className="profil-btn-edit"
                   disabled={saving}
                 >
@@ -642,17 +643,17 @@ function ProfileSekolah() {
                 </button>
               ) : (
                 <>
-                  <button 
-                    type="button" 
-                    onClick={handleCancel} 
+                  <button
+                    type="button"
+                    onClick={handleCancel}
                     className="profil-btn-batal"
                     disabled={saving}
                   >
                     <i className="fas fa-times"></i>
                     Batal
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="profil-btn-simpan"
                     disabled={saving}
                   >

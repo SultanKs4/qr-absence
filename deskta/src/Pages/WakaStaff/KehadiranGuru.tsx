@@ -50,15 +50,16 @@ export default function KehadiranGuru({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 
   const [rows] = useState<KehadiranGuruRow[]>([
     {
       id: "1",
       namaGuru: "Alifah Diantebes Aindra S.pd",
       jadwal: "XII RPL 2",
       kehadiranJam: [
-        "hadir","hadir","hadir","hadir",
-        "tidak-ada-jadwal","tidak-ada-jadwal","tidak-ada-jadwal","tidak-ada-jadwal",
-        "tidak-ada-jadwal","tidak-ada-jadwal",
+        "hadir", "hadir", "hadir", "hadir",
+        "tidak-ada-jadwal", "tidak-ada-jadwal", "tidak-ada-jadwal", "tidak-ada-jadwal",
+        "tidak-ada-jadwal", "tidak-ada-jadwal",
       ],
     },
     {
@@ -66,9 +67,9 @@ export default function KehadiranGuru({
       namaGuru: "Ewit Erniyah S.pd",
       jadwal: "XII RPL 2",
       kehadiranJam: [
-        "hadir","hadir","hadir","hadir",
-        "hadir","hadir","izin","izin",
-        "tidak-hadir","tidak-hadir",
+        "hadir", "hadir", "hadir", "hadir",
+        "hadir", "hadir", "izin", "izin",
+        "tidak-hadir", "tidak-hadir",
       ],
     },
   ]);
@@ -136,11 +137,11 @@ export default function KehadiranGuru({
       onNavigateToDetail(row.id, row.namaGuru);
     } else {
       navigate(`/waka/kehadiran/detail/${row.id}`, {
-        state: { 
-          guru: row, 
+        state: {
+          guru: row,
           selectedTanggal,
           guruId: row.id,
-          guruName: row.namaGuru 
+          guruName: row.namaGuru
         },
       });
     }

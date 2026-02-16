@@ -5,52 +5,46 @@ import NavbarWaka from '../../components/Waka/NavbarWaka';
 import {
   FaEye,
   FaEdit,
-  FaChevronDown,
-  FaBriefcase,
-  FaDoorOpen,
   FaIdCard,
   FaUser,
   FaEnvelope,
   FaPhone,
-  FaRedo,
-  FaCheckCircle,
-  FaExclamationCircle
+  FaSearch,
 } from "react-icons/fa";
-
 
 function JadwalGuruIndex() {
   const navigate = useNavigate();
   const [dataGuru, setDataGuru] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
-  const [searchKode, setSearchKode] = useState('');
-  const [searchNama, setSearchNama] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchJadwalGuru();
+    fetchTeachers();
   }, []);
 
-  const fetchJadwalGuru = async () => {
+  const fetchTeachers = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/jadwal-guru', {
+      const response = await fetch('http://localhost:8000/api/teachers', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || result;
         setDataGuru(data);
         setFilteredData(data);
       } else {
-        console.error('Gagal memuat data jadwal guru');
-        alert('Gagal memuat data jadwal guru');
+        console.error('Gagal memuat data guru');
+        // alert('Gagal memuat data guru');
       }
     } catch (error) {
-      console.error('Error fetching jadwal guru:', error);
-      alert('Terjadi kesalahan saat memuat data');
+      console.error('Error fetching teachers:', error);
+      // alert('Terjadi kesalahan saat memuat data');
     } finally {
       setLoading(false);
     }
@@ -59,38 +53,29 @@ function JadwalGuruIndex() {
   useEffect(() => {
     let filtered = dataGuru;
 
-    if (searchKode) {
+    if (searchTerm) {
+      const lower = searchTerm.toLowerCase();
       filtered = filtered.filter(guru =>
-        guru.kode_guru.toLowerCase().includes(searchKode.toLowerCase())
-      );
-    }
-
-    if (searchNama) {
-      filtered = filtered.filter(guru =>
-        guru.nama_guru.toLowerCase().includes(searchNama.toLowerCase())
+        (guru.kode_guru?.toLowerCase() || '').includes(lower) ||
+        (guru.user?.name?.toLowerCase() || '').includes(lower) ||
+        (guru.nip?.toLowerCase() || '').includes(lower)
       );
     }
 
     setFilteredData(filtered);
-  }, [searchKode, searchNama, dataGuru]);
+  }, [searchTerm, dataGuru]);
 
-  const handleReset = () => {
-    setSearchKode('');
-    setSearchNama('');
-  };
-
-  // Handler untuk view dengan preventDefault
   const handleView = (e, id) => {
     e.preventDefault();
     e.stopPropagation();
     navigate(`/waka/jadwal-guru/${id}`);
   };
 
-  // Handler untuk edit dengan preventDefault
   const handleEdit = (e, id) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(`/waka/jadwal-guru/${id}/edit`);
+    // Navigate to specialized schedule edit for teacher if needed, or just view
+    navigate(`/waka/jadwal-guru/${id}`);
   };
 
   return (
@@ -103,49 +88,28 @@ function JadwalGuruIndex() {
             Jadwal Pembelajaran Guru
           </h1>
           <p className="jadwal-guru-index-subtitle">
-            Kelola dan lihat jadwal pembelajaran per guru
+            Lihat jadwal mengajar per guru
           </p>
         </div>
 
         <div className="jadwal-guru-index-filter-card">
-          <div className="jadwal-guru-index-filter-grid">
-            <div>
-              <label className="jadwal-guru-index-label">
-                <FaIdCard /> Cari Kode Guru
-              </label>
+          <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+              <FaSearch style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
               <input
                 type="text"
-                value={searchKode}
-                onChange={(e) => setSearchKode(e.target.value)}
-                placeholder="Contoh: GR001"
-                className="jadwal-guru-index-input"
-              />
-            </div>
-
-            <div>
-              <label className="jadwal-guru-index-label">
-                <FaUser /> Cari Nama Guru
-              </label>
-              <input
-                type="text"
-                value={searchNama}
-                onChange={(e) => setSearchNama(e.target.value)}
-                placeholder="Contoh: Budi Santoso"
-                className="jadwal-guru-index-input"
+                placeholder="Cari Nama / Kode / NIP Guru..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.5rem 0.5rem 2.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #d1d5db',
+                  width: '100%'
+                }}
               />
             </div>
           </div>
-
-          {(searchKode || searchNama) && (
-            <div className="jadwal-guru-index-reset-wrapper">
-              <button
-                onClick={handleReset}
-                className="jadwal-guru-index-reset-btn"
-              >
-                Reset Filter
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="jadwal-guru-index-table-card">
@@ -159,8 +123,8 @@ function JadwalGuruIndex() {
                 Memuat data...
               </div>
             ) : filteredData.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                Tidak ada data jadwal guru
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                Tidak ada data guru yang ditemukan
               </div>
             ) : (
               <table>
@@ -169,10 +133,8 @@ function JadwalGuruIndex() {
                     <th>No</th>
                     <th>Kode Guru</th>
                     <th>Nama Guru</th>
-                    <th>Mata Pelajaran</th>
+                    <th>NIP</th>
                     <th>Kontak</th>
-                    <th>Jumlah Kelas</th>
-                    <th>Status Jadwal</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
@@ -184,30 +146,18 @@ function JadwalGuruIndex() {
 
                       <td>
                         <span className="jadwal-guru-index-badge-blue">
-                          {guru.kode_guru}
+                          {guru.kode_guru || '-'}
                         </span>
                       </td>
 
-                      <td>{guru.nama_guru}</td>
-                      <td>{guru.mata_pelajaran}</td>
-
                       <td>
-                        <div><FaEnvelope /> {guru.email}</div>
-                        <div><FaPhone /> {guru.no_hp}</div>
+                        <div className="font-semibold">{guru.user?.name || guru.nama_guru}</div>
+                        <div className="text-xs text-gray-500">{guru.user?.email}</div>
                       </td>
-
-                      <td>{guru.jumlah_kelas || 0} Kelas</td>
+                      <td>{guru.nip || '-'}</td>
 
                       <td>
-                        {guru.gambar_jadwal ? (
-                          <span className="jadwal-guru-index-badge-green">
-                            <FaCheckCircle /> Jadwal Tersedia
-                          </span>
-                        ) : (
-                          <span className="jadwal-guru-index-badge-orange">
-                            <FaExclamationCircle /> Belum Ada Jadwal
-                          </span>
-                        )}
+                        {guru.no_hp ? <div><FaPhone /> {guru.no_hp}</div> : '-'}
                       </td>
 
                       <td>
@@ -215,15 +165,9 @@ function JadwalGuruIndex() {
                           <button
                             onClick={(e) => handleView(e, guru.id)}
                             className="jadwal-guru-index-btn-view"
+                            title="Lihat Jadwal"
                           >
-                            <FaEye />
-                          </button>
-
-                          <button
-                            onClick={(e) => handleEdit(e, guru.id)}
-                            className="jadwal-guru-index-btn-edit"
-                          >
-                            <FaEdit />
+                            <FaEye /> Lihat Jadwal
                           </button>
                         </div>
                       </td>

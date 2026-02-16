@@ -6,7 +6,7 @@ use App\Events\AttendanceRecorded;
 use App\Models\Attendance;
 use App\Models\Classes;
 use App\Models\Qrcode;
-use App\Models\Schedule;
+use App\Models\ScheduleItem;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
 use App\Services\WhatsAppService;
@@ -42,7 +42,7 @@ class AttendanceController extends Controller
             'device_id' => ['nullable', 'integer'],
         ]);
 
-        $qr = Qrcode::with('schedule:id,class_id,teacher_id,subject_name,start_time,end_time,room')->where('token', $data['token'])->firstOrFail();
+        $qr = Qrcode::with('schedule.dailySchedule.classSchedule.class')->where('token', $data['token'])->firstOrFail();
 
         if (! $qr->is_active || $qr->isExpired()) {
             return response()->json(['message' => 'QR tidak aktif atau sudah kadaluarsa'], 422);
@@ -117,7 +117,7 @@ class AttendanceController extends Controller
                 if ($existing) {
                     return response()->json([
                         'message' => 'Presensi sudah tercatat',
-                        'attendance' => new \App\Http\Resources\AttendanceResource($existing->load(['student.user', 'teacher.user', 'schedule.class'])),
+                        'attendance' => new \App\Http\Resources\AttendanceResource($existing->load(['student.user', 'teacher.user', 'schedule.dailySchedule.classSchedule.class'])),
                     ]);
                 }
 
@@ -141,7 +141,7 @@ class AttendanceController extends Controller
                     'status' => $attendance->status,
                 ]);
 
-                return response()->json(new \App\Http\Resources\AttendanceResource($attendance->loadMissing(['student.user', 'teacher.user', 'schedule.class'])));
+                return response()->json(new \App\Http\Resources\AttendanceResource($attendance->loadMissing(['student.user', 'teacher.user', 'schedule.dailySchedule.classSchedule.class'])));
             });
         });
     }
@@ -176,12 +176,15 @@ class AttendanceController extends Controller
         $day = $now->format('l'); // English day name (e.g., Thursday)
         $time = $now->format('H:i:s');
 
-        // Find schedule that matches day and time
-        // We use a looser check: Schedule for this teacher, today.
-        // Ideally we check time, but for now let's just find the *current* one.
-        $schedule = Schedule::with('class')
+        // Find schedule item that matches day and time
+        $schedule = ScheduleItem::with('dailySchedule.classSchedule.class')
             ->where('teacher_id', $user->teacherProfile->id)
-            ->where('day', $day)
+            ->whereHas('dailySchedule', function ($query) use ($day) {
+                $query->where('day', $day);
+            })
+            ->whereHas('dailySchedule.classSchedule', function($query) {
+                $query->where('is_active', true);
+            })
             ->where('start_time', '<=', $time)
             ->where('end_time', '>=', $time)
             ->first();
@@ -190,9 +193,12 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Tidak ada jadwal mengajar aktif saat ini.'], 422);
         }
 
-        if ($schedule->class_id !== $student->class_id) {
+        $classId = $schedule->dailySchedule->classSchedule->class_id;
+        $className = $schedule->dailySchedule->classSchedule->class->name ?? 'Unknown';
+
+        if ($classId !== $student->class_id) {
             return response()->json([
-                'message' => "Siswa ini ({$student->user->name}) bukan dari kelas jadwal saat ini ({$schedule->class->name})",
+                'message' => "Siswa ini ({$student->user->name}) bukan dari kelas jadwal saat ini ({$className})",
             ], 422);
         }
 
@@ -302,20 +308,17 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'attendee_type' => ['required', 'in:student'],
             'student_id' => ['required', 'exists:student_profiles,id'],
-            'schedule_id' => ['required', 'exists:schedules,id'],
+            'schedule_id' => ['required', 'exists:schedule_items,id'],
             'status' => ['required', 'in:present,late,excused,sick,absent,dinas,izin,pulang,return'],
             'date' => ['required', 'date'],
             'reason' => ['nullable', 'string'],
         ]);
 
         $user = $request->user();
-        $schedule = Schedule::findOrFail($data['schedule_id']);
+        $schedule = ScheduleItem::findOrFail($data['schedule_id']);
 
         // Authorization: Teacher must be the owner or Admin/Waka
         if ($user->user_type === 'teacher' && $schedule->teacher_id !== $user->teacherProfile->id) {
-            // Also check if Homeroom Teacher? Maybe not for manual input of subject attendance.
-            // But waka/admin might use this too.
-            // For now, restrict to schedule teacher.
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -333,19 +336,15 @@ class AttendanceController extends Controller
         $attendance = Attendance::updateOrCreate(
             [
                 ...$attributes,
-                'date' => $now->toDateString(), // Use only date part for uniqueness? Or datetime? Table usually has date column as date or datetime. Seeder uses timestamps.
-                // Migration says date is datetime. But unique logic usually per day per schedule.
-                // Let's assume we want to update if exists.
+                'date' => $now->toDateString(), 
             ],
             [
                 'status' => $status,
-                'checked_in_at' => $now, // Or keep original check in? If manual overwrite, maybe update time too.
+                'checked_in_at' => $now, 
                 'source' => 'manual',
                 'reason' => $data['reason'] ?? null,
             ]
         );
-
-        // If updated, we might want to log it?
 
         return response()->json([
             'message' => 'Kehadiran berhasil disimpan',
@@ -358,7 +357,7 @@ class AttendanceController extends Controller
      *
      * Close the attendance for a schedule, marking all unscanned students as absent (Alpha).
      */
-    public function close(Request $request, Schedule $schedule): JsonResponse
+    public function close(Request $request, ScheduleItem $schedule): JsonResponse
     {
         // 1. Validate User is the Teacher of this schedule
         $user = $request->user();
@@ -368,9 +367,11 @@ class AttendanceController extends Controller
 
         $now = now();
         $today = $now->toDateString();
+        
+        $classId = $schedule->dailySchedule->classSchedule->class_id;
 
         // 2. Get all students in the class
-        $students = StudentProfile::where('class_id', $schedule->class_id)->get();
+        $students = StudentProfile::where('class_id', $classId)->get();
 
         // 3. Get existing attendance for this schedule today
         $existingStudentIds = Attendance::where('schedule_id', $schedule->id)
@@ -380,7 +381,7 @@ class AttendanceController extends Controller
             ->all();
 
         // 4. Get students on leave today
-        $leavePermissions = \App\Models\StudentLeavePermission::where('class_id', $schedule->class_id)
+        $leavePermissions = \App\Models\StudentLeavePermission::where('class_id', $classId)
             ->where('date', $today)
             ->where('status', 'active')
             ->get()
@@ -463,7 +464,7 @@ class AttendanceController extends Controller
         }
 
         $query = Attendance::query()
-            ->with(['schedule.teacher.user:id,name', 'schedule.class:id,name'])
+            ->with(['schedule.teacher.user:id,name', 'schedule.dailySchedule.classSchedule.class:id,name'])
             ->where('student_id', $request->user()->studentProfile->id);
 
         if ($request->filled('from')) {
@@ -551,7 +552,7 @@ class AttendanceController extends Controller
         $teacherId = $request->user()->teacherProfile->id;
 
         $query = Attendance::query()
-            ->with(['schedule.class:id,name', 'schedule.teacher.user:id,name'])
+            ->with(['schedule.dailySchedule.classSchedule.class:id,name', 'schedule.teacher.user:id,name'])
             ->where('attendee_type', 'teacher')
             ->where('teacher_id', $teacherId);
 
@@ -632,7 +633,7 @@ class AttendanceController extends Controller
         $teacherId = $request->user()->teacherProfile->id;
 
         $query = Attendance::query()
-            ->with(['student.user', 'schedule.class'])
+            ->with(['student.user', 'schedule.dailySchedule.classSchedule.class'])
             ->where('attendee_type', 'student')
             ->whereHas('schedule', function ($q) use ($teacherId): void {
                 $q->where('teacher_id', $teacherId);
@@ -741,14 +742,18 @@ class AttendanceController extends Controller
         $date = Carbon::parse($request->string('date'));
         $day = $date->format('l');
 
-        $schedules = Schedule::query()
-            ->with(['teacher.user:id,name', 'class:id,name'])
-            ->where('class_id', $class->id)
-            ->where('day', $day)
+        $items = ScheduleItem::query()
+            ->with(['teacher.user:id,name'])
+            ->whereHas('dailySchedule', function($q) use ($day, $class) {
+                 $q->where('day', $day)
+                   ->whereHas('classSchedule', function($cq) use ($class) {
+                        $cq->where('class_id', $class->id);
+                   });
+            })
             ->orderBy('start_time')
             ->get();
 
-        $scheduleIds = $schedules->pluck('id')->all();
+        $scheduleIds = $items->pluck('id')->all();
 
         $attendances = Attendance::query()
             ->with(['student.user', 'schedule'])
@@ -757,7 +762,7 @@ class AttendanceController extends Controller
             ->get()
             ->groupBy('schedule_id');
 
-        $items = $schedules->map(function (Schedule $schedule) use ($attendances): array {
+        $resultItems = $items->map(function (ScheduleItem $schedule) use ($attendances): array {
             return [
                 'schedule' => $schedule,
                 'attendances' => $attendances->get($schedule->id, collect())->values(),
@@ -768,7 +773,7 @@ class AttendanceController extends Controller
             'class' => $class,
             'date' => $date->toDateString(),
             'day' => $day,
-            'items' => $items,
+            'items' => $resultItems,
         ]);
     }
 
