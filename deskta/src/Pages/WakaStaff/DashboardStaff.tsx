@@ -11,6 +11,8 @@ import DetailSiswaStaff from "./DetailSiswaStaff";
 import DetailKehadiranGuru from "./DetailKehadiranGuru";
 import RekapKehadiranSiswa from "./RekapKehadiranSiswa";
 import DaftarKetidakhadiran from "./DaftarKetidakhadiran";
+import JadwalSiswaEdit from "./JadwalSiswaEdit";
+import { dashboardService } from "../../services/dashboardService";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -22,6 +24,7 @@ import {
   Legend,
   ArcElement,
   Filler,
+  BarElement
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
 
@@ -34,7 +37,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   ArcElement,
-  Filler
+  Filler,
+  BarElement
 );
 
 interface DashboardStaffProps {
@@ -54,7 +58,8 @@ type WakaPage =
   | "detail-siswa-staff"
   | "detail-kehadiran-guru"
   | "rekap-kehadiran-siswa"
-  | "daftar-ketidakhadiran";
+  | "daftar-ketidakhadiran"
+  | "edit-jadwal-kelas";
 
 type StatisticType = "tepat-waktu" | "terlambat" | "izin" | "sakit" | "pulang" | null;
 
@@ -71,41 +76,16 @@ const PAGE_TITLES: Record<WakaPage, string> = {
   "detail-kehadiran-guru": "Detail Kehadiran Guru",
   "rekap-kehadiran-siswa": "Rekap Kehadiran Siswa",
   "daftar-ketidakhadiran": "Daftar Ketidakhadiran",
+  "edit-jadwal-kelas": "Edit Struktur Jadwal",
 };
 
-// Dummy data untuk total murid = 35 per hari
-// Realistis distribution: Hadir (mayoritas), alfa, izin, sakit, pulang (sedikit)
-const dailyAttendanceData = [
-  { day: "Senin", hadir: 30, tidak_hadir: 2, izin: 2, sakit: 1, pulang: 0 },      // Total: 35
-  { day: "Selasa", hadir: 31, tidak_hadir: 1, izin: 2, sakit: 1, pulang: 0 },     // Total: 35
-  { day: "Rabu", hadir: 33, tidak_hadir: 0, izin: 1, sakit: 1, pulang: 0 },       // Total: 35
-  { day: "Kamis", hadir: 29, tidak_hadir: 2, izin: 2, sakit: 1, pulang: 1 },      // Total: 35
-  { day: "Jumat", hadir: 32, tidak_hadir: 1, izin: 1, sakit: 0, pulang: 1 },      // Total: 35
-];
-
-// Updated monthly data with 5 categories sesuai gambar
-const monthlyAttendance = [
-  { month: "Jan", hadir: 210, izin: 8, tidak_hadir: 4, sakit: 3, pulang: 2 },
-  { month: "Feb", hadir: 198, izin: 12, tidak_hadir: 6, sakit: 2, pulang: 1 },
-  { month: "Mar", hadir: 215, izin: 10, tidak_hadir: 5, sakit: 4, pulang: 3 },
-  { month: "Apr", hadir: 224, izin: 9, tidak_hadir: 4, sakit: 1, pulang: 2 },
-  { month: "Mei", hadir: 230, izin: 7, tidak_hadir: 3, sakit: 2, pulang: 1 },
-  { month: "Jun", hadir: 218, izin: 11, tidak_hadir: 6, sakit: 3, pulang: 4 },
-];
-
-const statCards = [
-  { id: "tepat-waktu", label: "Tepat Waktu", value: "2100", color: "#1FA83D", icon: "✓" },
-  { id: "terlambat", label: "Terlambat", value: "10", color: "#ACA40D", icon: "⏱" },
-  { id: "izin", label: "Izin", value: "18", color: "#520C8F", icon: "📋" },
-  { id: "sakit", label: "Sakit", value: "5", color: "#D90000", icon: "🏥" },
-  { id: "pulang", label: "Pulang", value: "3", color: "#2F85EB", icon: "🚪" },
-];
-
-const historyInfo = {
-  date: "Senin, 7 Januari 2026",
-  start: "07:00:00",
-  end: "15:00:00",
-  time: "08:00",
+// Warna sesuai format revisi
+const COLORS = {
+  HADIR: "#1FA83D",      // HIJAU - Hadir
+  IZIN: "#ACA40D",       // KUNING - Izin
+  PULANG: "#2F85EB",     // BIRU - Pulang
+  TIDAK_HADIR: "#D90000", // MERAH - alfa
+  SAKIT: "#520C8F",      // UNGU - Sakit
 };
 
 const cardStyle: React.CSSProperties = {
@@ -116,15 +96,6 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid rgba(229, 231, 235, 0.8)",
   backdropFilter: "blur(10px)",
   transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-};
-
-// Warna sesuai format revisi
-const COLORS = {
-  HADIR: "#1FA83D",      // HIJAU - Hadir
-  IZIN: "#ACA40D",       // KUNING - Izin
-  PULANG: "#2F85EB",     // BIRU - Pulang
-  TIDAK_HADIR: "#D90000", // MERAH - alfa
-  SAKIT: "#520C8F",      // UNGU - Sakit
 };
 
 export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) {
@@ -143,8 +114,64 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
   const [selectedStat, setSelectedStat] = useState<StatisticType>(null);
   const [currentDate, setCurrentDate] = useState("");
   const [currentTime, setCurrentTime] = useState("");
+  
+  // Data State
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    hadir: 0,
+    terlambat: 0,
+    izin: 0,
+    sakit: 0,
+    alpha: 0,
+    pulang: 0
+  });
+  const [dailyData, setDailyData] = useState<any[]>([]);
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [historyInfo, setHistoryInfo] = useState({
+    date: "",
+    start: "",
+    end: "",
+    time: ""
+  });
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await dashboardService.getWakaDashboard();
+        
+        // Update stats
+        setStats(data.statistik);
+        
+        // Update charts
+        setDailyData(data.daily_stats || []);
+        setMonthlyData(data.trend || []);
+        
+        // Update history info card
+        const now = new Date();
+        const startTime = "07:00:00"; // Could be from settings
+        const endTime = "15:00:00";   // Could be from settings
+        
+        setHistoryInfo({
+          date: new Date(data.date).toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+          start: startTime,
+          end: endTime,
+          time: now.toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' })
+        });
+        
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (currentPage === "dashboard") {
+      fetchDashboardData();
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -173,6 +200,11 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
   const handleMenuClick = (page: string, payload?: any) => {
     setCurrentPage(page as WakaPage);
     
+    // Handle payload for ID setting
+    if (payload?.kelasId) {
+      setSelectedKelasId(String(payload.kelasId));
+    }
+
     // Handle payload untuk daftar-ketidakhadiran
     if (page === "daftar-ketidakhadiran" && payload) {
       setSelectedSiswa({
@@ -254,8 +286,10 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
         return (
           <DetailSiswaStaff
             {...commonProps}
+            selectedKelas={selectedKelas || ""}
             kelasId={selectedKelasId || undefined}
             onBack={() => handleMenuClick("kehadiran-siswa")}
+            onNavigateToRecap={() => handleMenuClick("rekap-kehadiran-siswa")}
           />
         );
 
@@ -281,6 +315,7 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
         return (
           <RekapKehadiranSiswa
             {...commonProps}
+            kelasId={selectedKelasId || undefined}
             namaKelas={selectedKelasInfo?.namaKelas || "X Mekatronika 1"}
             waliKelas={selectedKelasInfo?.waliKelas || "Ewit Erniyah S.pd"}
             onBack={() => handleMenuClick("detail-siswa-staff")}
@@ -294,6 +329,15 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
             siswaName={selectedSiswa?.name}
             siswaIdentitas={selectedSiswa?.identitas}
             onBack={() => handleMenuClick("rekap-kehadiran-siswa")}
+          />
+        );
+
+      case "edit-jadwal-kelas":
+        return (
+          <JadwalSiswaEdit
+            {...commonProps}
+            id={selectedKelasId || undefined}
+            onBack={() => handleMenuClick("jadwal-kelas")}
           />
         );
 
@@ -320,7 +364,12 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
             user={user}
             onLogout={handleLogout}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: "28px", backgroundColor: "#F9FAFB", padding: "4px" }}>
+            {isLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "28px", backgroundColor: "#F9FAFB", padding: "4px" }}>
               {/* Welcome Section */}
               <div style={{ marginBottom: "8px" }}>
                 <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#111827", margin: 0 }}>
@@ -357,8 +406,8 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
                     title="Statistik Kehadiran"
                     subtitle="Klik untuk melihat detail"
                   />
-                  <StatisticsGrid 
-                    statCards={statCards} 
+                  <LinkStatsGrid 
+                    stats={stats}
                     selectedStat={selectedStat}
                     onSelectStat={setSelectedStat}
                   />
@@ -379,7 +428,7 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
                 {/* Weekly Chart - Kembali ke bentuk semula dengan warna baru */}
                 <div style={cardStyle}>
                   <SectionHeader title="Grafik Kehadiran Harian" subtitle="Rekap Mingguan (Senin - Jumat)" />
-                  <WeeklyBarGraph />
+                  <WeeklyBarGraph data={dailyData} />
                 </div>
 
                 {/* Monthly Chart - Line Chart seperti DashboardSiswa */}
@@ -399,10 +448,11 @@ export default function DashboardStaff({ user, onLogout }: DashboardStaffProps) 
                     title="Grafik Kehadiran Bulanan"
                     subtitle="Periode Jan - Jun"
                   />
-                  <MonthlyLineChart data={monthlyAttendance} />
+                  <MonthlyLineChart data={monthlyData} />
                 </div>
               </div>
-            </div>
+              </div>
+            )}
           </StaffLayout>
         );
     }
@@ -434,33 +484,24 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <span
-        style={{
-          width: "10px",
-          height: "10px",
-          borderRadius: "999px",
-          backgroundColor: color,
-          display: "inline-block",
-          flexShrink: 0,
-        }}
-      />
-      <span style={{ fontSize: "12px", color: "#4B5563", fontWeight: 500 }}>{label}</span>
-    </div>
-  );
-}
 
-function StatisticsGrid({ 
-  statCards, 
+function LinkStatsGrid({ 
+  stats, 
   selectedStat,
   onSelectStat 
 }: { 
-  statCards: typeof statCards;
+  stats: any;
   selectedStat: StatisticType;
   onSelectStat: (stat: StatisticType) => void;
 }) {
+  const statCards = [
+    { id: "tepat-waktu", label: "Tepat Waktu", value: stats.hadir?.toString() || "0", color: "#1FA83D", icon: "✓" },
+    { id: "terlambat", label: "Terlambat", value: stats.terlambat?.toString() || "0", color: "#ACA40D", icon: "⏱" },
+    { id: "izin", label: "Izin", value: (stats.izin || 0).toString(), color: "#520C8F", icon: "📋" },
+    { id: "sakit", label: "Sakit", value: stats.sakit?.toString() || "0", color: "#D90000", icon: "🏥" },
+    { id: "pulang", label: "Pulang", value: stats.pulang?.toString() || "0", color: "#2F85EB", icon: "🚪" },
+  ];
+
   return (
     <div
       style={{
@@ -540,7 +581,7 @@ function StatisticsGrid({
   );
 }
 
-function StatisticDetail({ stat }: { stat: StatisticType }) {
+function StatisticDetail({ stat }: { stat: Exclude<StatisticType, null> }) {
   const details: Record<string, { desc: string; color: string }> = {
     "tepat-waktu": { 
       desc: "Total guru yang hadir tepat waktu sesuai jadwal kerja", 
@@ -596,13 +637,13 @@ function StatisticDetail({ stat }: { stat: StatisticType }) {
   );
 }
 
-function WeeklyBarGraph() {
+function WeeklyBarGraph({ data = [] }: { data?: any[] }) {
   const chartData = {
-    labels: dailyAttendanceData.map((d) => d.day),
+    labels: data.map((d) => d.day),
     datasets: [
       {
         label: "Hadir",
-        data: dailyAttendanceData.map((d) => d.hadir),
+        data: data.map((d) => d.hadir),
         backgroundColor: [
           "rgba(31, 168, 61, 0.9)",
           "rgba(31, 168, 61, 0.85)",
@@ -620,7 +661,7 @@ function WeeklyBarGraph() {
       },
       {
         label: "alfa",
-        data: dailyAttendanceData.map((d) => d.tidak_hadir),
+        data: data.map((d) => d.tidak_hadir),
         backgroundColor: [
           "rgba(217, 0, 0, 0.85)",
           "rgba(217, 0, 0, 0.8)",
@@ -638,7 +679,7 @@ function WeeklyBarGraph() {
       },
       {
         label: "Izin",
-        data: dailyAttendanceData.map((d) => d.izin),
+        data: data.map((d) => d.izin),
         backgroundColor: [
           "rgba(172, 164, 13, 0.85)",
           "rgba(172, 164, 13, 0.8)",
@@ -656,7 +697,7 @@ function WeeklyBarGraph() {
       },
       {
         label: "Sakit",
-        data: dailyAttendanceData.map((d) => d.sakit),
+        data: data.map((d) => d.sakit),
         backgroundColor: [
           "rgba(82, 12, 143, 0.85)",
           "rgba(82, 12, 143, 0.8)",
@@ -674,7 +715,7 @@ function WeeklyBarGraph() {
       },
       {
         label: "Pulang",
-        data: dailyAttendanceData.map((d) => d.pulang),
+        data: data.map((d) => d.pulang),
         backgroundColor: [
           "rgba(47, 133, 235, 0.85)",
           "rgba(47, 133, 235, 0.8)",
@@ -706,7 +747,7 @@ function WeeklyBarGraph() {
           padding: 20,
           font: {
             size: 13,
-            weight: "600" as const,
+            weight: "bold" as const,
             family: "'Inter', sans-serif",
           },
           color: "#374151",
@@ -715,8 +756,8 @@ function WeeklyBarGraph() {
       tooltip: {
         backgroundColor: "rgba(31, 41, 55, 0.95)",
         padding: 14,
-        titleFont: { size: 14, weight: "600", family: "'Inter', sans-serif" },
-        bodyFont: { size: 13, weight: "500", family: "'Inter', sans-serif" },
+        titleFont: { size: 14, weight: "bold" as const, family: "'Inter', sans-serif" },
+        bodyFont: { size: 13, weight: "normal" as const, family: "'Inter', sans-serif" },
         cornerRadius: 10,
         displayColors: true,
         borderColor: "#E5E7EB",
@@ -750,7 +791,7 @@ function WeeklyBarGraph() {
         ticks: {
           font: {
             size: 12,
-            weight: "600",
+            weight: "bold" as const,
           },
           color: "#6B7280",
         },
@@ -770,7 +811,7 @@ function WeeklyBarGraph() {
         ticks: {
           font: {
             size: 12,
-            weight: "500",
+            weight: "normal" as const,
           },
           color: "#9CA3AF",
           padding: 10,

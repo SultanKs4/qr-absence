@@ -44,7 +44,7 @@ class ClassOfficerSeeder extends Seeder
         StudentProfile::updateOrCreate(
             ['user_id' => $user->id],
             [
-                'nisn' => '0024999',
+                'nisn' => '0079292238',
                 'nis' => '2024999',
                 'gender' => 'L',
                 'address' => 'Jl. Ular Sakti',

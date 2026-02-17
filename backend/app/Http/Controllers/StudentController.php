@@ -67,6 +67,15 @@ class StudentController extends Controller
             'items.*.is_class_officer' => ['nullable', 'boolean'],
             'items.*.phone' => ['nullable', 'string', 'max:30'],
             'items.*.contact' => ['nullable', 'string', 'max:50'],
+        ], [
+            'items.*.username.unique' => 'Username :input sudah digunakan.',
+            'items.*.email.unique' => 'Email :input sudah digunakan.',
+            'items.*.nisn.unique' => 'NISN :input sudah digunakan oleh siswa lain.',
+            'items.*.nis.unique' => 'NIS :input sudah digunakan oleh siswa lain.',
+            'items.*.username.distinct' => 'Username :input duplikat dalam daftar import.',
+            'items.*.email.distinct' => 'Email :input duplikat dalam daftar import.',
+            'items.*.nisn.distinct' => 'NISN :input duplikat dalam daftar import.',
+            'items.*.nis.distinct' => 'NIS :input duplikat dalam daftar import.',
         ]);
 
         $count = 0;

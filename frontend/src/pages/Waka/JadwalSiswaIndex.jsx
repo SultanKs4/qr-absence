@@ -29,7 +29,8 @@ function JadwalSiswaIndex() {
       // Updated endpoint
       const response = await fetch('http://localhost:8000/api/schedules', {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 
@@ -92,7 +93,8 @@ function JadwalSiswaIndex() {
       const response = await fetch(`http://localhost:8000/api/schedules/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 

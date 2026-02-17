@@ -17,6 +17,7 @@ class StoreClassRequest extends FormRequest
             'grade' => ['required', 'string', 'max:10'],
             'label' => ['required', 'string', 'max:20'],
             'major_id' => ['nullable', 'exists:majors,id'],
+            'homeroom_teacher_id' => ['nullable', 'exists:teacher_profiles,id'],
         ];
     }
 
@@ -30,6 +31,7 @@ class StoreClassRequest extends FormRequest
             'label.string' => 'Format label kelas tidak valid',
             'label.max' => 'Label kelas maksimal 20 karakter',
             'major_id.exists' => 'Jurusan tidak ditemukan',
+            'homeroom_teacher_id.exists' => 'Wali kelas tidak ditemukan',
         ];
     }
 }

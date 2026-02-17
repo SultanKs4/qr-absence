@@ -10,9 +10,12 @@ interface FormModalProps {
   onSubmit?: () => void; // Fungsi saat submit
   submitLabel?: string; // Label tombol submit
   isSubmitting?: boolean; // Status loading submit
+  onReset?: () => void; // Fungsi untuk reset form
+  resetLabel?: string; // Label tombol reset
   titleStyle?: React.CSSProperties; // Style khusus untuk judul
   showSubmitButton?: boolean; // Tampilkan tombol submit?
   style?: React.CSSProperties; // Style tambahan untuk modal
+  contentStyle?: React.CSSProperties; // Style tambahan untuk konten form
   maxHeight?: string; // Tinggi maksimal modal
   topOffset?: string; // Jarak dari atas viewport
   bottomMargin?: string; // Margin bawah modal
@@ -27,9 +30,12 @@ export function FormModal({
   onSubmit,
   submitLabel = "Tambahkan",
   isSubmitting = false,
+  onReset,
+  resetLabel = "Reset",
   titleStyle = {},
   showSubmitButton = true,
   style,
+  contentStyle = {},
   // Jarak dari atas viewport
   topOffset = "14vh",
   // Tinggi maksimal modal
@@ -146,6 +152,7 @@ export function FormModal({
               backgroundColor: "white",
               // Tinggi minimal untuk konten
               minHeight: "350px",
+              ...contentStyle,
             }}>
               {children} {/* Render konten form dari props */}
             </div>
@@ -185,6 +192,30 @@ export function FormModal({
           >
             Batal
           </button>
+
+          {/* Tombol Reset (opsional) */}
+          {onReset && (
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={isSubmitting}
+              style={{
+                padding: "10px 24px",
+                borderRadius: "8px",
+                border: "2px solid #e2e8f0", // Border abu-abu terang
+                backgroundColor: "#f8fafc",
+                color: "#64748b", // Warna teks abu-abu biru
+                fontWeight: "600",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                minWidth: "100px",
+                opacity: isSubmitting ? 0.5 : 1,
+              }}
+              aria-label={resetLabel}
+            >
+              {resetLabel}
+            </button>
+          )}
           
           {/* Tombol Submit (opsional) */}
           {showSubmitButton && (

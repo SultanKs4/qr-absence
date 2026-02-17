@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import PengurusKelasLayout from "../../component/PengurusKelas/PengurusKelasLayout";
-import JadwalImg from "../../assets/Icon/DummyJadwal.png";
+
+import classService from "../../services/classService";
 
 type PengurusKelasPage = "dashboard" | "jadwal-anda" | "notifikasi";
 
@@ -16,10 +18,37 @@ export default function JadwalPengurus({
     onMenuClick,
     onLogout,
 }: JadwalPengurusProps) {
-      const kelasInfo = {
-        namaKelas: "X Mekatronika 1",
-        waliKelas: "Ewit Erniyah S.pd",
-      };
+      const [kelasInfo, setKelasInfo] = useState({
+        namaKelas: "",
+        waliKelas: "",
+        scheduleImageUrl: null as string | null,
+      });
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const fetchClassInfo = async () => {
+            try {
+                const response = await classService.getMyClass();
+                const data = response; // Assuming response is the ClassResource object directly or data property
+                // ClassResource structure: { id, class_name, homeroom_teacher_name, schedule_image_url, ... }
+                // Adjust based on actual API response structure (usually { data: ... })
+                
+                const classData = data.data || data;
+
+                setKelasInfo({
+                    namaKelas: classData.class_name || classData.name || "Kelas Tidak Diketahui",
+                    waliKelas: classData.homeroom_teacher_name || "Belum ditentukan",
+                    scheduleImageUrl: classData.schedule_image_url,
+                });
+            } catch (error) {
+                console.error("Failed to fetch class info", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchClassInfo();
+      }, []);
 
     return (
         <PengurusKelasLayout
@@ -72,27 +101,33 @@ export default function JadwalPengurus({
                     </div>
 
                     <div style={{ flex: 1 }}>
-            <div
-              style={{
-                color: "#FFFFFF",
-                fontSize: "18px",
-                fontWeight: 700,
-                marginBottom: 4,
-              }}
-            >
-              {kelasInfo.namaKelas}
+                        {loading ? (
+                             <div style={{ color: "white" }}>Memuat info kelas...</div>
+                        ) : (
+                            <>
+                                <div
+                                style={{
+                                    color: "#FFFFFF",
+                                    fontSize: "18px",
+                                    fontWeight: 700,
+                                    marginBottom: 4,
+                                }}
+                                >
+                                {kelasInfo.namaKelas}
 
-            </div>
-            <div
-              style={{
-                color: "rgba(255, 255, 255, 0.8)",
-                fontSize: "14px",
-                fontWeight: 500,
-              }}
-            >
-              {kelasInfo.waliKelas}
-            </div>
-          </div>
+                                </div>
+                                <div
+                                style={{
+                                    color: "rgba(255, 255, 255, 0.8)",
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                }}
+                                >
+                                {kelasInfo.waliKelas}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* Jadwal sebagai Gambar */}
@@ -121,42 +156,56 @@ export default function JadwalPengurus({
                                 borderRadius: 10,
                                 border: "1px solid #E2E8F0",
                                 background: "#F8FAFC",
+                                minHeight: 200,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
                             }}
                         >
-                            <img
-                                src={JadwalImg}
-                                // alt={`Jadwal ${kelasInfo.namaKelas}`}
-                                alt={`Jadwal Kelas`}
-                                style={{
-                                    display: "block",
-                                    width: "100%",
-                                    height: "auto",
-                                    maxWidth: 1200, 
-                                    margin: "0 auto",
-                                }}
-                            /> 
+                            {loading ? (
+                                <div>Memuat jadwal...</div>
+                            ) : kelasInfo.scheduleImageUrl ? (
+                                <img
+                                    src={kelasInfo.scheduleImageUrl}
+                                    alt={`Jadwal Kelas`}
+                                    style={{
+                                        display: "block",
+                                        width: "100%",
+                                        height: "auto",
+                                        maxWidth: 1200, 
+                                        margin: "0 auto",
+                                    }}
+                                /> 
+                            ) : (
+                                <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>
+                                    <p>Belum ada jadwal yang diunggah.</p>
+                                    <p style={{ fontSize: 12, marginTop: 8 }}>Hubungi Waka Kurikulum jika jadwal belum tersedia.</p>
+                                </div>
+                            )}
                         </div>
 
-                        <div style={{ marginTop: 12, textAlign: "right" }}>
-                            <a
-                                href={JadwalImg}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                    display: "inline-block",
-                                    padding: "10px 12px",
-                                    borderRadius: 10,
-                                    border: "1px solid #E2E8F0",
-                                    background: "#FFFFFF",
-                                    color: "#0F172A",
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    textDecoration: "none",
-                                }}
-                            >
-                                Buka jadwal (tab baru)
-                            </a>
-                        </div>
+                        {kelasInfo.scheduleImageUrl && (
+                            <div style={{ marginTop: 12, textAlign: "right" }}>
+                                <a
+                                    href={kelasInfo.scheduleImageUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                        display: "inline-block",
+                                        padding: "10px 12px",
+                                        borderRadius: 10,
+                                        border: "1px solid #E2E8F0",
+                                        background: "#FFFFFF",
+                                        color: "#0F172A",
+                                        fontWeight: 700,
+                                        fontSize: 13,
+                                        textDecoration: "none",
+                                    }}
+                                >
+                                    Buka jadwal (tab baru)
+                                </a>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

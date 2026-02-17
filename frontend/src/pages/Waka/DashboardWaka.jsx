@@ -21,7 +21,8 @@ const API_BASE_URL = 'http://localhost:8000/api';
 const apiService = {
   getHeaders: () => ({
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    'Accept': 'application/json'
   }),
 
   async getSemesters() {
@@ -146,7 +147,7 @@ export default function DashboardWaka() {
 
   const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
       navigate('/');
     }

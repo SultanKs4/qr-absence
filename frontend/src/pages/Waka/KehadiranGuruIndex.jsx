@@ -45,7 +45,8 @@ function KehadiranGuruIndex() {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:8000/api/attendance/teachers/daily?date=${filterTanggal}&per_page=100`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 
@@ -75,7 +76,8 @@ function KehadiranGuruIndex() {
       const response = await fetch(`http://localhost:8000/api/attendance/${id}/void`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 

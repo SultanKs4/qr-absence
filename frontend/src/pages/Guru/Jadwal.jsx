@@ -16,7 +16,10 @@ const Jadwal = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      };
 
       const [meRes, scheduleRes] = await Promise.all([
         fetch('http://localhost:8000/api/me', { headers }),

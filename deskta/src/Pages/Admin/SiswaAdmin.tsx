@@ -1,1802 +1,1137 @@
-// FILE: SiswaAdmin.tsx - Halaman Admin untuk mengelola data siswa
-// ✅ PERBAIKAN: Layout lebih pendek dan kompak
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
-import { Button } from '../../component/Shared/Button';
-import { Select } from '../../component/Shared/Select';
 import { 
-  MoreVertical,
+  Users, 
+  Search,
+  Plus, 
+  MoreVertical, 
+  Upload, 
+  X, 
   Trash2,
   Eye,
-  Grid,
-  FileDown,
-  Upload,
-  FileText,
-  Download,
-  Search,
-  X,
-  ChevronUp,
-  ChevronDown,
+  Edit
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { masterService, type Major, type ClassRoom } from '../../services/masterService';
+import * as XLSX from 'xlsx';
+import { studentService } from '../../services/studentService';
 
-/* ============ IMPORT GAMBAR AWAN ============ */
-import AWANKIRI from '../../assets/Icon/AWANKIRI.png';
-import AwanBawahkanan from '../../assets/Icon/AwanBawahkanan.png';
-
-/* ===================== INTERFACE DEFINITIONS ===================== */
-interface User {
-  role: string;
-  name: string;
-}
-
+// Interface helpers
 interface Siswa {
   id: string;
   namaSiswa: string;
   nisn: string;
-  jenisKelamin: string;
-  noTelp: string;
+  nis: string;
   jurusan: string;
-  jurusanId: string;
-  tahunAngkatan: string;
   kelas: string;
+  jenisKelamin: 'L' | 'P';
+  // Optional extras for detail/edit
+  phone?: string;
+  address?: string;
+  email?: string;
+  username?: string;
+  tahunMulai?: string;
+  tahunAkhir?: string;
 }
 
 interface SiswaAdminProps {
-  user: User;
-  onLogout: () => void;
-  currentPage: string;
-  onMenuClick: (page: string) => void;
-  onNavigateToDetail?: (siswaId: string) => void;
+  user?: any;
+  onLogout?: () => void;
+  currentPage?: string;
+  onMenuClick?: (page: string) => void;
+  onNavigateToDetail?: (id: string) => void;
 }
 
-/* ===================== OPTIONS FOR DROPDOWNS ===================== */
-const jurusanOptions = [
-  { label: 'Mekatronika', value: 'MT' },
-  { label: 'Rekayasa Perangkat Lunak', value: 'RPL' },
-  { label: 'Animasi', value: 'AN' },
-  { label: 'Broadcasting', value: 'BC' },
-  { label: 'Elektronika Industri', value: 'EI' },
-  { label: 'Teknik Komputer dan Jaringan', value: 'TKJ' },
-  { label: 'Audio Video', value: 'AV' },
-  { label: 'Desain Komunikasi Visual', value: 'DKV' },
-];
+const SiswaAdmin: React.FC<SiswaAdminProps> = ({ 
+  user, 
+  onLogout, 
+  currentPage, 
+  onMenuClick, 
+  onNavigateToDetail 
+}) => {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-const kelasOptions = [
-  { label: 'Kelas 10', value: '10' },
-  { label: 'Kelas 11', value: '11' },
-  { label: 'Kelas 12', value: '12' },
-];
+  // State
+  const [students, setStudents] = useState<Siswa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-const jenisKelaminOptions = [
-  { label: 'Laki-Laki', value: 'L' },
-  { label: 'Perempuan', value: 'P' },
-];
+  // Master Data State
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
 
-// Generate tahun options dinamis
-const generateTahunOptions = () => {
-  const currentYear = new Date().getFullYear();
-  const years = [];
-  for (let i = currentYear; i >= currentYear - 20; i--) {
-    years.push(i);
-  }
-  return years;
-};
-
-/* ===================== DUMMY DATA ===================== */
-const initialSiswaData: Siswa[] = [
-  { 
-    id: '1', 
-    namaSiswa: 'LAURA LAVIDA LOCA', 
-    nisn: '0074182519', 
-    jenisKelamin: 'L', 
-    noTelp: '082183748591',
-    jurusan: 'Rekasaya Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-  { 
-    id: '2', 
-    namaSiswa: 'LELY SAGITA', 
-    nisn: '0074320819', 
-    jenisKelamin: 'P', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-  { 
-    id: '3', 
-    namaSiswa: 'MAYA MELINDA WIJAYANTI', 
-    nisn: '0078658367', 
-    jenisKelamin: 'P', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-  { 
-    id: '4', 
-    namaSiswa: 'MOCH. ABYL GUSTIAN', 
-    nisn: '0079292238', 
-    jenisKelamin: 'L', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-    { 
-    id: '5', 
-    namaSiswa: 'MUHAMMAD AMINULLAH', 
-    nisn: '0084421457', 
-    jenisKelamin: 'L', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-    { 
-    id: '6', 
-    namaSiswa: 'Muhammad Azka Fadli Atthaya', 
-    nisn: '0089104721', 
-    jenisKelamin: 'L', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-    { 
-    id: '7', 
-    namaSiswa: 'MUHAMMAD HADI FIRMANSYAH', 
-    nisn: '0087917739', 
-    jenisKelamin: 'L', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    kelas: '12',
-  },
-];
-
-/* ===================== MAIN COMPONENT ===================== */
-export default function SiswaAdmin({
-  user,
-  onLogout,
-  currentPage,
-  onMenuClick,
-  onNavigateToDetail,
-}: SiswaAdminProps) {
-  // ==================== STATE MANAGEMENT ====================
+  // Search
   const [searchValue, setSearchValue] = useState('');
-  const [selectedJurusan, setSelectedJurusan] = useState('');
-  const [selectedKelas, setSelectedKelas] = useState('');
-  const [isEksporDropdownOpen, setIsEksporDropdownOpen] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [siswaList, setSiswaList] = useState<Siswa[]>(initialSiswaData);
+
+  // Dropdown & Modal State
   const [openActionId, setOpenActionId] = useState<string | null>(null);
-  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  // const [isEksporDropdownOpen, setIsEksporDropdownOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // For Edit
+
+  // Form State
+  const currentYear = new Date().getFullYear();
   const [formData, setFormData] = useState({
     namaSiswa: '',
     nisn: '',
+    nis: '',
+    username: '',
+    password: '',
+    email: '',
+    address: '',
     jenisKelamin: 'L',
-    noTelp: '',
     jurusanId: '',
-    kelas: '',
-    tahunMulai: new Date().getFullYear(),
-    tahunAkhir: new Date().getFullYear() + 3,
+    kelas: '', // This will store class_id now
+    noTelp: '',
+    tahunMulai: currentYear.toString(),
+    tahunAkhir: (currentYear + 3).toString()
   });
-  
+
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [visibleTahunMulai, setVisibleTahunMulai] = useState(formData.tahunMulai);
-  const [visibleTahunAkhir, setVisibleTahunAkhir] = useState(formData.tahunAkhir);
 
-  // ==================== LISTEN TO UPDATES FROM DETAIL PAGE ====================
+  // Pagination
+  const [pageIndex, setPageIndex] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1); // Keep totalPages for API response
+
+
+  const paginate = (pageNumber: number) => setPageIndex(pageNumber);
+
+
+  // Initial Data Fetch
   useEffect(() => {
-    const handleSiswaUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (customEvent.detail && customEvent.detail.updatedSiswa) {
-        const updatedSiswa = customEvent.detail.updatedSiswa;
-        setSiswaList(prevList => 
-          prevList.map(siswa => 
-            siswa.id === updatedSiswa.id ? updatedSiswa : siswa
-          )
-        );
-      }
-    };
-
-    const checkLocalStorageUpdate = () => {
-      const savedSiswa = localStorage.getItem('selectedSiswa');
-      const updateFlag = localStorage.getItem('siswaDataUpdated');
-      
-      if (savedSiswa && updateFlag === 'true') {
-        try {
-          const updatedSiswa = JSON.parse(savedSiswa);
-          setSiswaList(prevList => 
-            prevList.map(siswa => 
-              siswa.id === updatedSiswa.id ? updatedSiswa : siswa
-            )
-          );
-          localStorage.removeItem('siswaDataUpdated');
-        } catch (error) {
-          console.error('Error parsing updated siswa:', error);
-        }
-      }
-    };
-
-    checkLocalStorageUpdate();
-    window.addEventListener('siswaUpdated', handleSiswaUpdate as EventListener);
-    window.addEventListener('storage', checkLocalStorageUpdate);
-    const interval = setInterval(checkLocalStorageUpdate, 500);
-    
-    return () => {
-      window.removeEventListener('siswaUpdated', handleSiswaUpdate as EventListener);
-      window.removeEventListener('storage', checkLocalStorageUpdate);
-      clearInterval(interval);
-    };
+    fetchMasterData();
   }, []);
 
-  // ==================== FORM VALIDATION WITH REAL-TIME ====================
-  const validateField = (field: string, value: string) => {
-    const newErrors = { ...formErrors };
+  // Fetch students when search or page changes
+  useEffect(() => {
+    fetchStudents();
+  }, [searchValue, pageIndex]); // Changed currentPage to pageIndex
 
-    if (field === 'namaSiswa') {
-      if (!value.trim()) {
-        newErrors.namaSiswa = 'Nama siswa harus diisi';
-      } else if (value.trim().length < 3) {
-        newErrors.namaSiswa = 'Nama siswa minimal 3 karakter';
-      } else {
-        delete newErrors.namaSiswa;
-      }
+  const fetchMasterData = async () => {
+    try {
+      const [majorsRes, classesRes] = await Promise.all([
+        masterService.getMajors(),
+        masterService.getClasses()
+      ]);
+      setMajors(majorsRes.data || []);
+      setClasses(classesRes.data || []);
+    } catch (err) {
+      console.error('Failed to fetch master data:', err);
+      // Not blocking UI, but dropdowns will be empty
     }
+  };
 
-    if (field === 'nisn') {
-      if (!value.trim()) {
-        newErrors.nisn = 'NISN harus diisi';
-      } else if (!/^\d{10}$/.test(value)) {
-        newErrors.nisn = 'NISN harus 10 digit angka';
-      } else if (siswaList.some(s => s.nisn === value)) {
-        newErrors.nisn = 'NISN sudah terdaftar';
-      } else {
-        delete newErrors.nisn;
+  const fetchStudents = async () => {
+    setLoading(true);
+    try {
+      // API call with params
+      // Note: studentService needs to handle pagination response structure if standard Laravel API
+      const params = {
+        page: pageIndex, // Use pageIndex
+        per_page: itemsPerPage, // Use itemsPerPage
+        search: searchValue
+      };
+      
+      const response = await studentService.getStudents(params as any);
+      
+      // Map API response to local Siswa interface
+      const data = response.data || [];
+      const mappedStudents: Siswa[] = data.map((s: any) => ({
+        id: s.id.toString(),
+        namaSiswa: s.name,
+        nisn: s.nisn,
+        nis: s.nis || '-',
+        jurusan: s.major || '-', // Use code
+        kelas: s.class_name || '-',
+        jenisKelamin: s.gender,
+        phone: s.parent_phone,
+        address: s.address,
+        email: s.email,
+        username: s.username
+      }));
+
+      setStudents(mappedStudents);
+      
+      // Update pagination info if available in response
+      if (response.meta) {
+        setTotalPages(response.meta.last_page);
       }
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching students:', err);
+      setError('Gagal memuat data siswa.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (field === 'noTelp') {
-      if (value && value.trim()) {
-        if (!/^08\d{10,11}$/.test(value)) {
-          newErrors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
-        } else {
-          delete newErrors.noTelp;
-        }
-      } else {
-        delete newErrors.noTelp;
-      }
-    }
-
-    if (field === 'jurusanId') {
-      if (!value) {
-        newErrors.jurusanId = 'Jurusan harus dipilih';
-      } else {
-        delete newErrors.jurusanId;
-      }
-    }
-
-    if (field === 'kelas') {
-      if (!value) {
-        newErrors.kelas = 'Kelas harus dipilih';
-      } else {
-        delete newErrors.kelas;
-      }
-    }
-
-    setFormErrors(newErrors);
+  // Form Validation
+  const validateField = (name: string, value: string) => {
+    let error = '';
+    if (name === 'namaSiswa' && !value.trim()) error = 'Nama Siswa wajib diisi';
+    if (name === 'nisn' && !value.trim()) error = 'NISN wajib diisi';
+    if (name === 'nisn' && value && !/^\d+$/.test(value)) error = 'NISN harus berupa angka';
+    if (name === 'nis' && !value.trim()) error = 'NIS wajib diisi';
+    if (name === 'username' && !value.trim()) error = 'Username wajib diisi';
+    if (name === 'password' && !editingId && !value.trim()) error = 'Password wajib diisi';
+    if (name === 'address' && !value.trim()) error = 'Alamat wajib diisi';
+    if (name === 'jurusanId' && !value) error = 'Jurusan wajib dipilih';
+    if (name === 'kelas' && !value) error = 'Kelas wajib dipilih';
+    
+    setFormErrors(prev => ({ ...prev, [name]: error }));
+    return error;
   };
 
   const validateForm = () => {
     const errors: {[key: string]: string} = {};
-    
-    if (!formData.namaSiswa.trim()) {
-      errors.namaSiswa = 'Nama siswa harus diisi';
-    } else if (formData.namaSiswa.trim().length < 3) {
-      errors.namaSiswa = 'Nama siswa minimal 3 karakter';
-    }
-    
-    if (!formData.nisn.trim()) {
-      errors.nisn = 'NISN harus diisi';
-    } else if (!/^\d{10}$/.test(formData.nisn)) {
-      errors.nisn = 'NISN harus 10 digit angka';
-    } else if (siswaList.some(s => s.nisn === formData.nisn)) {
-      errors.nisn = 'NISN sudah terdaftar';
-    }
-
-    if (formData.noTelp && formData.noTelp.trim()) {
-      if (!/^08\d{10,11}$/.test(formData.noTelp)) {
-        errors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
-      }
-    }
-    
-    if (!formData.jurusanId) {
-      errors.jurusanId = 'Jurusan harus dipilih';
-    }
-    
-    if (!formData.kelas) {
-      errors.kelas = 'Kelas harus dipilih';
-    }
+    if (!formData.namaSiswa.trim()) errors.namaSiswa = 'Nama Siswa wajib diisi';
+    if (!formData.nisn.trim()) errors.nisn = 'NISN wajib diisi';
+    if (!formData.nis.trim()) errors.nis = 'NIS wajib diisi';
+    if (!formData.username.trim()) errors.username = 'Username wajib diisi';
+    if (!editingId && !formData.password.trim()) errors.password = 'Password wajib diisi';
+    if (!formData.address.trim()) errors.address = 'Alamat wajib diisi';
+    if (!formData.jurusanId) errors.jurusanId = 'Jurusan wajib dipilih';
+    if (!formData.kelas) errors.kelas = 'Kelas wajib dipilih';
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ==================== FILTERING DATA ====================
-  const filteredData = siswaList.filter((item) => {
-    const matchSearch = 
-      item.namaSiswa.toLowerCase().includes(searchValue.toLowerCase()) ||
-      item.nisn.includes(searchValue);
-    const matchJurusan = selectedJurusan ? item.jurusanId === selectedJurusan : true;
-    const matchKelas = selectedKelas ? item.kelas === selectedKelas : true;
-    return matchSearch && matchJurusan && matchKelas;
-  });
-
-  // ==================== EVENT HANDLERS ====================
-  
-  const handleNavigateToDetail = (siswaId: string) => {
-    const siswa = siswaList.find(s => s.id === siswaId);
-    if (siswa) {
-      localStorage.setItem('selectedSiswa', JSON.stringify(siswa));
-      localStorage.removeItem('siswaDataUpdated');
-      if (onNavigateToDetail) {
-        onNavigateToDetail(siswaId);
-      } else {
-        onMenuClick('detail-siswa');
-      }
-    }
-  };
-
-  const handleTambahSiswa = () => {
-    const currentYear = new Date().getFullYear();
+  // Handlers
+  const handleOpenModal = () => {
+    setEditingId(null);
     setFormData({
       namaSiswa: '',
       nisn: '',
+      nis: '',
+      username: '',
+      password: '',
+      email: '',
+      address: '',
       jenisKelamin: 'L',
-      noTelp: '',
       jurusanId: '',
       kelas: '',
-      tahunMulai: currentYear,
-      tahunAkhir: currentYear + 3,
+      noTelp: '',
+      tahunMulai: currentYear.toString(),
+      tahunAkhir: (currentYear + 3).toString()
     });
-    setVisibleTahunMulai(currentYear);
-    setVisibleTahunAkhir(currentYear + 3);
     setFormErrors({});
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setFormData({
-      namaSiswa: '',
-      nisn: '',
-      jenisKelamin: 'L',
-      noTelp: '',
-      jurusanId: '',
-      kelas: '',
-      tahunMulai: new Date().getFullYear(),
-      tahunAkhir: new Date().getFullYear() + 3,
-    });
-    setFormErrors({});
-  };
+  const handleEdit = (student: Siswa) => {
+    if (onNavigateToDetail) {
+      onNavigateToDetail(student.id);
+    } else {
+      // Fallback to modal editing if onNavigateToDetail is not provided
+      setEditingId(student.id);
+      
+      const selectedClass = classes.find(c => c.name === student.kelas);
+      const selectedMajor = majors.find(m => m.code === student.jurusan);
 
-  const handleSubmitForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-
-    const selectedJurusan = jurusanOptions.find(j => j.value === formData.jurusanId);
-    
-    const newSiswa: Siswa = {
-      id: String(Math.max(0, ...siswaList.map(s => parseInt(s.id) || 0)) + 1),
-      namaSiswa: formData.namaSiswa.trim(),
-      nisn: formData.nisn.trim(),
-      jenisKelamin: formData.jenisKelamin,
-      noTelp: formData.noTelp.trim(),
-      jurusan: selectedJurusan?.label || '',
-      jurusanId: formData.jurusanId,
-      tahunAngkatan: `${formData.tahunMulai}-${formData.tahunAkhir}`,
-      kelas: formData.kelas,
-    };
-
-    setSiswaList([...siswaList, newSiswa]);
-    alert(`✓ Siswa "${newSiswa.namaSiswa}" berhasil ditambahkan!`);
-    handleCloseModal();
-  };
-
-  const handleDeleteSiswa = (id: string) => {
-    const siswa = siswaList.find(s => s.id === id);
-    if (confirm(`Apakah Anda yakin ingin menghapus data siswa "${siswa?.namaSiswa}"?`)) {
-      setSiswaList(prevList => prevList.filter(siswa => siswa.id !== id));
-      alert('✓ Data siswa berhasil dihapus!');
+      setFormData({
+        namaSiswa: student.namaSiswa,
+        nisn: student.nisn,
+        nis: student.nis,
+        username: student.username || '',
+        password: '', // Don't show password
+        email: student.email || '',
+        address: student.address || '',
+        jenisKelamin: student.jenisKelamin,
+        jurusanId: selectedMajor ? selectedMajor.id.toString() : '',
+        kelas: selectedClass ? selectedClass.id.toString() : '',
+        noTelp: student.phone || '',
+        tahunMulai: student.tahunMulai || '2023',
+        tahunAkhir: student.tahunAkhir || '2026'
+      });
+      setIsModalOpen(true);
       setOpenActionId(null);
     }
   };
 
-  // ==================== DOWNLOAD FORMAT EXCEL ====================
-  const handleDownloadFormatExcel = () => {
-    const link = document.createElement('a');
-    link.href = '/Template_Import_Data_Siswa.xlsx';
-    link.download = 'Template_Import_Data_Siswa.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
-      alert(
-        'File: Template_Import_Data_Siswa.xlsx\n\n' +
-        'Cara Menggunakan:\n' +
-        '1. Buka file dengan Microsoft Excel\n' +
-        '3. Isi data di sheet "Template Import Siswa"\n' +
-        '5. Simpan file\n' +
-        '6. Klik tombol "Impor" untuk upload'
-      );
-    }, 100);
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormErrors({});
   };
 
-  // ==================== EXPORT TO EXCEL ====================
-  const handleOpenInExcel = () => {
-    const headers = ['Nama Siswa', 'NISN', 'Konsentrasi Keahlian', 'Tingkatan Kelas', 'Jenis Kelamin'];
-    
-    const rows = siswaList.map((siswa) => [
-      siswa.namaSiswa,
-      siswa.nisn,
-      siswa.jurusan,
-      siswa.kelas,
-      siswa.jenisKelamin === 'L' ? 'Laki-Laki' : 'Perempuan'
-    ]);
+  const handleSubmitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => {
-        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
-          return `"${cell.replace(/"/g, '""')}"`;
-        }
-        return cell;
-      }).join(',')),
-    ].join('\n');
+    try {
+      const payload: any = {
+        name: formData.namaSiswa,
+        nisn: formData.nisn,
+        nis: formData.nis,
+        username: formData.username,
+        email: formData.email || undefined,
+        address: formData.address,
+        gender: formData.jenisKelamin,
+        class_id: formData.kelas,
+        parent_phone: formData.noTelp,
+      };
 
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'application/vnd.ms-excel' });
-    const url = window.URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Data_Siswa_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-    }, 100);
-
-    setTimeout(() => {
-      alert('✓ File Excel telah dibuat!');
-    }, 200);
-  };
-
-  // ==================== IMPORT CSV ====================
-  const handleImport = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').filter(line => line.trim());
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        
-        const namaSiswaIdx = headers.findIndex(h => h.includes('nama'));
-        const nisnIdx = headers.findIndex(h => h.includes('nisn'));
-        const jenisKelaminIdx = headers.findIndex(h => h.includes('jenis') || h.includes('kelamin'));
-        const noTelpIdx = headers.findIndex(h => h.includes('telp') || h.includes('telepon'));
-        const jurusanIdx = headers.findIndex(h => h.includes('jurusan') || h.includes('keahlian'));
-        const kelasIdx = headers.findIndex(h => h.includes('tingkatan') || h.includes('kelas'));
-        const tahunAngkatanIdx = headers.findIndex(h => h.includes('tahun') || h.includes('angkatan'));
-
-        if (namaSiswaIdx === -1 || nisnIdx === -1) {
-          alert('❌ File harus memiliki kolom "Nama Siswa" dan "NISN"');
-          return;
-        }
-
-        const newSiswa: Siswa[] = [];
-        const errors: string[] = [];
-        
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          
-          if (!values[namaSiswaIdx] || values[namaSiswaIdx].toLowerCase().includes('contoh')) continue;
-          
-          const nisn = values[nisnIdx];
-          
-          if (!/^\d{10}$/.test(nisn)) {
-            errors.push(`Baris ${i + 1}: NISN "${nisn}" tidak valid (harus 10 digit)`);
-            continue;
-          }
-          
-          if (siswaList.some(s => s.nisn === nisn) || newSiswa.some(s => s.nisn === nisn)) {
-            errors.push(`Baris ${i + 1}: NISN "${nisn}" sudah terdaftar`);
-            continue;
-          }
-
-          const jurusanValue = jurusanIdx !== -1 ? values[jurusanIdx] : '';
-          const jurusanId = jurusanOptions.find(j => 
-            j.label.toLowerCase().includes(jurusanValue.toLowerCase()) ||
-            jurusanValue.toLowerCase().includes(j.value.toLowerCase())
-          )?.value || '';
-
-          if (!jurusanId) {
-            errors.push(`Baris ${i + 1}: Jurusan "${jurusanValue}" tidak ditemukan`);
-            continue;
-          }
-
-          const kelasValue = kelasIdx !== -1 ? values[kelasIdx].replace(/\D/g, '') : '';
-          if (!['10', '11', '12'].includes(kelasValue)) {
-            errors.push(`Baris ${i + 1}: Kelas "${kelasValue}" tidak valid (harus 10, 11, atau 12)`);
-            continue;
-          }
-
-          let jenisKelamin = jenisKelaminIdx !== -1 ? values[jenisKelaminIdx].toUpperCase() : 'L';
-          if (jenisKelamin.includes('LAKI') || jenisKelamin === 'L') {
-            jenisKelamin = 'L';
-          } else if (jenisKelamin.includes('PEREMPUAN') || jenisKelamin === 'P') {
-            jenisKelamin = 'P';
-          } else {
-            jenisKelamin = 'L';
-          }
-
-          const noTelp = noTelpIdx !== -1 ? values[noTelpIdx].replace(/\D/g, '') : '';
-          const tahunAngkatan = tahunAngkatanIdx !== -1 ? values[tahunAngkatanIdx] : '2023-2026';
-
-          const newRecord: Siswa = {
-            id: String(Math.max(0, ...siswaList.map(s => parseInt(s.id) || 0)) + newSiswa.length + 1),
-            namaSiswa: values[namaSiswaIdx],
-            nisn: nisn,
-            jenisKelamin: jenisKelamin,
-            noTelp: noTelp,
-            jurusan: jurusanOptions.find(j => j.value === jurusanId)?.label || '',
-            jurusanId: jurusanId,
-            tahunAngkatan: tahunAngkatan,
-            kelas: kelasValue,
-          };
-          newSiswa.push(newRecord);
-        }
-
-        if (errors.length > 0) {
-          alert(`⚠️ Beberapa data gagal diimpor:\n\n${errors.join('\n')}\n\nData valid tetap akan ditambahkan.`);
-        }
-
-        if (newSiswa.length > 0) {
-          setSiswaList([...siswaList, ...newSiswa]);
-          alert(`✓ ${newSiswa.length} data siswa berhasil diimpor!`);
-        } else {
-          alert('❌ Tidak ada data valid yang dapat diimpor');
-        }
-      } catch (error) {
-        alert('❌ Error: Format file tidak sesuai');
-        console.error(error);
+      if (!editingId || formData.password) {
+        payload.password = formData.password;
       }
-    };
-    
-    reader.readAsText(file);
-    e.target.value = '';
-  };
 
-  // ==================== EXPORT ====================
-  const handleExportPDF = () => {
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Data Siswa Report</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { text-align: center; color: #1E3A8A; }
-          .date { text-align: center; color: #666; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th { background-color: #2563EB; color: white; padding: 10px; text-align: left; }
-          td { padding: 10px; border-bottom: 1px solid #ddd; }
-          tr:nth-child(even) { background-color: #f5f7fa; }
-          .footer { margin-top: 20px; text-align: right; color: #666; }
-        </style>
-      </head>
-      <body>
-        <h1>Laporan Data Siswa</h1>
-        <div class="date">Tanggal: ${new Date().toLocaleDateString('id-ID')}</div>
-        <table>
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>Nama Siswa</th>
-              <th>NISN</th>
-              <th>Konsentrasi Keahlian</th>
-              <th>Tingkatan Kelas</th>
-              <th>Jenis Kelamin</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredData.map((siswa, index) => `
-              <tr>
-                <td>${index + 1}</td>
-                <td>${siswa.namaSiswa}</td>
-                <td>${siswa.nisn}</td>
-                <td>${siswa.jurusan}</td>
-                <td>${siswa.kelas}</td>
-                <td>${siswa.jenisKelamin === 'L' ? 'Laki-Laki' : 'Perempuan'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="footer">
-          <p>Total Siswa: ${filteredData.length}</p>
-          <p>Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const newWindow = window.open('', '', 'width=900,height=600');
-    if (newWindow) {
-      newWindow.document.write(htmlContent);
-      newWindow.document.close();
-      setTimeout(() => {
-        newWindow.print();
-      }, 250);
+      if (editingId) {
+        await studentService.updateStudent(editingId, payload);
+      } else {
+        await studentService.addStudent(payload);
+      }
+      
+      handleCloseModal();
+      fetchStudents(); // Refresh list
+    } catch (err: any) {
+      console.error('Failed to save student:', err);
+      alert('Gagal menyimpan data siswa: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  /* ===================== STYLING ===================== */
-  const buttonBaseStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    padding: '6px 12px',
-    borderRadius: '6px',
-    fontWeight: 600,
-    fontSize: '13px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    height: '36px',
-    border: 'none',
-  } as const;
+  const handleDeleteSiswa = async (id: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus data siswa ini?')) {
+      try {
+        await studentService.deleteStudent(id);
+        fetchStudents();
+        setOpenActionId(null);
+      } catch (err) {
+        console.error('Failed to delete student:', err);
+        alert('Gagal menghapus siswa.');
+      }
+    }
+  };
 
-  /* ===================== TABLE CONFIGURATION ===================== */
+  const handleImport = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
 
-  const tahunOptions = generateTahunOptions();
-
-  return (
-    <AdminLayout
-      pageTitle="Data Siswa"
-      currentPage={currentPage}
-      onMenuClick={onMenuClick}
-      user={user}
-      onLogout={onLogout}
-      hideBackground
-    >
-      {/* BACKGROUND AWAN */}
-      <img 
-        src={AWANKIRI} 
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: 220,
-          zIndex: 0,
-          pointerEvents: "none",
-        }} 
-        alt="Background awan kiri" 
-      />
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
+        alert('Format file tidak didukung. Gunakan Excel atau CSV.');
+        return;
+      }
       
-      <img 
-        src={AwanBawahkanan} 
-        style={{
-          position: "fixed",
-          bottom: 0,
-          right: 0,
-          width: 220,
-          zIndex: 0,
-          pointerEvents: "none",
-        }} 
-        alt="Background awan kanan bawah" 
-      />
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data: any[] = XLSX.utils.sheet_to_json(ws);
 
-      {/* KONTEN UTAMA */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(6px)",
-          borderRadius: 16,
-          padding: '16px',
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(255,255,255,0.6)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          position: "relative",
-          zIndex: 1,
-          minHeight: "70vh",
-        }}
-      >
-        {/* ============ FILTER & ACTION BUTTONS ============ */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '200px 200px 1fr auto auto auto auto',
-            gap: '12px',
-            alignItems: 'flex-end',
-          }}
+          if (data.length === 0) {
+            alert('File kosong atau format tidak sesuai.');
+            return;
+          }
+
+          const mappedItems = data.map(row => ({
+            name: row.Nama || row.name,
+            username: row.Username || row.username,
+            email: row.Email || row.email || null,
+            password: row.Password || row.password || 'password123',
+            nisn: String(row.NISN || row.nisn),
+            nis: String(row.NIS || row.nis),
+            gender: row.Gender || row.gender || 'L',
+            address: row.Alamat || row.address,
+            class_id: row.ClassID || row.class_id || row.KelasID,
+            is_class_officer: row.PengurusKelas || row.is_class_officer || false,
+            phone: row.Telepon || row.phone || null,
+            contact: row.Kontak || row.contact || null,
+          }));
+
+          setLoading(true);
+          const result = await studentService.importStudents(mappedItems);
+          alert(`Berhasil mengimpor ${result.created} siswa.`);
+          fetchStudents();
+        } catch (error: any) {
+          console.error('Import failed:', error);
+          alert('Gagal mengimpor data: ' + (error.message || 'Lengkapi data wajib.'));
+        } finally {
+          setLoading(false);
+          e.target.value = '';
+        }
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
+
+  const handleNavigateToDetail = (id: string) => {
+    navigate(`/admin/siswa/${id}`);
+  };
+
+  // UI Helpers
+  // Filter majors/classes for dropdowns
+  // Major options: use majors state
+  // Class options: filter classes based on selected major if possible, or show all
+  const availableClasses = formData.jurusanId 
+    ? classes.filter(c => c.major_id.toString() === formData.jurusanId)
+    : classes;
+
+    if (loading) {
+      return (
+        <AdminLayout
+          pageTitle="Data Siswa"
+          currentPage={currentPage || "siswa"}
+          onMenuClick={onMenuClick || (() => {})}
+          user={user}
+          onLogout={onLogout || (() => {})}
+          hideBackground={false}
         >
-          {/* Konsentrasi Keahlian */}
+          <div style={{ padding: '24px', color: 'white', textAlign: 'center' }}>Loading...</div>
+        </AdminLayout>
+      );
+    }
+  
+    return (
+      <AdminLayout
+        pageTitle="Data Siswa"
+        currentPage={currentPage || "siswa"}
+        onMenuClick={onMenuClick || (() => {})}
+        user={user}
+        onLogout={onLogout || (() => {})}
+        hideBackground={false}
+      >
+      <div style={{ padding: '24px' }}>
+        {/* Header Section */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px'
+        }}>
           <div>
-            <Select
-              label="Konsentrasi Keahlian"
-              value={selectedJurusan}
-              onChange={setSelectedJurusan}
-              options={jurusanOptions}
-              placeholder="Semua"
-            />
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: '#111827',
+              marginBottom: '4px'
+            }}>
+              Data Siswa
+            </h1>
+            <p style={{
+              fontSize: '14px',
+              color: '#6B7280'
+            }}>
+              Kelola data siswa, kelas, dan jurusan
+            </p>
           </div>
-
-          {/* Kelas */}
-          <div>
-            <Select
-              label="Kelas"
-              value={selectedKelas}
-              onChange={setSelectedKelas}
-              options={kelasOptions}
-              placeholder="Semua"
-            />
-          </div>
-
-          {/* Empty space */}
-          <div></div>
-
-          {/* Buttons - auto layout */}
-          <Button
-            label="Tambahkan"
-            onClick={handleTambahSiswa}
-            variant="primary"
-          />
           
-          <button
-            onClick={handleDownloadFormatExcel}
-            style={{
-              ...buttonBaseStyle,
-              backgroundColor: '#10B981',
-              color: '#FFFFFF',
-              border: '1px solid #10B981',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#059669';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#10B981';
-            }}
-          >
-            <Download size={14} color="#FFFFFF" />
-            Format Excel
-          </button>
-
-          <button
-            onClick={handleImport}
-            style={{
-              ...buttonBaseStyle,
-              backgroundColor: '#0B1221',
-              color: '#FFFFFF',
-              border: '1px solid #0B1221',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1a2332';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0B1221';
-            }}
-          >
-            <Upload size={14} color="#FFFFFF" />
-            Impor
-          </button>
-
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setIsEksporDropdownOpen(!isEksporDropdownOpen)}
-              style={{
-                ...buttonBaseStyle,
-                backgroundColor: '#0B1221',
-                color: '#FFFFFF',
-                border: '1px solid #0B1221',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1a2332';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0B1221';
-              }}
-            >
-              <FileDown size={14} color="#FFFFFF" />
-              Ekspor
-            </button>
-
-            {isEksporDropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 8,
-                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-                  overflow: 'hidden',
-                  zIndex: 20,
-                  minWidth: 120,
-                  border: '1px solid #E5E7EB',
-                }}
-              >
-                <button
-                  onClick={() => {
-                    setIsEksporDropdownOpen(false);
-                    handleExportPDF();
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'white',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: '#111827',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                >
-                  <FileText size={14} />
-                  PDF
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setIsEksporDropdownOpen(false);
-                    handleOpenInExcel();
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'white',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: '#111827',
-                    textAlign: 'left',
-                    borderTop: '1px solid #F1F5F9',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                >
-                  <Download size={14} />
-                  Excel
-                </button>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+              border: '1px solid #E5E7EB'
+            }}>
+              <Users size={20} color="#2563EB" style={{ marginRight: '8px' }} />
+              <div>
+                <span style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>Total Siswa</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#111827' }}>
+                  {students.length}
+                </span>
               </div>
-            )}
+            </div>
           </div>
         </div>
 
-        {/* ============ SEARCH INPUT ============ */}
-        <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '400px' }}>
-          <label
-            style={{
-              fontSize: '13px',
-              fontWeight: 500,
-              color: '#252525',
-              display: 'block',
-              marginBottom: '4px',
-            }}
-          >
-            Cari siswa
-          </label>
-          <div
-            style={{
-              position: 'relative',
-              display: 'inline-flex',
-              alignItems: 'center',
-              width: '100%',
-            }}
-          >
-            <Search
-              size={16}
-              color="#9CA3AF"
+        {/* Filters & Actions */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleOpenModal}
               style={{
-                position: 'absolute',
-                left: '10px',
-                pointerEvents: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#2563EB',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1D4ED8')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#2563EB')}
+            >
+              <Plus size={18} />
+              Tambah Siswa
+            </button>
+            <button
+              onClick={handleImport}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#FFFFFF',
+                color: '#374151',
+                border: '1px solid #D1D5DB',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              <Upload size={18} />
+              Import
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              style={{ display: 'none' }}
+              onChange={handleFileSelect} 
+              accept=".csv,.xlsx"
             />
+          </div>
+
+          <div style={{
+            position: 'relative',
+            width: '300px'
+          }}>
             <input
               type="text"
-              placeholder="Cari siswa"
+              placeholder="Cari nama atau NISN..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               style={{
                 width: '100%',
-                padding: '6px 10px 6px 32px',
+                padding: '10px 16px 10px 40px',
+                borderRadius: '8px',
                 border: '1px solid #D1D5DB',
-                borderRadius: '6px',
-                fontSize: '13px',
                 outline: 'none',
-                transition: 'all 0.2s',
-                backgroundColor: '#D9D9D9',
-                height: '32px',
-                boxSizing: 'border-box',
+                fontSize: '14px',
+                backgroundColor: '#FFFFFF'
               }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#3B82F6';
-                e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#D1D5DB';
-                e.target.style.boxShadow = 'none';
+            />
+            <Search 
+              size={18} 
+              color="#9CA3AF" 
+              style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none'
               }}
             />
           </div>
         </div>
 
-        {/* ============ DATA TABLE ============ */}
-        <div style={{ 
-          borderRadius: 12, 
-          overflow: 'hidden', 
-          boxShadow: '0 0 0 1px #E5E7EB'
+        {/* Table Section */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden',
+          border: '1px solid #E5E7EB'
         }}>
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: '#FFFFFF',
-          }}>
-            <thead>
-              <tr style={{
-                backgroundColor: '#F3F4F6',
-                borderBottom: '1px solid #E5E7EB',
-              }}>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>No</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Nama Siswa</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>NISN</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Konsentrasi Keahlian</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Tingkatan Kelas</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Jenis Kelamin</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((siswa, index) => (
-                <tr key={siswa.id} style={{
-                  borderBottom: '1px solid #E5E7EB',
-                  backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#F0F4FF';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
-                }}>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{index + 1}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{siswa.namaSiswa}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{siswa.nisn}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{siswa.jurusan}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{siswa.kelas}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{siswa.jenisKelamin === 'L' ? 'Laki-Laki' : 'Perempuan'}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    position: 'relative',
-                  }}>
-                    <button
-                      onClick={() => setOpenActionId(openActionId === siswa.id ? null : siswa.id)}
-                      style={{ 
-                        border: 'none', 
-                        background: 'transparent', 
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <MoreVertical size={20} strokeWidth={1.5} />
-                    </button>
-
-                    {openActionId === siswa.id && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          right: 0,
-                          marginTop: 6,
-                          background: '#FFFFFF',
-                          borderRadius: 8,
-                          boxShadow: '0 10px 15px rgba(0,0,0,0.1)',
-                          minWidth: 180,
-                          zIndex: 10,
-                          overflow: 'hidden',
-                          border: '1px solid #E2E8F0',
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+              Memuat data...
+            </div>
+          ) : error ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#EF4444' }}>
+              {error}
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>No</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Nama Siswa</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>NISN</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Jurusan</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Kelas</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>L/P</th>
+                    <th style={{ padding: '12px 24px', textAlign: 'right', fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                        Tidak ada data siswa
+                      </td>
+                    </tr>
+                  ) : (
+                    students.map((student, index) => (
+                      <tr 
+                        key={student.id} 
+                        style={{ 
+                          borderBottom: '1px solid #E5E7EB',
+                          transition: 'background-color 0.1s'
                         }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F9FAFB')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        <button
-                          onClick={() => handleNavigateToDetail(siswa.id)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'none',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            color: '#0F172A',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                            borderBottom: '1px solid #F1F5F9',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F0F4FF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#2563EB';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FFFFFF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#0F172A';
-                          }}
-                        >
-                          <Eye size={16} color="#64748B" strokeWidth={2} />
-                          Lihat Detail
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDeleteSiswa(siswa.id)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'none',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            color: '#0F172A',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FEF2F2';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#DC2626';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FFFFFF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#0F172A';
-                          }}
-                        >
-                          <Trash2 size={16} color="#64748B" strokeWidth={2} />
-                          Hapus
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#111827' }}>
+                          {(pageIndex - 1) * itemsPerPage + index + 1}
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: '#111827' }}>
+                          {student.namaSiswa}
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#6B7280' }}>
+                          {student.nisn}
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#6B7280' }}>
+                          <span style={{
+                            backgroundColor: '#EFF6FF',
+                            color: '#2563EB',
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            fontSize: '12px',
+                            fontWeight: '500'
+                          }}>
+                            {student.jurusan}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#6B7280' }}>
+                          {student.kelas}
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '14px', color: '#6B7280' }}>
+                          {student.jenisKelamin}
+                        </td>
+                        <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={() => setOpenActionId(openActionId === student.id ? null : student.id)}
+                              style={{
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '4px',
+                                color: '#6B7280'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#F3F4F6';
+                                e.currentTarget.style.color = '#111827';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = '#6B7280';
+                              }}
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+
+                            {openActionId === student.id && (
+                              <div style={{
+                                position: 'absolute',
+                                right: 0,
+                                top: '100%',
+                                marginTop: '4px',
+                                width: '160px',
+                                backgroundColor: '#FFFFFF',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                border: '1px solid #E5E7EB',
+                                zIndex: 50,
+                                overflow: 'hidden'
+                              }}>
+                                <button
+                                  onClick={() => handleNavigateToDetail(student.id)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '8px 12px',
+                                    fontSize: '14px',
+                                    color: '#374151',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F9FAFB')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                >
+                                  <Eye size={14} /> Detail
+                                </button>
+                                <button
+                                  onClick={() => handleEdit(student)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '8px 12px',
+                                    fontSize: '14px',
+                                    color: '#374151',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F9FAFB')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                >
+                                  <Edit size={14} /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSiswa(student.id)}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '8px 12px',
+                                    fontSize: '14px',
+                                    color: '#DC2626',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F9FAFB')}
+                                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                >
+                                  <Trash2 size={14} /> Hapus
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          
+          {/* Pagination Controls could go here */}
+          <div style={{
+             padding: '12px 24px',
+             borderTop: '1px solid #E5E7EB',
+             display: 'flex',
+             justifyContent: 'space-between',
+             alignItems: 'center'
+          }}>
+             <button
+                onClick={() => paginate(pageIndex - 1)}
+                disabled={pageIndex === 1}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  backgroundColor: pageIndex === 1 ? '#F3F4F6' : '#FFFFFF',
+                  color: pageIndex === 1 ? '#9CA3AF' : '#374151',
+                  cursor: pageIndex === 1 ? 'not-allowed' : 'pointer',
+               }}
+             >
+               Previous
+             </button>
+             <span style={{ fontSize: '14px', color: '#6B7280' }}>
+               Page {pageIndex} of {totalPages}
+             </span>
+             <button
+                onClick={() => paginate(pageIndex + 1)}
+                disabled={pageIndex >= totalPages}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  backgroundColor: pageIndex >= totalPages ? '#F3F4F6' : '#FFFFFF',
+                  color: pageIndex >= totalPages ? '#9CA3AF' : '#374151',
+                  cursor: pageIndex >= totalPages ? 'not-allowed' : 'pointer',
+               }}
+             >
+               Next
+             </button>
+          </div>
         </div>
       </div>
 
-      {/* ============ HIDDEN FILE INPUT ============ */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }}
-        onChange={handleFileSelect} 
-        accept=".csv"
-      />
-
-      {/* ============ MODAL TAMBAH SISWA ============ */}
+      {/* Modal Tambah/Edit Siswa */}
       {isModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '80px 20px 20px',
-            overflow: 'auto',
-          }}
-          onClick={handleCloseModal}
-        >
-          <div
-            style={{
-              backgroundColor: '#0B1221',
-              borderRadius: '16px',
-              padding: '24px',
-              maxWidth: '500px',
-              width: '100%',
-              maxHeight: 'calc(100vh - 100px)',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
+        <div style={{
+          position: 'fixed',
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+          padding: '24px'
+        }} onClick={handleCloseModal}>
+          <div style={{
+             backgroundColor: '#FFFFFF',
+             borderRadius: '16px',
+             width: '100%',
+             maxWidth: '600px',
+             maxHeight: '90vh',
+             overflowY: 'auto',
+             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }} onClick={e => e.stopPropagation()}>
             <div style={{
+              padding: '24px',
+              borderBottom: '1px solid #E5E7EB',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px',
-              flexShrink: 0,
+              alignItems: 'center'
             }}>
-              <h2 style={{
-                margin: 0,
-                fontSize: '20px',
-                fontWeight: '700',
-                color: '#FFFFFF',
-                letterSpacing: '-0.3px',
-              }}>
-                Tambah Data Siswa
+              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827' }}>
+                {editingId ? 'Edit Data Siswa' : 'Tambah Data Siswa'}
               </h2>
-              <button
+              <button 
                 onClick={handleCloseModal}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280' }}
               >
-                <X size={18} color="#FFFFFF" />
+                <X size={24} />
               </button>
             </div>
 
-            {/* Scrollable white card container */}
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '10px',
-              padding: '18px',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-              overflowY: 'auto',
-              maxHeight: 'calc(90vh - 100px)',
-            }}>
-              <form onSubmit={handleSubmitForm}>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr', 
-                  gap: '14px' 
-                }}>
-                  {/* Nama Siswa */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Nama Siswa <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.namaSiswa}
-                      onChange={(e) => {
-                        setFormData({ ...formData, namaSiswa: e.target.value });
-                        validateField('namaSiswa', e.target.value);
-                      }}
-                      placeholder="Masukkan nama lengkap siswa"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.namaSiswa ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                      onFocus={(e) => {
-                        if (!formErrors.namaSiswa) {
-                          e.target.style.borderColor = '#3B82F6';
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (!formErrors.namaSiswa) {
-                          e.target.style.borderColor = '#D1D5DB';
-                        }
-                      }}
-                    />
-                    {formErrors.namaSiswa && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.namaSiswa}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* NISN */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      NISN <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nisn}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setFormData({ ...formData, nisn: value });
-                        validateField('nisn', value);
-                      }}
-                      placeholder="10 digit angka"
-                      maxLength={10}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.nisn ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                      onFocus={(e) => {
-                        if (!formErrors.nisn) {
-                          e.target.style.borderColor = '#3B82F6';
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (!formErrors.nisn) {
-                          e.target.style.borderColor = '#D1D5DB';
-                        }
-                      }}
-                    />
-                    {formErrors.nisn && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.nisn}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Jenis Kelamin */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Jenis Kelamin <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <select
-                      value={formData.jenisKelamin}
-                      onChange={(e) => setFormData({ ...formData, jenisKelamin: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    >
-                      {jenisKelaminOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* No. Telp */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      No. Telepon <span style={{ color: '#9CA3AF', fontSize: '10px' }}>(Opsional)</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.noTelp}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 13);
-                        setFormData({ ...formData, noTelp: value });
-                        validateField('noTelp', value);
-                      }}
-                      placeholder="08xxxxxxxxxx (12-13 digit)"
-                      maxLength={13}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.noTelp ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                      onFocus={(e) => {
-                        if (!formErrors.noTelp) {
-                          e.target.style.borderColor = '#3B82F6';
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (!formErrors.noTelp) {
-                          e.target.style.borderColor = '#D1D5DB';
-                        }
-                      }}
-                    />
-                    {formErrors.noTelp && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.noTelp}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Jurusan */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Konsentrasi Keahlian <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <select
-                      value={formData.jurusanId}
-                      onChange={(e) => {
-                        setFormData({ ...formData, jurusanId: e.target.value });
-                        validateField('jurusanId', e.target.value);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.jurusanId ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    >
-                      <option value="">Pilih Konsentrasi Keahlian</option>
-                      {jurusanOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.jurusanId && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.jurusanId}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Kelas */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Tingkatan Kelas <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <select
-                      value={formData.kelas}
-                      onChange={(e) => {
-                        setFormData({ ...formData, kelas: e.target.value });
-                        validateField('kelas', e.target.value);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.kelas ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    >
-                      <option value="">Pilih Kelas</option>
-                      {kelasOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.kelas && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.kelas}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Tahun Angkatan */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Tahun Angkatan
-                    </label>
-                    <div style={{
-                      display: 'flex',
-                      gap: '12px',
-                      alignItems: 'center',
-                    }}>
-                      {/* Tahun Mulai */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '10px', color: '#6B7280', fontWeight: '500' }}>
-                          Dari Tahun
-                        </label>
-                        <div style={{
-                          position: 'relative',
-                          backgroundColor: '#F3F4F6',
-                          borderRadius: '8px',
-                          border: '1px solid #D1D5DB',
-                          overflow: 'hidden',
-                          height: '38px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newIndex = tahunOptions.indexOf(visibleTahunMulai) - 1;
-                              if (newIndex >= 0) {
-                                setVisibleTahunMulai(tahunOptions[newIndex]);
-                                setFormData({ ...formData, tahunMulai: tahunOptions[newIndex] });
-                              }
-                            }}
-                            style={{
-                              position: 'absolute',
-                              left: '4px',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#6B7280',
-                            }}
-                          >
-                            <ChevronUp size={16} />
-                          </button>
-                          <span style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#1F2937',
-                          }}>
-                            {visibleTahunMulai}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newIndex = tahunOptions.indexOf(visibleTahunMulai) + 1;
-                              if (newIndex < tahunOptions.length) {
-                                setVisibleTahunMulai(tahunOptions[newIndex]);
-                                setFormData({ ...formData, tahunMulai: tahunOptions[newIndex] });
-                              }
-                            }}
-                            style={{
-                              position: 'absolute',
-                              right: '4px',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#6B7280',
-                            }}
-                          >
-                            <ChevronDown size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Separator */}
-                      <div style={{ fontSize: '14px', color: '#D1D5DB', fontWeight: '600' }}>
-                        -
-                      </div>
-
-                      {/* Tahun Akhir */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '10px', color: '#6B7280', fontWeight: '500' }}>
-                          Sampai Tahun
-                        </label>
-                        <div style={{
-                          position: 'relative',
-                          backgroundColor: '#F3F4F6',
-                          borderRadius: '8px',
-                          border: '1px solid #D1D5DB',
-                          overflow: 'hidden',
-                          height: '38px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newIndex = tahunOptions.indexOf(visibleTahunAkhir) - 1;
-                              if (newIndex >= 0) {
-                                setVisibleTahunAkhir(tahunOptions[newIndex]);
-                                setFormData({ ...formData, tahunAkhir: tahunOptions[newIndex] });
-                              }
-                            }}
-                            style={{
-                              position: 'absolute',
-                              left: '4px',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#6B7280',
-                            }}
-                          >
-                            <ChevronUp size={16} />
-                          </button>
-                          <span style={{
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            color: '#1F2937',
-                          }}>
-                            {visibleTahunAkhir}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newIndex = tahunOptions.indexOf(visibleTahunAkhir) + 1;
-                              if (newIndex < tahunOptions.length) {
-                                setVisibleTahunAkhir(tahunOptions[newIndex]);
-                                setFormData({ ...formData, tahunAkhir: tahunOptions[newIndex] });
-                              }
-                            }}
-                            style={{
-                              position: 'absolute',
-                              right: '4px',
-                              background: 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#6B7280',
-                            }}
-                          >
-                            <ChevronDown size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            <form onSubmit={handleSubmitForm} style={{ padding: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Nama Lengkap <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.namaSiswa}
+                    onChange={e => {
+                      setFormData({...formData, namaSiswa: e.target.value});
+                      validateField('namaSiswa', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.namaSiswa ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box' // Fix width issue
+                    }}
+                    placeholder="Masukkan nama lengkap"
+                  />
+                  {formErrors.namaSiswa && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.namaSiswa}</p>}
                 </div>
 
-                {/* Buttons */}
-                <div style={{
-                  display: 'flex',
-                  gap: '10px',
-                  marginTop: '20px',
-                }}>
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    NISN <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.nisn}
+                    onChange={e => {
+                      setFormData({...formData, nisn: e.target.value});
+                      validateField('nisn', e.target.value);
+                    }}
                     style={{
-                      flex: 1,
-                      padding: '9px 18px',
-                      backgroundColor: '#F3F4F6',
-                      color: '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.nisn ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#E5E7EB';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F3F4F6';
-                    }}
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    style={{
-                      flex: 1,
-                      padding: '9px 18px',
-                      backgroundColor: '#2563EB',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1D4ED8';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#2563EB';
-                    }}
-                  >
-                    Simpan Data
-                  </button>
+                    placeholder="Nomor Induk Siswa"
+                  />
+                  {formErrors.nisn && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.nisn}</p>}
                 </div>
-              </form>
-            </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    NIS <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.nis}
+                    onChange={e => {
+                      setFormData({...formData, nis: e.target.value});
+                      validateField('nis', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.nis ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder="Nomor Induk Siswa"
+                  />
+                  {formErrors.nis && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.nis}</p>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Username <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.username}
+                    onChange={e => {
+                      setFormData({...formData, username: e.target.value});
+                      validateField('username', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.username ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder="Username untuk login"
+                  />
+                  {formErrors.username && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.username}</p>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Password {!editingId && <span style={{ color: '#EF4444' }}>*</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={e => {
+                      setFormData({...formData, password: e.target.value});
+                      validateField('password', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.password ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder={editingId ? "Kosongkan jika tidak ingin mengubah" : "Minimal 6 karakter"}
+                  />
+                  {formErrors.password && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.password}</p>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Email (Opsional)
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData({...formData, email: e.target.value})}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder="email@sekolah.sch.id"
+                  />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Alamat <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <textarea
+                    value={formData.address}
+                    onChange={e => {
+                      setFormData({...formData, address: e.target.value});
+                      validateField('address', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.address ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       minHeight: '80px',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder="Masukkan alamat lengkap"
+                  />
+                  {formErrors.address && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.address}</p>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Jenis Kelamin <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <select
+                    value={formData.jenisKelamin}
+                    onChange={e => setFormData({...formData, jenisKelamin: e.target.value})}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       backgroundColor: 'white',
+                       boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="L">Laki-laki</option>
+                    <option value="P">Perempuan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Jurusan <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <select
+                    value={formData.jurusanId}
+                    onChange={e => {
+                      setFormData({...formData, jurusanId: e.target.value, kelas: ''}); // Reset class when major changes
+                      validateField('jurusanId', e.target.value);
+                    }}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.jurusanId ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       backgroundColor: 'white',
+                       boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="">Pilih Jurusan</option>
+                    {majors.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.code})</option>
+                    ))}
+                  </select>
+                  {formErrors.jurusanId && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.jurusanId}</p>}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    Kelas <span style={{ color: '#EF4444' }}>*</span>
+                  </label>
+                  <select
+                    value={formData.kelas}
+                    onChange={e => {
+                      setFormData({...formData, kelas: e.target.value});
+                      validateField('kelas', e.target.value);
+                    }}
+                    disabled={!formData.jurusanId}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: formErrors.kelas ? '1.5px solid #EF4444' : '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       backgroundColor: formData.jurusanId ? 'white' : '#F3F4F6',
+                       boxSizing: 'border-box',
+                       cursor: formData.jurusanId ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    <option value="">Pilih Kelas</option>
+                    {availableClasses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option> // Use c.name which includes grade usually
+                    ))}
+                  </select>
+                  {formErrors.kelas && <p style={{ fontSize: '12px', color: '#EF4444', marginTop: '4px' }}>{formErrors.kelas}</p>}
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+                    No. Telepon Orang Tua
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.noTelp}
+                    onChange={e => setFormData({...formData, noTelp: e.target.value})}
+                    style={{
+                       width: '100%',
+                       padding: '10px 14px',
+                       borderRadius: '8px',
+                       border: '1px solid #D1D5DB',
+                       fontSize: '14px',
+                       outline: 'none',
+                       boxSizing: 'border-box'
+                    }}
+                    placeholder="Contoh: 08123456789"
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: '32px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: '1px solid #D1D5DB',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#2563EB',
+                    color: 'white',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                  }}
+                >
+                  Simpan Data
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
     </AdminLayout>
   );
-}
+};
+
+export default SiswaAdmin;

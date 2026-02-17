@@ -20,6 +20,7 @@ class TeacherProfile extends Model
         'kode_guru',
         'homeroom_class_id',
         'subject',
+        'schedule_image_path',
     ];
 
     // User yang mengajar

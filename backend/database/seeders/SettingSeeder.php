@@ -146,6 +146,30 @@ class SettingSeeder extends Seeder
                 'group' => 'attendance',
                 'description' => 'Grace period for attendance in minutes',
             ],
+
+            
+            // LATITUDE DAN LONGITUDE SEKOLAH, UNTUK MENENTUKAN JARAK ABSENSI
+            [
+                'key' => 'school_lat',
+                'value' => '-7.9139819', // SMKN 2 Singosari
+                'type' => 'string',
+                'group' => 'attendance',
+                'description' => 'Latitude Sekolah',
+            ],
+            [
+                'key' => 'school_long',
+                'value' => '112.6408851', // SMKN 2 Singosari
+                'type' => 'string',
+                'group' => 'attendance',
+                'description' => 'Longitude Sekolah',
+            ],
+            [
+                'key' => 'attendance_radius_meters',
+                'value' => '100',
+                'type' => 'integer',
+                'group' => 'attendance',
+                'description' => 'Radius absensi (meter)',
+            ],
         ];
 
         foreach ($settings as $setting) {

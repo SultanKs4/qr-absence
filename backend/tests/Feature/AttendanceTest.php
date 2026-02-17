@@ -1,7 +1,11 @@
 <?php
 
 use App\Models\Attendance;
-use App\Models\Schedule;
+use App\Models\ClassSchedule;
+use App\Models\DailySchedule;
+use App\Models\ScheduleItem;
+use App\Models\StudentProfile;
+use App\Models\TeacherProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -13,7 +17,10 @@ it('allows waka to record manual attendance', function () {
 
     $student = User::factory()->student()->create();
     $student->refresh();
-    $schedule = Schedule::factory()->create();
+    
+    $classSchedule = ClassSchedule::factory()->create(['class_id' => $student->studentProfile->class_id]);
+    $dailySchedule = DailySchedule::factory()->create(['class_schedule_id' => $classSchedule->id]);
+    $schedule = ScheduleItem::factory()->create(['daily_schedule_id' => $dailySchedule->id]);
 
     $response = $this->actingAs($waka)
         ->postJson('/api/attendance/manual', [
@@ -32,7 +39,13 @@ it('normalizes status from frontend in manual attendance', function () {
     $admin->refresh();
     $student = User::factory()->student()->create();
     $student->refresh();
-    $schedule = Schedule::factory()->create();
+    
+    $classSchedule = ClassSchedule::factory()->create(['class_id' => $student->studentProfile->class_id]);
+    $dailySchedule = DailySchedule::factory()->create(['class_schedule_id' => $classSchedule->id]);
+    $schedule = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
+        'teacher_id' => $admin->teacherProfile ? $admin->teacherProfile->id : \App\Models\TeacherProfile::factory()->create(['user_id' => $admin->id])->id,
+    ]);
 
     $response = $this->actingAs($admin)
         ->postJson('/api/attendance/manual', [
@@ -56,7 +69,10 @@ it('allows teacher to record manual attendance for their schedule', function () 
     $student = User::factory()->student()->create();
     $student->refresh();
 
-    $schedule = Schedule::factory()->create([
+    $classSchedule = ClassSchedule::factory()->create(['class_id' => $student->studentProfile->class_id]);
+    $dailySchedule = DailySchedule::factory()->create(['class_schedule_id' => $classSchedule->id]);
+    $schedule = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
         'teacher_id' => $teacher->teacherProfile->id,
     ]);
 
@@ -82,7 +98,10 @@ it('normalizes status in markExcuse', function () {
     $student = User::factory()->student()->create();
     $student->refresh();
 
-    $schedule = Schedule::factory()->create([
+    $classSchedule = ClassSchedule::factory()->create(['class_id' => $student->studentProfile->class_id]);
+    $dailySchedule = DailySchedule::factory()->create(['class_schedule_id' => $classSchedule->id]);
+    $schedule = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
         'teacher_id' => $teacher->teacherProfile->id,
     ]);
 
@@ -96,14 +115,14 @@ it('normalizes status in markExcuse', function () {
 
     $response = $this->actingAs($teacher)
         ->patchJson("/api/attendance/{$attendance->id}", [
-            'status' => 'pulang', // Should map to 'excused'
+            'status' => 'pulang', // Should map to 'return'
             'reason' => 'Sakit perut',
         ]);
 
     $response->assertSuccessful();
     $this->assertDatabaseHas('attendances', [
         'id' => $attendance->id,
-        'status' => 'excused',
+        'status' => 'return',
         'reason' => 'Sakit perut',
     ]);
 });
@@ -112,7 +131,7 @@ it('prevents student from accessing another student document', function () {
     $student1 = User::factory()->student()->create();
     $student2 = User::factory()->student()->create();
 
-    $schedule = Schedule::factory()->create();
+    $schedule = ScheduleItem::factory()->create();
     $attendance = Attendance::create([
         'attendee_type' => 'student',
         'student_id' => $student2->studentProfile->id,
@@ -138,7 +157,7 @@ it('allows student to access their own document', function () {
     $student = User::factory()->student()->create();
     $student->load('studentProfile');
 
-    $schedule = Schedule::factory()->create();
+    $schedule = ScheduleItem::factory()->create();
     $attendance = Attendance::create([
         'attendee_type' => 'student',
         'student_id' => $student->studentProfile->id,

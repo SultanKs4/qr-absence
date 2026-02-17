@@ -1,4 +1,5 @@
-// JurusanAdmin.tsx - Halaman admin untuk mengelola data konsentrasi keahlian (jurusan)
+// JurusanAdmin.tsx - Halaman admin untuk mengelola data konsentrasi keahlian (jurusan) - Refactored
+import { masterService, type Major } from "../../services/masterService";
 import React, { useState, useEffect } from "react";
 import AdminLayout from "../../component/Admin/AdminLayout";
 import { Button } from "../../component/Shared/Button";
@@ -7,16 +8,9 @@ import AWANKIRI from "../../assets/Icon/AWANKIRI.png";
 import AwanBawahkanan from "../../assets/Icon/AwanBawahkanan.png";
 import { MoreVertical, Edit, Trash2, X } from "lucide-react";
 
-/* ===================== INTERFACE ===================== */
 interface User {
   role: string;
   name: string;
-}
-
-interface KonsentrasiKeahlian {
-  id: string;
-  kode: string;
-  nama: string;
 }
 
 interface KonsentrasiKeahlianAdminProps {
@@ -26,14 +20,7 @@ interface KonsentrasiKeahlianAdminProps {
   onMenuClick: (page: string) => void;
 }
 
-/* ===================== DUMMY DATA ===================== */
-const dummyData: KonsentrasiKeahlian[] = [
-  { id: "1", kode: "RPL001", nama: "Rekayasa Perangkat Lunak" },
-  { id: "2", kode: "EI002", nama: "Elektronika Industri" },
-  { id: "3", kode: "MT003", nama: "Mekatronika" },
-  { id: "4", kode: "ANM004", nama: "Animasi" },
-  { id: "5", kode: "DKV005", nama: "Desain Komunikasi Visual" },
-];
+/* ===================== DUMMY DATA REMOVED ===================== */
 
 /* ===================== COMPONENT ===================== */
 export default function KonsentrasiKeahlianAdmin({
@@ -44,44 +31,69 @@ export default function KonsentrasiKeahlianAdmin({
 }: KonsentrasiKeahlianAdminProps) {
   const [searchValue, setSearchValue] = useState("");
   const [showPopup, setShowPopup] = useState(false);
-  const [konsentrasiKeahlianList, setKonsentrasiKeahlianList] = useState<KonsentrasiKeahlian[]>(dummyData);
-  const [editingKonsentrasiKeahlian, setEditingKonsentrasiKeahlian] = useState<KonsentrasiKeahlian | null>(null);
-  const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [konsentrasiKeahlianList, setKonsentrasiKeahlianList] = useState<Major[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingKonsentrasiKeahlian, setEditingKonsentrasiKeahlian] = useState<Major | null>(null);
+  const [openActionId, setOpenActionId] = useState<number | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [formData, setFormData] = useState({ namaJurusan: "", kodeJurusan: "" });
+  const [formData, setFormData] = useState({ name: "", code: "", category: "" });
   const [errorMessage, setErrorMessage] = useState("");
+
+  /* ===================== FETCH DATA ===================== */
+  useEffect(() => {
+    fetchJurusans();
+  }, []);
+
+  const fetchJurusans = async () => {
+    setIsLoading(true);
+    try {
+      const data = await masterService.getMajors();
+      setKonsentrasiKeahlianList(data);
+    } catch (error) {
+      console.error("Failed to fetch majors:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   /* ===================== FILTER ===================== */
   const filteredData = konsentrasiKeahlianList.filter(
     (k) =>
-      k.kode.toLowerCase().includes(searchValue.toLowerCase()) ||
-      k.nama.toLowerCase().includes(searchValue.toLowerCase())
+      k.code.toLowerCase().includes(searchValue.toLowerCase()) ||
+      k.name.toLowerCase().includes(searchValue.toLowerCase())
   );
 
   /* ===================== VALIDASI UNIK ===================== */
-  const checkDuplicate = (kode: string, nama: string, excludeId?: string) => {
+  const checkDuplicate = (code: string, name: string, excludeId?: number) => {
     return konsentrasiKeahlianList.some(
       (k) =>
-        (k.kode.toLowerCase() === kode.toLowerCase() || 
-         k.nama.toLowerCase() === nama.toLowerCase()) &&
+        (k.code.toLowerCase() === code.toLowerCase() || 
+         k.name.toLowerCase() === name.toLowerCase()) &&
         k.id !== excludeId
     );
   };
 
   /* ===================== HANDLER FUNCTIONS ===================== */
-  const handleDelete = (row: KonsentrasiKeahlian) => {
-    if (confirm(`Hapus "${row.nama}"?`)) {
-      setKonsentrasiKeahlianList((prev) => prev.filter((k) => k.id !== row.id));
-      setOpenActionId(null);
+  const handleDelete = async (row: Major) => {
+    if (confirm(`Hapus "${row.name}"?`)) {
+      try {
+        await masterService.deleteMajor(row.id);
+        setKonsentrasiKeahlianList((prev) => prev.filter((k) => k.id !== row.id));
+        setOpenActionId(null);
+      } catch (error) {
+        console.error("Failed to delete major:", error);
+        alert("Gagal menghapus jurusan");
+      }
     }
   };
 
-  const handleEditKonsentrasi = (konsentrasi: KonsentrasiKeahlian) => {
+  const handleEditKonsentrasi = (konsentrasi: Major) => {
     setEditingKonsentrasiKeahlian(konsentrasi);
     setIsEditMode(true);
     setFormData({
-      namaJurusan: konsentrasi.nama,
-      kodeJurusan: konsentrasi.kode
+      name: konsentrasi.name,
+      code: konsentrasi.code,
+      category: konsentrasi.category || ""
     });
     setShowPopup(true);
     setErrorMessage("");
@@ -91,31 +103,31 @@ export default function KonsentrasiKeahlianAdmin({
   const handleTambahKonsentrasi = () => {
     setEditingKonsentrasiKeahlian(null);
     setIsEditMode(false);
-    setFormData({ namaJurusan: "", kodeJurusan: "" });
+    setFormData({ name: "", code: "", category: "" });
     setShowPopup(true);
     setErrorMessage("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validasi input
-    if (!formData.namaJurusan.trim() || !formData.kodeJurusan.trim()) {
-      setErrorMessage("Nama dan kode konsentrasi keahlian harus diisi");
+    if (!formData.name.trim() || !formData.code.trim() || !formData.category.trim()) {
+      setErrorMessage("Nama, kode, dan kategori harus diisi");
       return;
     }
 
-    // Validasi format kode (huruf dan angka saja, maks 10 karakter)
-    const kodeRegex = /^[a-zA-Z0-9]{1,10}$/;
-    if (!kodeRegex.test(formData.kodeJurusan)) {
-      setErrorMessage("Kode hanya boleh berisi huruf dan angka, maksimal 10 karakter");
+    // Validasi format kode (huruf dan angka saja, maks 20 karakter)
+    const kodeRegex = /^[a-zA-Z0-9]{1,20}$/;
+    if (!kodeRegex.test(formData.code)) {
+      setErrorMessage("Kode hanya boleh berisi huruf dan angka, maksimal 20 karakter");
       return;
     }
 
     // Validasi duplikasi
     const isDuplicate = checkDuplicate(
-      formData.kodeJurusan, 
-      formData.namaJurusan, 
+      formData.code, 
+      formData.name, 
       editingKonsentrasiKeahlian?.id
     );
 
@@ -126,25 +138,28 @@ export default function KonsentrasiKeahlianAdmin({
 
     if (isEditMode && editingKonsentrasiKeahlian) {
       // Mode edit
-      setKonsentrasiKeahlianList((prev) =>
-        prev.map((k) =>
-          k.id === editingKonsentrasiKeahlian.id
-            ? { ...k, nama: formData.namaJurusan, kode: formData.kodeJurusan }
-            : k
-        )
-      );
-      alert(`Konsentrasi keahlian "${formData.namaJurusan}" berhasil diperbarui!`);
+      try {
+        const updated = await masterService.updateMajor(editingKonsentrasiKeahlian.id, formData);
+        setKonsentrasiKeahlianList((prev) =>
+          prev.map((k) => (k.id === editingKonsentrasiKeahlian.id ? updated : k))
+        );
+        alert(`Konsentrasi keahlian "${formData.name}" berhasil diperbarui!`);
+      } catch (error) {
+        console.error("Failed to update major:", error);
+        setErrorMessage("Gagal memperbarui data");
+        return;
+      }
     } else {
       // Mode tambah
-      setKonsentrasiKeahlianList((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          nama: formData.namaJurusan,
-          kode: formData.kodeJurusan,
-        },
-      ]);
-      alert(`Konsentrasi keahlian "${formData.namaJurusan}" berhasil ditambahkan!`);
+      try {
+        const newItem = await masterService.addMajor(formData);
+        setKonsentrasiKeahlianList((prev) => [...prev, newItem]);
+        alert(`Konsentrasi keahlian "${formData.name}" berhasil ditambahkan!`);
+      } catch (error) {
+        console.error("Failed to add major:", error);
+        setErrorMessage("Gagal menambahkan data");
+        return;
+      }
     }
     
     handleClosePopup();
@@ -154,7 +169,7 @@ export default function KonsentrasiKeahlianAdmin({
     setShowPopup(false);
     setEditingKonsentrasiKeahlian(null);
     setIsEditMode(false);
-    setFormData({ namaJurusan: "", kodeJurusan: "" });
+    setFormData({ name: "", code: "", category: "" });
     setErrorMessage("");
   };
 
@@ -174,8 +189,9 @@ export default function KonsentrasiKeahlianAdmin({
   useEffect(() => {
     if (editingKonsentrasiKeahlian && isEditMode) {
       setFormData({
-        namaJurusan: editingKonsentrasiKeahlian.nama,
-        kodeJurusan: editingKonsentrasiKeahlian.kode
+        name: editingKonsentrasiKeahlian.name,
+        code: editingKonsentrasiKeahlian.code,
+        category: editingKonsentrasiKeahlian.category || ""
       });
     }
   }, [editingKonsentrasiKeahlian, isEditMode]);
@@ -276,124 +292,131 @@ export default function KonsentrasiKeahlianAdmin({
                   fontSize: '13px',
                   fontWeight: '600',
                   color: '#374151',
+                  borderRight: '1px solid #E5E7EB',
+                }}>Bidang/Kategori</th>
+                <th style={{
+                  padding: '12px 16px',
+                  textAlign: 'center',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: '#374151',
                 }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((row, index) => (
-                <tr key={row.id} style={{
-                  borderBottom: '1px solid #E5E7EB',
-                  backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#F0F4FF';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
-                }}>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{index + 1}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{row.kode}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{row.nama}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    position: 'relative',
-                  }}>
-                    <button
-                      onClick={() => setOpenActionId(openActionId === row.id ? null : row.id)}
-                      style={{
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#F3F4F6';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      <MoreVertical size={20} strokeWidth={1.5} />
-                    </button>
-
-                    {openActionId === row.id && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          right: 0,
-                          marginTop: 6,
-                          background: '#FFFFFF',
-                          borderRadius: 8,
-                          boxShadow: '0 10px 15px rgba(0,0,0,0.1)',
-                          minWidth: 180,
-                          zIndex: 10,
-                          overflow: 'hidden',
-                          border: '1px solid #E2E8F0',
-                        }}
-                      >
-                        <button
-                          onClick={() => handleEditKonsentrasi(row)}
-                          style={actionItemStyle}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#F0F4FF';
-                            e.currentTarget.style.color = '#2563EB';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FFFFFF';
-                            e.currentTarget.style.color = '#0F172A';
-                          }}
-                        >
-                          <Edit size={16} strokeWidth={2} />
-                          Ubah
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(row)}
-                          style={{ ...actionItemStyle, borderBottom: "none" }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FEF2F2';
-                            e.currentTarget.style.color = '#DC2626';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#FFFFFF';
-                            e.currentTarget.style.color = '#0F172A';
-                          }}
-                        >
-                          <Trash2 size={16} strokeWidth={2} />
-                          Hapus
-                        </button>
-                      </div>
-                    )}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
+                    Memuat data...
                   </td>
                 </tr>
-              ))}
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#64748B' }}>
+                    Tidak ada data ditemukan
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((row, index) => (
+                  <tr key={row.id} style={{
+                    borderBottom: '1px solid #E5E7EB',
+                    backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#F0F4FF';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
+                  }}>
+                    <td style={{
+                      padding: '12px 16px',
+                      fontSize: '13px',
+                      color: '#374151',
+                      textAlign: 'center',
+                      borderRight: '1px solid #E5E7EB',
+                    }}>{index + 1}</td>
+                    <td style={{
+                      padding: '12px 16px',
+                      fontSize: '13px',
+                      color: '#374151',
+                      textAlign: 'center',
+                      borderRight: '1px solid #E5E7EB',
+                    }}>{row.code}</td>
+                    <td style={{
+                      padding: '12px 16px',
+                      fontSize: '13px',
+                      color: '#374151',
+                      textAlign: 'center',
+                      borderRight: '1px solid #E5E7EB',
+                    }}>{row.name}</td>
+                    <td style={{
+                      padding: '12px 16px',
+                      fontSize: '13px',
+                      color: '#374151',
+                      textAlign: 'center',
+                      borderRight: '1px solid #E5E7EB',
+                    }}>{row.category || '-'}</td>
+                    <td style={{
+                      padding: '12px 16px',
+                      fontSize: '13px',
+                      color: '#374151',
+                      textAlign: 'center',
+                      position: 'relative',
+                    }}>
+                      <button
+                        onClick={() => setOpenActionId(openActionId === row.id ? null : row.id)}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MoreVertical size={20} strokeWidth={1.5} />
+                      </button>
+
+                      {openActionId === row.id && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: '100%',
+                            right: 0,
+                            marginTop: 6,
+                            background: '#FFFFFF',
+                            borderRadius: 8,
+                            boxShadow: '0 10px 15px rgba(0,0,0,0.1)',
+                            minWidth: 180,
+                            zIndex: 10,
+                            overflow: 'hidden',
+                            border: '1px solid #E2E8F0',
+                          }}
+                        >
+                          <button
+                            onClick={() => handleEditKonsentrasi(row)}
+                            style={actionItemStyle}
+                          >
+                            <Edit size={16} strokeWidth={2} />
+                            Ubah
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(row)}
+                            style={{ ...actionItemStyle, borderBottom: "none" }}
+                          >
+                            <Trash2 size={16} strokeWidth={2} />
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -428,8 +451,8 @@ export default function KonsentrasiKeahlianAdmin({
                   </label>
                   <input
                     type="text"
-                    name="namaJurusan"
-                    value={formData.namaJurusan}
+                    name="name"
+                    value={formData.name}
                     onChange={handleFormChange}
                     placeholder="Masukan nama konsentrasi keahlian"
                     style={inputStyle}
@@ -444,19 +467,34 @@ export default function KonsentrasiKeahlianAdmin({
                   </label>
                   <input
                     type="text"
-                    name="kodeJurusan"
-                    value={formData.kodeJurusan}
+                    name="code"
+                    value={formData.code}
                     onChange={handleFormChange}
                     placeholder="Masukan kode konsentrasi keahlian"
                     style={inputStyle}
-                    maxLength={10}
+                    maxLength={20}
                   />
                   <div style={characterInfoStyle}>
-                    <span style={characterHintStyle}>Huruf dan angka saja, maks. 10 karakter</span>
+                    <span style={characterHintStyle}>Huruf dan angka saja, maks. 20 karakter</span>
                     <span style={characterCounterStyle}>
-                      {formData.kodeJurusan.length}/10
+                      {formData.code.length}/20
                     </span>
                   </div>
+                </div>
+
+                {/* Kategori */}
+                <div style={formGroupStyle}>
+                  <label style={labelStyle}>
+                    Bidang/Kategori<span style={requiredStarStyle}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleFormChange}
+                    placeholder="Masukan bidang atau kategori"
+                    style={inputStyle}
+                  />
                 </div>
 
                 {/* Error message */}

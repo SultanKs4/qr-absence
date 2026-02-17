@@ -160,7 +160,7 @@ export default function PengurusKelasLayout({
                 {user.name}
               </div>
               <div style={{ fontSize: "12px", color: "#6B7280", textTransform: "capitalize" }}>
-                {user.role.replace('_', ' ')}
+                {user.role?.replace('_', ' ') || "Siswa"}
               </div>
             </div>
             {/* ✅ DIUBAH: Hanya tampilkan logo jika logo_sekolah tidak kosong */}

@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import StaffLayout from "../../component/WakaStaff/StaffLayout";
 import { Table } from "../../component/Shared/Table";
 import { Eye, Search } from "lucide-react";
+import { attendanceService } from "../../services/attendanceService";
+import { masterService } from "../../services/masterService";
 
 type StatusType =
   | "hadir"
@@ -25,8 +27,17 @@ interface KehadiranGuruProps {
 interface KehadiranGuruRow {
   id: string;
   namaGuru: string;
-  jadwal: string;
+  jadwal: string; // This might be "XII RPL 2" or something. But endpoint doesn't return class directly unless we check schedule.
   kehadiranJam: StatusType[];
+  teacherId: string;
+}
+
+interface TimeSlot {
+  id: number;
+  time: string; // specific field name from TimeSlot model? Assume 'time' or 'start_time'
+  start_time: string;
+  end_time: string;
+  name: string;
 }
 
 export default function KehadiranGuru({
@@ -39,7 +50,8 @@ export default function KehadiranGuru({
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [search, setSearch] = useState("");
-
+  const [rows, setRows] = useState<KehadiranGuruRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedTanggal, setSelectedTanggal] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -50,29 +62,80 @@ export default function KehadiranGuru({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 
-  const [rows] = useState<KehadiranGuruRow[]>([
-    {
-      id: "1",
-      namaGuru: "Alifah Diantebes Aindra S.pd",
-      jadwal: "XII RPL 2",
-      kehadiranJam: [
-        "hadir", "hadir", "hadir", "hadir",
-        "tidak-ada-jadwal", "tidak-ada-jadwal", "tidak-ada-jadwal", "tidak-ada-jadwal",
-        "tidak-ada-jadwal", "tidak-ada-jadwal",
-      ],
-    },
-    {
-      id: "2",
-      namaGuru: "Ewit Erniyah S.pd",
-      jadwal: "XII RPL 2",
-      kehadiranJam: [
-        "hadir", "hadir", "hadir", "hadir",
-        "hadir", "hadir", "izin", "izin",
-        "tidak-hadir", "tidak-hadir",
-      ],
-    },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, [selectedTanggal]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Parallel fetch
+      const [timeSlotsResponse, dailyResponse] = await Promise.all([
+        masterService.getTimeSlots(),
+        attendanceService.getTeachersDailyAttendance(selectedTanggal)
+      ]);
+
+      const timeSlots: TimeSlot[] = timeSlotsResponse.data || [];
+      // Sort time slots by start_time
+      timeSlots.sort((a, b) => a.start_time.localeCompare(b.start_time));
+      
+      // Take first 10 slots or as many as exist
+      const relevantSlots = timeSlots.slice(0, 10);
+
+      const items = dailyResponse.items ? dailyResponse.items.data : []; // Paginated response usually has 'data'
+
+      const newRows: KehadiranGuruRow[] = items.map((item: any) => {
+        const teacher = item.teacher;
+        const attendances = item.attendances || [];
+        
+        // Initialize with "tidak-ada-jadwal"
+        const kehadiranJam: StatusType[] = Array(10).fill("tidak-ada-jadwal");
+
+        attendances.forEach((att: any) => {
+          if (att.schedule) {
+            // Find corresponding time slot index
+            const slotIndex = relevantSlots.findIndex((slot) => slot.start_time === att.schedule.start_time);
+            
+            if (slotIndex !== -1 && slotIndex < 10) {
+              // Map backend status to frontend StatusType
+              // Backend status: present, late, absent, sick, permission, alpha
+              let status: StatusType = "tidak-hadir";
+              if (att.status === "present") status = "hadir";
+              else if (att.status === "late") status = "terlambat";
+              else if (att.status === "sick") status = "sakit";
+              else if (att.status === "permission") status = "izin";
+              else if (att.status === "alpha") status = "alpha";
+              else if (att.status === "absent") status = "tidak-hadir";
+
+              kehadiranJam[slotIndex] = status;
+            }
+          }
+        });
+
+        // Determine "jadwal" text - maybe first class name found?
+        // Or if multiple, "Multiple Classes"
+        let jadwalText = "-";
+        const schedules = attendances.map((a: any) => a.schedule?.subject?.name || a.schedule?.keterangan).filter(Boolean);
+        if (schedules.length > 0) {
+            jadwalText = [...new Set(schedules)].join(", ");
+        }
+
+        return {
+          id: teacher.id.toString(),
+          teacherId: teacher.id.toString(),
+          namaGuru: teacher.user?.name || teacher.name || "Unknown",
+          jadwal: jadwalText.substring(0, 20) + (jadwalText.length > 20 ? "..." : ""),
+          kehadiranJam
+        };
+      });
+
+      setRows(newRows);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredRows = useMemo(() => {
     if (!search) return rows;
@@ -111,6 +174,7 @@ export default function KehadiranGuru({
             return (
               <div
                 key={i}
+                title={`Jam ke-${i+1}: ${status}`}
                 style={{
                   flex: 1,
                   backgroundColor: color,
@@ -140,7 +204,8 @@ export default function KehadiranGuru({
         state: {
           guru: row,
           selectedTanggal,
-          guruId: row.id,
+          guruId: row.id, // Ensure guruId is passed explicitly
+          teacherId: row.teacherId,
           guruName: row.namaGuru
         },
       });
@@ -152,7 +217,7 @@ export default function KehadiranGuru({
       { key: "namaGuru", label: "Nama Guru" },
       {
         key: "jadwal",
-        label: <div style={{ textAlign: "center" }}>Jadwal</div>,
+        label: <div style={{ textAlign: "center" }}>Jadwal/Mapel</div>,
         render: (value: string) => (
           <div style={{ textAlign: "center" }}>{value}</div>
         ),
@@ -255,12 +320,16 @@ export default function KehadiranGuru({
           padding: isMobile ? 16 : 32,
         }}
       >
-        <Table
-          columns={columns}
-          data={filteredRows}
-          keyField="id"
-          emptyMessage="Belum ada data kehadiran guru."
-        />
+        {loading ? (
+             <div style={{ padding: "20px", textAlign: "center" }}>Memuat data...</div>
+        ) : (
+            <Table
+            columns={columns}
+            data={filteredRows}
+            keyField="id"
+            emptyMessage="Belum ada data kehadiran guru."
+            />
+        )}
       </div>
     </StaffLayout>
   );

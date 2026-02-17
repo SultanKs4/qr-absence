@@ -3,60 +3,7 @@ import { Calendar, BookOpen, X, QrCode, Eye, Clock } from 'lucide-react';
 import NavbarPengurus from "../../components/PengurusKelas/NavbarPengurus";
 import './PresensiKelas.css';
 
-// ==================== API CONFIGURATION ====================
-const baseURL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
-
-const API_CONFIG = {
-  BASE_URL: API_BASE_URL,
-  ENDPOINTS: {
-    SCHEDULE: '/class/schedule',
-    ATTENDANCE: '/class/attendance',
-    SCAN_QR: '/class/scan-qr'
-  }
-};
-
-// ==================== API SERVICE ====================
-const apiService = {
-  async request(endpoint, options = {}) {
-    const token = localStorage.getItem('authToken');
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers
-    };
-
-    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-      ...options,
-      headers
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('authToken');
-        window.location.href = '/';
-        throw new Error('Unauthorized');
-      }
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async getTodaySchedule(classId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.SCHEDULE}/${classId}/today`);
-  },
-
-  async getAttendanceDetail(scheduleId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.ATTENDANCE}/${scheduleId}`);
-  },
-
-  async markAsScanned(scheduleId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.SCAN_QR}/${scheduleId}`, {
-      method: 'POST'
-    });
-  }
-};
+import apiService from "../../utils/api";
 
 // ==================== UTILITY FUNCTIONS ====================
 const getTimeRange = (period) => {
@@ -87,6 +34,8 @@ function PresensiKelas() {
   const [scheduleData, setScheduleData] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [generatingQr, setGeneratingQr] = useState(false);
+  const [qrToken, setQrToken] = useState(null);
 
   // Fetch schedule data from API
   useEffect(() => {
@@ -94,28 +43,35 @@ function PresensiKelas() {
       try {
         setIsLoading(true);
         
-        // TODO: Replace with actual class ID from user session
-        const classId = localStorage.getItem('classId') || '1';
-        
-        // Fetch today's schedule
-        const scheduleResponse = await apiService.getTodaySchedule(classId);
+        // Fetch today's schedule from real backend
+        const scheduleResponse = await apiService.getMyClassSchedules();
         
         // Format schedule data
-        const formattedSchedule = scheduleResponse.map((subject, index) => ({
-          id: subject.id || index + 1,
-          subject: subject.name || '',
-          class: subject.className || '',
-          period: subject.period ? `Jam ke ${subject.period}` : '',
-          time: subject.timeRange || getTimeRange(subject.period),
-          teacher: subject.teacher || '',
-          qrCode: subject.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(subject.name)}-${index+1}`
+        const formattedSchedule = scheduleResponse.map((item) => ({
+          id: item.id,
+          subject: item.subject?.name || 'Mata Pelajaran',
+          class: item.class_room?.label || '',
+          period: item.period || '',
+          time: `${item.start_time.slice(0, 5)}-${item.end_time.slice(0, 5)}`,
+          teacher: item.teacher?.user?.name || '',
+          is_active: item.is_active,
+          has_active_qr: item.has_active_qr,
+          active_qr_token: item.active_qr_token
         }));
         
         setScheduleData(formattedSchedule);
         
+        // Map active QR states to scannedSchedules for UI consistency
+        const activeStates = {};
+        formattedSchedule.forEach(s => {
+          if (s.has_active_qr) {
+            activeStates[s.id] = { scanned: true };
+          }
+        });
+        setScannedSchedules(activeStates);
+        
       } catch (error) {
         console.error('Error fetching schedule:', error);
-        // UI tetap dirender dengan state default (array kosong)
       } finally {
         setIsLoading(false);
       }
@@ -123,6 +79,7 @@ function PresensiKelas() {
 
     fetchSchedule();
   }, []);
+
 
   // Load scanned schedules dari localStorage
   useEffect(() => {
@@ -168,22 +125,33 @@ function PresensiKelas() {
     return () => clearInterval(interval);
   }, []);
 
-  // Check if QR modal has been open for more than 10 seconds
-  useEffect(() => {
-    if (qrOpenTime && modalType === 'qr') {
-      const checkTime = setInterval(() => {
-        const now = Date.now();
-        const elapsed = (now - qrOpenTime) / 1000;
-        
-        if (elapsed >= 10) {
-          handleMarkAsScanned();
-          clearInterval(checkTime);
-        }
-      }, 1000);
+  const handleGenerateQr = async (scheduleId) => {
+    try {
+      setGeneratingQr(true);
+      const response = await apiService.generateClassQr({
+        schedule_id: scheduleId,
+        type: 'student'
+      });
+      
+      setQrToken(response.token);
+      
+      // Update scheduleData state to reflect the new QR
+      setScheduleData(prev => prev.map(s => 
+        s.id === scheduleId ? { ...s, has_active_qr: true, active_qr_token: response.token } : s
+      ));
+      
+      setScannedSchedules(prev => ({
+        ...prev,
+        [scheduleId]: { scanned: true }
+      }));
 
-      return () => clearInterval(checkTime);
+    } catch (error) {
+      console.error('Error generating QR:', error);
+      alert(error.message || 'Gagal membuat QR Code');
+    } finally {
+      setGeneratingQr(false);
     }
-  }, [qrOpenTime, modalType]);
+  };
 
   const isSchedulePassed = (timeRange) => {
     if (!currentTime || !timeRange) return false;
@@ -191,83 +159,48 @@ function PresensiKelas() {
     return currentTime > endTime;
   };
 
-  const handleMarkAsScanned = async () => {
-    if (!selectedSchedule) return;
-
-    try {
-      // TODO: Call API to mark as scanned
-      // await apiService.markAsScanned(selectedSchedule.id);
-      
-      // Fetch attendance detail from API
-      // const attendanceDetail = await apiService.getAttendanceDetail(selectedSchedule.id);
-      
-      // For now, use default attendance structure
-      const defaultAttendance = {
-        totalStudents: 30,
-        present: 0,
-        late: 0,
-        absent: 0,
-        students: []
-      };
-
-      setScannedSchedules(prev => ({
-        ...prev,
-        [selectedSchedule.id]: {
-          scanned: true,
-          scannedAt: new Date().toISOString(),
-          attendance: defaultAttendance
-        }
-      }));
-
-      setAttendanceData(prev => ({
-        ...prev,
-        [selectedSchedule.id]: defaultAttendance
-      }));
-
-      closeModal();
-    } catch (error) {
-      console.error('Error marking as scanned:', error);
-      // Tetap tutup modal meskipun error
-      closeModal();
-    }
-  };
 
   const handleButtonClick = async (schedule) => {
-    const isScanned = scannedSchedules[schedule.id]?.scanned;
-    
     setSelectedSchedule(schedule);
     
-    if (isScanned) {
-      // Fetch attendance detail jika belum ada
-      if (!attendanceData[schedule.id]) {
-        try {
-          const detail = await apiService.getAttendanceDetail(schedule.id);
-          setAttendanceData(prev => ({
-            ...prev,
-            [schedule.id]: detail
-          }));
-        } catch (error) {
-          console.error('Error fetching attendance detail:', error);
-          // Use cached data or default
-          setAttendanceData(prev => ({
-            ...prev,
-            [schedule.id]: scannedSchedules[schedule.id]?.attendance || {
-              totalStudents: 30,
-              present: 0,
-              late: 0,
-              absent: 0,
-              students: []
-            }
-          }));
-        }
-      }
-      
+    // If it already has an active QR or is "scanned" (active session)
+    if (schedule.has_active_qr || scannedSchedules[schedule.id]?.scanned) {
       setModalType('detail');
       setShowModal(true);
+      
+      // Fetch real attendance details
+      try {
+        const detail = await apiService.getMyClassAttendance();
+        // Filter attendance for this specific schedule if the API returns a list
+        // Based on backend, /me/class/attendance returns a list of attendance records
+        // We might need to filter by schedule_id or the API might need adjustment
+        // But for now let's assume it returns what's relevant or we filter it.
+        const relevantAttendance = detail.filter(a => a.schedule && a.schedule.id === schedule.id);
+        
+        const summary = {
+          present: relevantAttendance.filter(a => ['present', 'late'].includes(a.status)).length,
+          late: relevantAttendance.filter(a => a.status === 'late').length,
+          absent: relevantAttendance.filter(a => a.status === 'absent').length,
+          students: relevantAttendance.map(a => ({
+            name: a.student?.user?.name || 'Siswa',
+            status: a.status_label || a.status,
+            time: a.created_at ? new Date(a.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'
+          }))
+        };
+        
+        setAttendanceData(prev => ({
+          ...prev,
+          [schedule.id]: summary
+        }));
+
+      } catch (error) {
+        console.error('Error fetching attendance detail:', error);
+      }
     } else {
+      // Trigger QR Generation
       setModalType('qr');
-      setQrOpenTime(Date.now());
       setShowModal(true);
+      handleGenerateQr(schedule.id);
     }
   };
 
@@ -310,8 +243,8 @@ function PresensiKelas() {
             <BookOpen size={60} strokeWidth={2} />
           </div>
           <div>
-            <h2 className="sidebar-title">XII Rekayasa Perangkat Lunak 2</h2>
-            <p className="sidebar-subtitle">Triana Ardianie S.Pd</p>
+            <h2 className="sidebar-title">{scheduleData[0]?.class || 'Kelas Saya'}</h2>
+            <p className="sidebar-subtitle">{scheduleData[0]?.teacher || 'Wali Kelas'}</p>
           </div>
           <div className="sidebar-divider"></div>
         </div>
@@ -473,17 +406,24 @@ function PresensiKelas() {
                   <p className="qr-teacher-info">{selectedSchedule.teacher}</p>
                 </div>
                 <div className="qr-code-container">
-                  <img
-                    src={selectedSchedule.qrCode}
-                    alt="QR Code"
-                    className="qr-code-image"
-                  />
+                  {generatingQr ? (
+                    <div className="qr-loading">
+                      <div className="spin-loader"></div>
+                      <p>Menghasilkan QR...</p>
+                    </div>
+                  ) : (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrToken || selectedSchedule.active_qr_token || '')}`}
+                      alt="QR Code"
+                      className="qr-code-image"
+                    />
+                  )}
                 </div>
                 <p className="qr-instruction">
-                  Scan kode QR di atas untuk melakukan presensi
+                  Scan kode QR di atas menggunakan aplikasi Siswa
                 </p>
                 <p className="qr-timer">
-                  QR Code akan otomatis ditandai sebagai ter-scan dalam 10 detik
+                  QR Code ini aman dan hanya berlaku untuk sesi ini
                 </p>
               </div>
             ) : (
@@ -567,9 +507,25 @@ function PresensiKelas() {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        .spin-loader {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #3b82f6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 12px;
+        }
+        .qr-loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 300px;
         }
       `}</style>
     </div>

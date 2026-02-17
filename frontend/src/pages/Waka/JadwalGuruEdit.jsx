@@ -30,7 +30,8 @@ function JadwalGuruEdit() {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:8000/api/teachers/${id}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 
@@ -114,7 +115,8 @@ function JadwalGuruEdit() {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(profileData)
       });
@@ -132,7 +134,8 @@ function JadwalGuruEdit() {
         const imageResponse = await fetch(`http://localhost:8000/api/teachers/${id}/schedule-image`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
           },
           body: imageFormData
         });

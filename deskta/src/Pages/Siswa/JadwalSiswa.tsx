@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import SiswaLayout from "../../component/Siswa/SiswaLayout";
+import { scheduleService } from "../../services/scheduleService";
+import { authService } from "../../services/authService";
 
 type SiswaPage = "dashboard" | "jadwal-anda" | "notifikasi";
 
@@ -16,7 +18,7 @@ export default function JadwalSiswa({
     onMenuClick,
     onLogout,
 }: JadwalSiswaProps) {
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<any>(user); // Use passed user initially
     const [schedules, setSchedules] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -24,25 +26,16 @@ export default function JadwalSiswa({
         const fetchData = async () => {
             setLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                const headers = { 'Authorization': `Bearer ${token}` };
-
-                const [meRes, scheduleRes] = await Promise.all([
-                    fetch('http://localhost:8000/api/me', { headers }),
-                    fetch('http://localhost:8000/api/me/schedules', { headers })
-                ]);
-
-                if (meRes.ok) {
-                    const meData = await meRes.json();
-                    setProfile(meData.data || meData);
+                // Fetch Profile
+                const me = await authService.me();
+                if (me) {
+                    setProfile(me);
                 }
 
-                if (scheduleRes.ok) {
-                    const scheduleData = await scheduleRes.json();
-                    setSchedules(scheduleData.items || []);
-                }
+                const scheduleData = await scheduleService.getMySchedule();
+                setSchedules(scheduleData.items || []);
             } catch (error) {
-                console.error("Error loading schedule", error);
+                console.error("Error loading schedule or profile", error);
             } finally {
                 setLoading(false);
             }

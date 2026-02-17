@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
 import AWANKIRI from "../../assets/Icon/AWANKIRI.png";
 import AwanBawahkanan from "../../assets/Icon/AwanBawahkanan.png";
+import { settingService } from '../../services/settingService';
 
 interface User {
   role: string;
@@ -64,7 +65,10 @@ export default function ProfilSekolah({
   const [editFormData, setEditFormData] = useState<SchoolData>(schoolData);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [maskotPreview, setMaskotPreview] = useState<string>('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [maskotFile, setMaskotFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -72,22 +76,41 @@ export default function ProfilSekolah({
   const maskotInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const savedData = localStorage.getItem('schoolData');
-    if (savedData) {
+    const fetchSchoolData = async () => {
+      setIsLoading(true);
       try {
-        const parsedData = JSON.parse(savedData);
-        setSchoolData(parsedData);
-        setEditFormData(parsedData);
+        const response = await settingService.getSettings();
+        const settings = response.data; // Response is { status: 'success', data: { ... } }
+        
+        const mappedData: SchoolData = {
+          nama_sekolah: settings.school_name || DEFAULT_SCHOOL_DATA.nama_sekolah,
+          npsn: settings.school_npsn || DEFAULT_SCHOOL_DATA.npsn,
+          jenis_sekolah: settings.school_type || DEFAULT_SCHOOL_DATA.jenis_sekolah,
+          akreditasi: settings.school_accreditation || DEFAULT_SCHOOL_DATA.akreditasi,
+          jalan: settings.school_address || DEFAULT_SCHOOL_DATA.jalan,
+          kelurahan: settings.school_subdistrict || settings.village || DEFAULT_SCHOOL_DATA.kelurahan, // Backend might use school_subdistrict or village
+          kecamatan: settings.school_district || settings.district || DEFAULT_SCHOOL_DATA.kecamatan,
+          kabupaten_kota: settings.school_city || settings.city || DEFAULT_SCHOOL_DATA.kabupaten_kota,
+          provinsi: settings.school_province || settings.province || DEFAULT_SCHOOL_DATA.provinsi,
+          kode_pos: settings.school_postal_code || settings.postal_code || DEFAULT_SCHOOL_DATA.kode_pos,
+          email: settings.school_email || DEFAULT_SCHOOL_DATA.email,
+          kepala_sekolah: settings.school_headmaster || settings.school_principal_name || DEFAULT_SCHOOL_DATA.kepala_sekolah,
+          nip_kepala_sekolah: settings.school_headmaster_nip || settings.school_principal_nip || DEFAULT_SCHOOL_DATA.nip_kepala_sekolah,
+          nomor_telepon: settings.school_phone || DEFAULT_SCHOOL_DATA.nomor_telepon,
+          logo_sekolah: settings.school_logo_url || '',
+          maskot_sekolah: settings.school_mascot_url || '',
+        };
+        setSchoolData(mappedData);
+        setEditFormData(mappedData);
       } catch (error) {
-        console.error('Error parsing saved data:', error);
-        setSchoolData(DEFAULT_SCHOOL_DATA);
-        setEditFormData(DEFAULT_SCHOOL_DATA);
+        console.error('Error fetching school data:', error);
+        setErrorMessage('Gagal memuat data sekolah dari server.');
+      } finally {
+        setIsLoading(false);
       }
-    } else {
-      localStorage.setItem('schoolData', JSON.stringify(DEFAULT_SCHOOL_DATA));
-      setSchoolData(DEFAULT_SCHOOL_DATA);
-      setEditFormData(DEFAULT_SCHOOL_DATA);
-    }
+    };
+
+    fetchSchoolData();
   }, []);
 
   const validateFile = (file: File): { valid: boolean; message: string } => {
@@ -147,14 +170,11 @@ export default function ProfilSekolah({
         return;
       }
 
+      setLogoFile(file);
       const reader = new FileReader();
       reader.onload = (event) => {
         const base64String = event.target?.result as string;
         setLogoPreview(base64String);
-        setEditFormData({
-          ...editFormData,
-          logo_sekolah: base64String,
-        });
         setErrorMessage('');
       };
       reader.readAsDataURL(file);
@@ -172,14 +192,11 @@ export default function ProfilSekolah({
         return;
       }
 
+      setMaskotFile(file);
       const reader = new FileReader();
       reader.onload = (event) => {
         const base64String = event.target?.result as string;
         setMaskotPreview(base64String);
-        setEditFormData({
-          ...editFormData,
-          maskot_sekolah: base64String,
-        });
         setErrorMessage('');
       };
       reader.readAsDataURL(file);
@@ -190,36 +207,26 @@ export default function ProfilSekolah({
     e.preventDefault();
     e.stopPropagation();
 
-    const newFormData = { ...editFormData, logo_sekolah: '' };
-    setEditFormData(newFormData);
+    setEditFormData({ ...editFormData, logo_sekolah: '' });
     setLogoPreview('');
+    setLogoFile(null);
 
     if (logoInputRef.current) {
       logoInputRef.current.value = '';
     }
-
-    localStorage.setItem('schoolData', JSON.stringify(newFormData));
-    window.dispatchEvent(new Event('schoolDataUpdated'));
-    setSuccessMessage('Logo berhasil dihapus!');
-    setTimeout(() => setSuccessMessage(''), 2000);
   };
 
   const handleDeleteMaskot = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const newFormData = { ...editFormData, maskot_sekolah: '' };
-    setEditFormData(newFormData);
+    setEditFormData({ ...editFormData, maskot_sekolah: '' });
     setMaskotPreview('');
+    setMaskotFile(null);
 
     if (maskotInputRef.current) {
       maskotInputRef.current.value = '';
     }
-
-    localStorage.setItem('schoolData', JSON.stringify(newFormData));
-    window.dispatchEvent(new Event('schoolDataUpdated'));
-    setSuccessMessage('Maskot berhasil dihapus!');
-    setTimeout(() => setSuccessMessage(''), 2000);
   };
 
   const handleSaveChanges = async () => {
@@ -230,13 +237,62 @@ export default function ProfilSekolah({
 
     setIsSaving(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      localStorage.setItem('schoolData', JSON.stringify(editFormData));
-      setSchoolData(editFormData);
+      const payload: any = {
+        school_name: editFormData.nama_sekolah,
+        school_npsn: editFormData.npsn,
+        school_type: editFormData.jenis_sekolah,
+        school_accreditation: editFormData.akreditasi,
+        school_address: editFormData.jalan,
+        village: editFormData.kelurahan,
+        district: editFormData.kecamatan,
+        city: editFormData.kabupaten_kota,
+        province: editFormData.provinsi,
+        school_postal_code: editFormData.kode_pos,
+        school_email: editFormData.email,
+        school_headmaster: editFormData.kepala_sekolah,
+        school_headmaster_nip: editFormData.nip_kepala_sekolah,
+        school_phone: editFormData.nomor_telepon,
+      };
+
+      if (logoFile) {
+        payload.school_logo = logoFile;
+      }
+      if (maskotFile) {
+        payload.school_mascot = maskotFile;
+      }
+
+      await settingService.updateSettings(payload);
+
+      // Refresh data
+      const response = await settingService.getSettings();
+      const settings = response.data;
+      
+      const updatedData: SchoolData = {
+        nama_sekolah: settings.school_name || editFormData.nama_sekolah,
+        npsn: settings.school_npsn || editFormData.npsn,
+        jenis_sekolah: settings.school_type || editFormData.jenis_sekolah,
+        akreditasi: settings.school_accreditation || editFormData.akreditasi,
+        jalan: settings.school_address || editFormData.jalan,
+        kelurahan: settings.school_subdistrict || settings.village || editFormData.kelurahan,
+        kecamatan: settings.school_district || settings.district || editFormData.kecamatan,
+        kabupaten_kota: settings.school_city || settings.city || editFormData.kabupaten_kota,
+        provinsi: settings.school_province || settings.province || editFormData.provinsi,
+        kode_pos: settings.school_postal_code || settings.postal_code || editFormData.kode_pos,
+        email: settings.school_email || editFormData.email,
+        kepala_sekolah: settings.school_headmaster || settings.school_principal_name || editFormData.kepala_sekolah,
+        nip_kepala_sekolah: settings.school_headmaster_nip || settings.school_principal_nip || editFormData.nip_kepala_sekolah,
+        nomor_telepon: settings.school_phone || editFormData.nomor_telepon,
+        logo_sekolah: settings.school_logo_url || '',
+        maskot_sekolah: settings.school_mascot_url || '',
+      };
+
+      setSchoolData(updatedData);
       setIsEditMode(false);
       setSuccessMessage('Data sekolah berhasil diperbarui!');
       setLogoPreview('');
       setMaskotPreview('');
+      setLogoFile(null);
+      setMaskotFile(null);
       setErrorMessage('');
       setTimeout(() => setSuccessMessage(''), 3000);
 
@@ -249,8 +305,16 @@ export default function ProfilSekolah({
     }
   };
 
-  const displayLogo = logoPreview || editFormData.logo_sekolah;
-  const displayMaskot = maskotPreview || editFormData.maskot_sekolah;
+  if (isLoading) {
+    return (
+      <AdminLayout pageTitle="Profil Sekolah" currentPage={currentPage} onMenuClick={onMenuClick} user={user} onLogout={onLogout} hideBackground>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh', color: '#001F3E' }}>
+          <span>Loading profil sekolah...</span>
+        </div>
+      </AdminLayout>
+    );
+  }
+
 
   if (!isEditMode) {
     return (

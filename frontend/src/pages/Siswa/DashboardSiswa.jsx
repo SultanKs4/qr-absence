@@ -3,71 +3,14 @@ import { Calendar, Clock, BookOpen, ArrowLeft, PieChart, TrendingUp } from 'luci
 import './DashboardSiswa.css';
 import NavbarSiswa from '../../components/Siswa/NavbarSiswa';
 
-// ==================== API CONFIGURATION ====================
-const baseURL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
-
-const API_CONFIG = {
-  BASE_URL: API_BASE_URL,
-  ENDPOINTS: {
-    PROFILE: '/me',
-    SCHEDULE: '/me/schedules',
-    SUMMARY: '/me/attendance/summary'
-  }
-};
-
-// ==================== API SERVICE ====================
-const apiService = {
-  async request(endpoint, options = {}) {
-    const token = localStorage.getItem('authToken');
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers
-    };
-
-    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-      ...options,
-      headers
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('authToken');
-        window.location.href = '/';
-        throw new Error('Unauthorized');
-      }
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async getProfile() {
-    return this.request(API_CONFIG.ENDPOINTS.PROFILE);
-  },
-
-  async getSchedule() {
-    return this.request(API_CONFIG.ENDPOINTS.SCHEDULE);
-  },
-
-  async getAttendanceSummary() {
-    // defaults to all time if no dates provided, backend handles filtering
-    return this.request(API_CONFIG.ENDPOINTS.SUMMARY);
-  }
-};
+import apiService from '../../utils/api';
 
 // ==================== UTILITY FUNCTIONS ====================
 const getTodaySubjectCount = (scheduleData) => {
-  if (!scheduleData || !scheduleData.dailySchedules) return 0;
-
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const todayName = days[new Date().getDay()];
-
-  const todaySchedule = scheduleData.dailySchedules.find(d => d.day === todayName);
-  return todaySchedule?.scheduleItems?.length || 0;
+  if (!scheduleData || !Array.isArray(scheduleData)) return 0;
+  return scheduleData.length || 0;
 };
+
 
 // ==================== COMPONENTS ====================
 const ProfileIcon = ({ gender, size = 80 }) => {
@@ -515,87 +458,46 @@ const Dashboard = () => {
       try {
         setIsLoading(true);
 
-        // Fetch profile data
-        const profileResponse = await apiService.getProfile();
-        // The /me endpoint returns user data directly
-        const profile = profileResponse.profile || {};
+        // Fetch dashboard summary (includes profile, summary, trend, and schedules)
+        const summaryResponse = await apiService.getStudentDashboard();
+        
+        const user = summaryResponse.user || {};
+        const profile = summaryResponse.student || {};
+        const summary = summaryResponse.attendance_summary || {};
+        const trend = summaryResponse.monthly_trend || [];
+        const schedules = summaryResponse.today_schedules || [];
 
         setProfileData({
-          name: profileResponse.name || '-',
-          kelas: profile.class_name || '-',
+          name: user.name || '-',
+          kelas: profile.class_room?.label || '-',
           id: profile.nis || '-',
-          gender: profile.gender || 'perempuan', // Backend might not send gender, fallback needed
-          studentId: profileResponse.id
+          gender: profile.gender || 'perempuan',
+          studentId: user.id
         });
         setProfileImage(profile.photo_url);
 
-        // Fetch schedule data
-        // API /me/schedules returns full schedule object or items
-        const scheduleResponse = await apiService.getSchedule();
-        setScheduleData(scheduleResponse);
+        // Map schedules
+        setScheduleData(schedules);
 
-        // Fetch attendance summary
-        const summaryResponse = await apiService.getAttendanceSummary();
-        const dailySummary = summaryResponse.daily_summary || [];
-
-        // --- Process Weekly Stats (Last 7 Days) ---
-        const today = new Date();
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - 6); // Last 7 days including today
-
-        const weeklyData = {
-          hadir: 0, terlambat: 0, pulang: 0, izin: 0, sakit: 0, alpha: 0
-        };
-
-        dailySummary.forEach(item => {
-          const itemDate = new Date(item.day);
-          if (itemDate >= startOfWeek && itemDate <= today) {
-            const status = (item.status || 'alpha').toLowerCase();
-            // Map backend status to frontend keys if needed
-            if (status === 'present') weeklyData.hadir += item.total;
-            else if (status === 'late') weeklyData.terlambat += item.total;
-            else if (status === 'return') weeklyData.pulang += item.total;
-            else if (status === 'sick') weeklyData.sakit += item.total;
-            else if (['izin', 'excused'].includes(status)) weeklyData.izin += item.total;
-            else if (status === 'absent') weeklyData.alpha += item.total;
-            // Add fallback for direct matching
-            else if (weeklyData[status] !== undefined) weeklyData[status] += item.total;
-          }
+        // Map Weekly Stats (from summary)
+        setWeeklyStats({
+          hadir: summary.present || 0,
+          terlambat: summary.late || 0,
+          pulang: summary.return || 0,
+          izin: summary.excused || 0,
+          sakit: summary.sick || 0,
+          alpha: summary.absent || 0
         });
 
-        setWeeklyStats(weeklyData);
-
-        // --- Process Monthly Trend (Last 6 Months) ---
-        const monthlyData = [];
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date();
-          d.setMonth(d.getMonth() - i);
-          const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          const monthName = d.toLocaleDateString('id-ID', { month: 'short' });
-
-          let totalDays = 0;
-          let presentDays = 0;
-
-          dailySummary.forEach(item => {
-            // item.day is YYYY-MM-DD
-            if (item.day.startsWith(monthKey)) {
-              totalDays += item.total;
-              const status = (item.status || '').toLowerCase();
-              if (['present', 'late', 'return'].includes(status)) {
-                presentDays += item.total;
-              }
-            }
-          });
-
-          const percentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
-          monthlyData.push({
-            month: monthName,
-            percentage: percentage,
-            hadir: presentDays,
-            total: totalDays
-          });
-        }
-        setMonthlyTrend(monthlyData);
+        // Map Monthly Trend
+        const formattedTrend = trend.map(item => ({
+          month: item.month,
+          percentage: Math.round(item.percentage),
+          hadir: item.present,
+          total: item.total
+        }));
+        
+        setMonthlyTrend(formattedTrend);
 
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -606,6 +508,7 @@ const Dashboard = () => {
 
     fetchData();
   }, []);
+
 
   // Update current time
   useEffect(() => {
@@ -626,9 +529,9 @@ const Dashboard = () => {
 
   const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('userRole');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('role');
       window.location.href = '/';
     }
   };

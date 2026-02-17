@@ -14,67 +14,64 @@ class TeacherSeeder extends Seeder
         // Daftar Guru diambil dari Jadwal XII RPL 1 & 2
         $teachers = [
             [
-                'name' => 'ALIFAH DIANTEBES AINDRA, S.Pd',
-                'subject' => 'Produktif RPL', // MPKK
-            ],
-            [
-                'name' => 'SAMAODIN, SAP',
-                'subject' => 'Normatif', // PKN
-            ],
-            [
-                'name' => 'FAJAR NINGTYAS, S.Pd',
-                'subject' => 'Adaptif/Produktif', // B.Inggris & PKDK
-            ],
-            [
-                'name' => 'AANG NOERARIES WAHYUDIPASA, S.Si',
-                'subject' => 'Produktif RPL', // MPP & MPKK
-            ],
-            [
-                'name' => 'RR. HENNING GRATYANIS ANGGRAENI, S.Pd',
-                'subject' => 'Produktif RPL', // MPKK
+                'name' => 'DEVI ARVENI, S.Pd., Gr.',
+                'jabatan' => 'Wali Kelas',
+                'subject' => 'Bahasa Indonesia',
+                'grade' => 'XII',
+                'major' => 'RPL',
             ],
             [
                 'name' => 'ZULKIFLI ABDILLAH, S.Kom',
-                'subject' => 'Produktif RPL', // MPKK
+                'jabatan' => 'Kapro',
+                'konsentrasi_keahlian' => 'Rekayasa Perangkat Lunak',
+                'subject' => 'Produktif RPL',
+            ],
+            [
+                'name' => 'ALIFAH DIANTEBES AINDRA, S.Pd',
+                'jabatan' => 'Guru',
+                'subject' => 'MPKK',
+            ],
+            [
+                'name' => 'SAMAODIN, SAP',
+                'jabatan' => 'Guru',
+                'subject' => 'PPKN',
+            ],
+            [
+                'name' => 'FAJAR NINGTYAS, S.Pd',
+                'jabatan' => 'Guru',
+                'subject' => 'Bahasa Inggris',
             ],
             [
                 'name' => 'WIWIN WINANGSIH, S.Pd',
-                'subject' => 'Adaptif', // Matematika
+                'jabatan' => 'Waka',
+                'bidang' => 'Waka Kurikulum',
+                'subject' => 'Matematika',
             ],
             [
                 'name' => 'MOCH. BACHRUDIN, S.Pd',
-                'subject' => 'Muatan Lokal', // B. Jawa
+                'jabatan' => 'Guru',
+                'subject' => 'Bahasa Jawa',
             ],
             [
                 'name' => 'EWIT IRNIYAH, S.Pd',
-                'subject' => 'Produktif RPL', // MPP
+                'jabatan' => 'Guru',
+                'subject' => 'MPP',
             ],
             [
                 'name' => 'ADHI BAGUS PERMANA, S.Pd',
-                'subject' => 'Produktif RPL', // PKDK
+                'jabatan' => 'Guru',
+                'subject' => 'PKDK',
             ],
             [
                 'name' => 'ROUDHOTUL HUSNA YANIF, S.Psi',
-                'subject' => 'Bimbingan Konseling', // BK
-            ],
-            [
-                'name' => 'DEVI ARVENI, S.Pd., Gr.',
-                'subject' => 'Normatif', // B. Indonesia
-            ],
-            [
-                'name' => 'AMIN MACHMUDI, S.Pd',
-                'subject' => 'Normatif', // B. Indonesia
-            ],
-            [
-                'name' => 'TUTIK FARIDA, S.Pd',
-                'subject' => 'Muatan Lokal', // B. Jawa
+                'jabatan' => 'Guru',
+                'subject' => 'BK',
             ],
         ];
 
         foreach ($teachers as $index => $teacherData) {
-            // Membuat Username otomatis (guru1, guru2, dst)
             $username = 'guru' . ($index + 1);
-            $email = $username . '@sekolah.sch.id'; // Email dummy
+            $email = $username . '@sekolah.sch.id';
 
             $user = User::updateOrCreate(
                 ['username' => $username],
@@ -90,9 +87,11 @@ class TeacherSeeder extends Seeder
             TeacherProfile::updateOrCreate(
                 ['user_id' => $user->id],
                 [
-                    // Generate NIP dummy: NIP-0001, NIP-0002, dst
                     'nip' => 'NIP-' . str_pad($index + 1, 4, '0', STR_PAD_LEFT),
-                    // 'subject' => $teacherData['subject'],
+                    'jabatan' => $teacherData['jabatan'] ?? 'Guru',
+                    'bidang' => $teacherData['bidang'] ?? null,
+                    'konsentrasi_keahlian' => $teacherData['konsentrasi_keahlian'] ?? null,
+                    'subject' => $teacherData['subject'] ?? null,
                 ]
             );
         }

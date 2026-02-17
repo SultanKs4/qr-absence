@@ -149,21 +149,7 @@ export default function DaftarKetidakhadiranWaliKelas({
     );
   };
 
-  const getStatusText = (status: StatusKehadiran) => {
-    switch (status) {
-      default:
-        return status;
-    }
-  };
 
-  const getStatusColor = (status: StatusKehadiran) => {
-    switch (status) {
-      case "Izin": return COLORS.IZIN;
-      case "Sakit": return COLORS.SAKIT;
-      case "Alfa": return COLORS.TIDAK_HADIR;
-      default: return "#6B7280";
-    }
-  };
 
   return (
     <>
@@ -490,7 +476,7 @@ export default function DaftarKetidakhadiranWaliKelas({
                   fontWeight: 800,
                   color: "#1E40AF",
                 }}>
-                  {getStatusText(selectedRecord.status)}
+                  {selectedRecord.status}
                 </div>
               </div>
 

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import GuruLayout from '../../component/Guru/GuruLayout';
 import CalendarIcon from '../../assets/Icon/calender.png';
 import EditIcon from '../../assets/Icon/Edit.png';
 import ChalkboardIcon from '../../assets/Icon/Chalkboard.png';
 
+import { attendanceService } from '../../services/attendanceService';
 // STATUS COLOR PALETTE - High Contrast for Accessibility
 const STATUS_COLORS = {
   hadir: '#1FA83D',   // HIJAU - Hadir
@@ -67,47 +68,41 @@ export default function KehadiranSiswaGuru({
   const fetchStudents = async (scheduleId: string) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/me/schedules/${scheduleId}/students`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const data = await attendanceService.getScheduleStudents(scheduleId);
+
+      // Map backend data to frontend interface
+      // Backend returns list of students with 'attendance' relation if exists
+      const mappedStudents = (data.students || []).map((s: any) => {
+        const att = s.attendance; // The attendance record for today/session
+        // Status mapping
+        let status: SiswaData['status'] = 'unknown';
+        if (att) {
+          if (att.status === 'present') status = 'hadir';
+          else if (att.status === 'sick') status = 'sakit';
+          else if (att.status === 'permission') status = 'izin';
+          else if (att.status === 'alpha') status = 'alfa';
+          else if (att.status === 'leave_early') status = 'pulang';
+        } else {
+          // If no attendance record, default to alpha or unknown?
+          // Usually unknown or alpha until marked. Let's use 'unknown' (grey) or 'alfa' (red)
+          // The request says default to alpha?
+          status = 'alfa'; // Default if not present
+        }
+
+        return {
+          id: s.id.toString(),
+          nisn: s.nisn || '-',
+          nama: s.name,
+          mapel: schedule.subject,
+          status: status,
+          keterangan: att?.description,
+          attendance_id: att?.id,
+          guru: user.name,
+          tanggal: currentDate,
+          jamPelajaran: schedule.jam // e.g. "07:00 - 08:30"
+        };
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Map backend data to frontend interface
-        // Backend returns list of students with 'attendance' relation if exists
-        const mappedStudents = (data.students || []).map((s: any) => {
-          const att = s.attendance; // The attendance record for today/session
-          // Status mapping
-          let status: SiswaData['status'] = 'unknown';
-          if (att) {
-            if (att.status === 'present') status = 'hadir';
-            else if (att.status === 'sick') status = 'sakit';
-            else if (att.status === 'permission') status = 'izin';
-            else if (att.status === 'alpha') status = 'alfa';
-            else if (att.status === 'leave_early') status = 'pulang';
-          } else {
-            // If no attendance record, default to alpha or unknown?
-            // Usually unknown or alpha until marked. Let's use 'unknown' (grey) or 'alfa' (red)
-            // The request says default to alpha?
-            status = 'alfa'; // Default if not present
-          }
-
-          return {
-            id: s.id.toString(),
-            nisn: s.nisn || '-',
-            nama: s.name,
-            mapel: schedule.subject,
-            status: status,
-            keterangan: att?.description,
-            attendance_id: att?.id,
-            guru: user.name,
-            tanggal: currentDate,
-            jamPelajaran: schedule.jam // e.g. "07:00 - 08:30"
-          };
-        });
-        setSiswaList(mappedStudents);
-      }
+      setSiswaList(mappedStudents);
     } catch (error) {
       console.error("Error fetching students:", error);
     } finally {
@@ -173,7 +168,7 @@ export default function KehadiranSiswaGuru({
   };
 
   // Custom Status Renderer dengan icon mata untuk SEMUA STATUS
-  const StatusButton = ({ status, siswa }: { status: string; siswa: SiswaData }) => {
+  const StatusButton = ({ status }: { status: string; siswa: SiswaData }) => {
     const color = STATUS_COLORS[status as keyof typeof STATUS_COLORS] || '#9CA3AF';
     const label = status === 'alfa' ? 'Alfa' : status.charAt(0).toUpperCase() + status.slice(1);
 

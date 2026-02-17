@@ -1,125 +1,21 @@
-﻿// FILE: DetailSiswa.tsx - Halaman Detail Siswa dengan Data Lengkap
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
 import { User as UserIcon, ArrowLeft, Edit2, Save, X } from 'lucide-react';
+import { studentService, type Student } from '../../services/studentService';
+import { masterService, type ClassRoom } from '../../services/masterService';
 
 /* ===================== INTERFACE DEFINITIONS ===================== */
-interface User {
-  role: string;
-  name: string;
-}
-
-interface Siswa {
-  id: string;
-  namaSiswa: string;
-  nisn: string;
-  jenisKelamin: string;
-  noTelp: string;
-  jurusan: string;
-  jurusanId: string;
-  tahunAngkatan: string;
-  tahunMulai: string;
-  tahunAkhir: string;
-  kelas: string;
-}
+// Use Student interface from service, but locally we might extend it for UI state if needed
+// or just use it directly.
 
 interface DetailSiswaProps {
-  user: User;
+  user: any;
   onLogout: () => void;
   currentPage: string;
   onMenuClick: (page: string) => void;
   siswaId: string;
-  onUpdateSiswa?: (updatedSiswa: Siswa) => void;
+  onUpdateSiswa?: (updatedSiswa: any) => void;
 }
-
-/* ===================== OPTIONS DATA ===================== */
-const jurusanOptions = [
-  { value: 'MEK', label: 'Mekatronika' },
-  { value: 'RPL', label: 'Rekayasa Perangkat Lunak' },
-  { value: 'ANI', label: 'Animasi' },
-  { value: 'BC', label: 'Broadcasting' },
-  { value: 'EI', label: 'Elektronika Industri' },
-  { value: 'TKJ', label: 'Teknik Komputer dan Jaringan' },
-  { value: 'AV', label: 'Audio Video' },
-  { value: 'DKV', label: 'Desain Komunikasi Visual' },
-];
-
-const kelasOptions = [
-  { value: '10', label: 'Kelas 10' },
-  { value: '11', label: 'Kelas 11' },
-  { value: '12', label: 'Kelas 12' },
-];
-
-const jenisKelaminOptions = [
-  { value: 'L', label: 'Laki-Laki' },
-  { value: 'P', label: 'Perempuan' },
-];
-
-// Generate tahun options dinamis untuk dropdown
-const generateTahunOptions = () => {
-  const currentYear = new Date().getFullYear();
-  const years = [];
-  for (let i = currentYear; i >= currentYear - 20; i--) {
-    years.push(i.toString());
-  }
-  return years;
-};
-
-/* ===================== DUMMY DATA ===================== */
-const dummySiswaList: Siswa[] = [
-  { 
-    id: '1', 
-    namaSiswa: 'M. Wito Suherman', 
-    nisn: '2347839283', 
-    jenisKelamin: 'L', 
-    noTelp: '082183748591',
-    jurusan: 'Mekatronika', 
-    jurusanId: 'MEK', 
-    tahunAngkatan: '2023-2026',
-    tahunMulai: '2023',
-    tahunAkhir: '2026',
-    kelas: '10',
-  },
-  { 
-    id: '2', 
-    namaSiswa: 'Siti Nurhaliza', 
-    nisn: '2347839284', 
-    jenisKelamin: 'P', 
-    noTelp: '081234567890',
-    jurusan: 'Rekayasa Perangkat Lunak', 
-    jurusanId: 'RPL', 
-    tahunAngkatan: '2023-2026',
-    tahunMulai: '2023',
-    tahunAkhir: '2026',
-    kelas: '10',
-  },
-  { 
-    id: '3', 
-    namaSiswa: 'Ahmad Rizki', 
-    nisn: '2347839285', 
-    jenisKelamin: 'L', 
-    noTelp: '081345678901',
-    jurusan: 'Teknik Komputer dan Jaringan', 
-    jurusanId: 'TKJ', 
-    tahunAngkatan: '2023-2026',
-    tahunMulai: '2023',
-    tahunAkhir: '2026',
-    kelas: '11',
-  },
-  { 
-    id: '4', 
-    namaSiswa: 'Dewi Lestari', 
-    nisn: '2347839286', 
-    jenisKelamin: 'P', 
-    noTelp: '081456789012',
-    jurusan: 'Desain Komunikasi Visual', 
-    jurusanId: 'DKV', 
-    tahunAngkatan: '2023-2026',
-    tahunMulai: '2023',
-    tahunAkhir: '2026',
-    kelas: '12',
-  },
-];
 
 /* ===================== MAIN COMPONENT ===================== */
 export default function DetailSiswa({
@@ -131,85 +27,92 @@ export default function DetailSiswa({
   onUpdateSiswa,
 }: DetailSiswaProps) {
   // ==================== STATE MANAGEMENT ====================
-  const [siswaData, setSiswaData] = useState<Siswa | null>(null);
-  const [originalData, setOriginalData] = useState<Siswa | null>(null);
+  const [siswaData, setSiswaData] = useState<Student | null>(null);
+  const [originalData, setOriginalData] = useState<Student | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
-  const [tahunMulai, setTahunMulai] = useState<string>('2023');
-  const [tahunAkhir, setTahunAkhir] = useState<string>('2026');
+  const [loading, setLoading] = useState(true);
+  const [errorLocal, setErrorLocal] = useState<string | null>(null);
 
-  // ==================== LOAD DATA SISWA ====================
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  
+  // Custom fields not directly in Student interface or needing transformation
+  const currentYear = new Date().getFullYear();
+  const [tahunMulai, setTahunMulai] = useState<string>(currentYear.toString());
+  const [tahunAkhir, setTahunAkhir] = useState<string>((currentYear + 3).toString());
+
+
+  // ==================== LOAD DATA ====================
   useEffect(() => {
-    const savedSiswa = localStorage.getItem('selectedSiswa');
-    if (savedSiswa) {
+    const loadData = async () => {
+      setLoading(true);
       try {
-        const parsedSiswa = JSON.parse(savedSiswa);
-        if (parsedSiswa.id === siswaId) {
-          // Ensure new properties exist
-          if (!parsedSiswa.tahunMulai) {
-            const tahunParts = parsedSiswa.tahunAngkatan.split('-');
-            parsedSiswa.tahunMulai = tahunParts[0];
-            parsedSiswa.tahunAkhir = tahunParts[1];
-          }
-          
-          setSiswaData(parsedSiswa);
-          setOriginalData(parsedSiswa);
-          
-          // Parse tahun angkatan
-          setTahunMulai(parsedSiswa.tahunMulai || parsedSiswa.tahunAngkatan.split('-')[0]);
-          setTahunAkhir(parsedSiswa.tahunAkhir || parsedSiswa.tahunAngkatan.split('-')[1]);
-          return;
-        }
-      } catch (error) {
-        console.error('Error parsing saved siswa:', error);
-      }
-    }
+        // Fetch Master Data first
+        const [classesRes] = await Promise.all([
+          masterService.getClasses()
+        ]);
+        
+        setClasses(classesRes.data || []);
 
-    const foundSiswa = dummySiswaList.find(s => s.id === siswaId);
-    if (foundSiswa) {
-      setSiswaData(foundSiswa);
-      setOriginalData(foundSiswa);
-      localStorage.setItem('selectedSiswa', JSON.stringify(foundSiswa));
-      
-      // Parse tahun angkatan
-      setTahunMulai(foundSiswa.tahunMulai);
-      setTahunAkhir(foundSiswa.tahunAkhir);
-    }
+        // Fetch Student Data
+        if (siswaId) {
+          const response = await studentService.getStudentById(siswaId);
+          const student = response.data;
+          
+          setSiswaData(student);
+          setOriginalData(student);
+          
+          // Parse tahun angkatan if available, otherwise default
+          // Assuming backend doesn't send distinct tahunMulai/Akhir, or we parse from 'grade' or add custom fields
+          // For now, let's keep defaults or try to parse if a field exists, valid logic:
+          // If student has a 'grade' like 'X', 'XI', 'XII', we can guess? 
+          // Or just leave as manual input for now until backend supports 'batch_year'
+          
+        }
+      } catch (err: any) {
+        console.error('Error loading data:', err);
+        setErrorLocal('Gagal memuat data siswa.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
   }, [siswaId]);
 
   // ==================== FORM VALIDATION ====================
   const validateField = (field: string, value: string) => {
     const newErrors = { ...formErrors };
 
-    if (field === 'namaSiswa') {
+    if (field === 'name') {
       if (!value.trim()) {
-        newErrors.namaSiswa = 'Nama siswa harus diisi';
+        newErrors.name = 'Nama siswa harus diisi';
       } else if (value.trim().length < 3) {
-        newErrors.namaSiswa = 'Nama siswa minimal 3 karakter';
+        newErrors.name = 'Nama siswa minimal 3 karakter';
       } else {
-        delete newErrors.namaSiswa;
+        delete newErrors.name;
       }
     }
 
     if (field === 'nisn') {
       if (!value.trim()) {
         newErrors.nisn = 'NISN harus diisi';
-      } else if (!/^\d{10}$/.test(value)) {
-        newErrors.nisn = 'NISN harus 10 digit angka';
+      } else if (!/^\d+$/.test(value)) { // Relaxed validation to match other parts
+        newErrors.nisn = 'NISN harus berupa angka';
       } else {
         delete newErrors.nisn;
       }
     }
 
-    if (field === 'noTelp') {
+    if (field === 'phone') {
       if (value && value.trim()) {
-        if (!/^08\d{10,11}$/.test(value)) {
-          newErrors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
+        if (!/^08\d{8,11}$/.test(value)) {
+          newErrors.phone = 'Nomor telepon tidak valid';
         } else {
-          delete newErrors.noTelp;
+          delete newErrors.phone;
         }
       } else {
-        delete newErrors.noTelp;
+        delete newErrors.phone;
       }
     }
 
@@ -221,23 +124,9 @@ export default function DetailSiswa({
     
     const errors: {[key: string]: string} = {};
     
-    if (!siswaData.namaSiswa.trim()) {
-      errors.namaSiswa = 'Nama siswa harus diisi';
-    } else if (siswaData.namaSiswa.trim().length < 3) {
-      errors.namaSiswa = 'Nama siswa minimal 3 karakter';
-    }
-    
-    if (!siswaData.nisn.trim()) {
-      errors.nisn = 'NISN harus diisi';
-    } else if (!/^\d{10}$/.test(siswaData.nisn)) {
-      errors.nisn = 'NISN harus 10 digit angka';
-    }
-    
-    if (siswaData.noTelp && siswaData.noTelp.trim()) {
-      if (!/^08\d{10,11}$/.test(siswaData.noTelp)) {
-        errors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
-      }
-    }
+    if (!siswaData.name.trim()) errors.name = 'Nama siswa harus diisi';
+    if (!siswaData.nisn.trim()) errors.nisn = 'NISN harus diisi';
+    if (!siswaData.class_id) errors.class_id = 'Kelas harus dipilih';
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -254,20 +143,12 @@ export default function DetailSiswa({
     setIsEditMode(false);
     setSiswaData(originalData);
     setFormErrors({});
-    
-    // Reset tahun
-    if (originalData) {
-      setTahunMulai(originalData.tahunMulai);
-      setTahunAkhir(originalData.tahunAkhir);
-    }
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!siswaData) return;
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     // Validasi tahun
     if (parseInt(tahunMulai) >= parseInt(tahunAkhir)) {
@@ -275,32 +156,31 @@ export default function DetailSiswa({
       return;
     }
 
-    // Update tahun angkatan
-    const updatedSiswa = {
-      ...siswaData,
-      tahunMulai: tahunMulai,
-      tahunAkhir: tahunAkhir,
-      tahunAngkatan: `${tahunMulai}-${tahunAkhir}`
-    };
+    try {
+      const payload = {
+        name: siswaData.name,
+        nisn: siswaData.nisn,
+        gender: siswaData.gender,
+        class_id: siswaData.class_id,
+        address: siswaData.address,
+        parent_phone: siswaData.phone,
+        // Add other fields as needed
+      };
 
-    localStorage.setItem('selectedSiswa', JSON.stringify(updatedSiswa));
-    localStorage.setItem('siswaDataUpdated', 'true');
-    
-    setOriginalData(updatedSiswa);
-    setSiswaData(updatedSiswa);
-    
-    if (onUpdateSiswa) {
-      onUpdateSiswa(updatedSiswa);
+      await studentService.updateStudent(siswaData.id, payload);
+      
+      setOriginalData(siswaData);
+      
+      if (onUpdateSiswa) {
+        onUpdateSiswa(siswaData);
+      }
+      
+      setIsEditMode(false);
+      alert('✓ Data berhasil diperbarui!');
+    } catch (err: any) {
+      console.error('Failed to update student:', err);
+      alert('Gagal memperbarui data: ' + (err.response?.data?.message || err.message));
     }
-    
-    const event = new CustomEvent('siswaUpdated', { 
-      detail: { updatedSiswa: updatedSiswa } 
-    });
-    window.dispatchEvent(event);
-    
-    setIsEditMode(false);
-    
-    alert('✓ Data berhasil diperbarui!');
   };
 
   const handleBack = () => {
@@ -308,7 +188,6 @@ export default function DetailSiswa({
       if (confirm('Anda sedang dalam mode edit. Yakin ingin kembali tanpa menyimpan?')) {
         setIsEditMode(false);
         setSiswaData(originalData);
-        localStorage.removeItem('siswaDataUpdated');
         onMenuClick('siswa');
       }
     } else {
@@ -316,24 +195,57 @@ export default function DetailSiswa({
     }
   };
 
-  const handleFieldChange = (field: keyof Siswa, value: string) => {
+  const handleFieldChange = (field: keyof Student, value: string) => {
     if (!siswaData) return;
 
     const updatedSiswa = { ...siswaData };
-
-    if (field === 'jurusanId') {
-      const selectedJurusan = jurusanOptions.find(j => j.value === value);
-      updatedSiswa.jurusanId = value;
-      updatedSiswa.jurusan = selectedJurusan?.label || value;
-    } else {
-      updatedSiswa[field] = value;
+    
+    // Handle special cases if any
+    if (field === 'class_id') {
+      // When class changes, update class_name if needed for UI immediate feedback
+      // But usually we rely on ID.
+      // Also potentially auto-set major based on class?
+      const selectedClass = classes.find(c => c.id.toString() === value);
+      if (selectedClass) {
+          updatedSiswa.class_name = selectedClass.name;
+          updatedSiswa.grade = selectedClass.grade;
+          // Could also set major if needed
+      }
+    }
+    
+    if (field === 'major') {
+      // If we change major manually, filter classes?
     }
 
+    (updatedSiswa as any)[field] = value;
     setSiswaData(updatedSiswa);
   };
 
-  // ==================== LOADING STATE ====================
-  if (!siswaData) {
+  // Generate tahun options
+  const generateTahunOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = currentYear; i >= currentYear - 20; i--) {
+      years.push(i.toString());
+    }
+    return years;
+  };
+  const tahunOptions = generateTahunOptions();
+
+
+  
+  // Actually, allow user to select Major first, then Class?
+  // Or just select Class. Class determines Major.
+  // In UI, we have "Konsentrasi Keahlian" (Major) dropdown.
+  // We should bind it to state.
+  // Let's add 'major_id' or 'major_code' to state handling if we want to filter classes.
+  
+  // Implementation choice:
+  // Prioritize Class selection. Major is derived or can be filtered.
+  // Let's allow selecting Major to filter Class options.
+
+  // ==================== RENDER UI ====================
+  if (loading || !siswaData) {
     return (
       <AdminLayout
         pageTitle="Detail Siswa"
@@ -341,24 +253,22 @@ export default function DetailSiswa({
         onMenuClick={onMenuClick}
         user={user}
         onLogout={onLogout}
+        hideBackground={false}
       >
         <div style={{
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: '400px',
-          color: '#6B7280',
+          color: 'white', // Changed to white for dark theme
           fontSize: '18px',
         }}>
-          Loading data siswa...
+          {loading ? 'Loading data siswa...' : (errorLocal || 'Data tidak ditemukan')}
         </div>
       </AdminLayout>
     );
   }
 
-  const tahunOptions = generateTahunOptions();
-
-  // ==================== RENDER UI ====================
   return (
     <AdminLayout
       pageTitle="Detail Siswa"
@@ -442,7 +352,7 @@ export default function DetailSiswa({
                       marginBottom: '4px',
                     }}
                   >
-                    {siswaData.namaSiswa}
+                    {siswaData.name}
                   </h2>
                   <p
                     style={{
@@ -579,17 +489,17 @@ export default function DetailSiswa({
                   </label>
                   <input
                     type="text"
-                    value={siswaData.namaSiswa}
+                    value={siswaData.name}
                     onChange={(e) => {
-                      handleFieldChange('namaSiswa', e.target.value);
-                      validateField('namaSiswa', e.target.value);
+                      handleFieldChange('name', e.target.value);
+                      validateField('name', e.target.value);
                     }}
                     disabled={!isEditMode}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
                       borderRadius: '8px',
-                      border: formErrors.namaSiswa ? '2px solid #EF4444' : '1px solid #E5E7EB',
+                      border: formErrors.name ? '2px solid #EF4444' : '1px solid #E5E7EB',
                       fontSize: '14px',
                       backgroundColor: '#FFFFFF',
                       color: '#1F2937',
@@ -598,9 +508,9 @@ export default function DetailSiswa({
                       boxSizing: 'border-box',
                     }}
                   />
-                  {formErrors.namaSiswa && isEditMode && (
+                  {formErrors.name && isEditMode && (
                     <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>
-                      {formErrors.namaSiswa}
+                      {formErrors.name}
                     </p>
                   )}
                 </div>
@@ -658,8 +568,8 @@ export default function DetailSiswa({
                     Jenis Kelamin
                   </label>
                   <select
-                    value={siswaData.jenisKelamin}
-                    onChange={(e) => handleFieldChange('jenisKelamin', e.target.value)}
+                    value={siswaData.gender}
+                    onChange={(e) => handleFieldChange('gender', e.target.value as 'L' | 'P')}
                     disabled={!isEditMode}
                     style={{
                       width: '100%',
@@ -674,15 +584,54 @@ export default function DetailSiswa({
                       boxSizing: 'border-box',
                     }}
                   >
-                    {jenisKelaminOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                    <option value="L">Laki-Laki</option>
+                    <option value="P">Perempuan</option>
                   </select>
                 </div>
 
-                {/* Konsentrasi Keahlian */}
+                {/* Kelas */}
+                <div>
+                  <label style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#FFFFFF',
+                    display: 'block',
+                    marginBottom: '8px',
+                  }}>
+                    Kelas
+                  </label>
+                  <select
+                    value={siswaData.class_id || ''}
+                    onChange={(e) => handleFieldChange('class_id', e.target.value)}
+                    disabled={!isEditMode}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      border: formErrors.class_id ? '2px solid #EF4444' : '1px solid #E5E7EB',
+                      fontSize: '14px',
+                      backgroundColor: '#FFFFFF',
+                      color: '#1F2937',
+                      outline: 'none',
+                      cursor: isEditMode ? 'pointer' : 'not-allowed',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="">Pilih Kelas</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.class_id && isEditMode && (
+                    <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>
+                      {formErrors.class_id}
+                    </p>
+                  )}
+                </div>
+
+                {/* Konsentrasi Keahlian / Major (Read-only or derived from Class) */}
                 <div>
                   <label style={{
                     fontSize: '14px',
@@ -693,32 +642,29 @@ export default function DetailSiswa({
                   }}>
                     Konsentrasi Keahlian
                   </label>
-                  <select
-                    value={siswaData.jurusanId}
-                    onChange={(e) => handleFieldChange('jurusanId', e.target.value)}
-                    disabled={!isEditMode}
+                  <input
+                    type="text"
+                    value={siswaData.major_name || '-'}
+                    disabled
                     style={{
                       width: '100%',
                       padding: '12px 16px',
                       borderRadius: '8px',
                       border: '1px solid #E5E7EB',
                       fontSize: '14px',
-                      backgroundColor: '#FFFFFF',
-                      color: '#1F2937',
+                      backgroundColor: '#F3F4F6', // Read-only look
+                      color: '#374151',
                       outline: 'none',
-                      cursor: isEditMode ? 'pointer' : 'not-allowed',
+                      cursor: 'not-allowed',
                       boxSizing: 'border-box',
                     }}
-                  >
-                    {jurusanOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '4px' }}>
+                    *Otomatis dari kelas
+                  </p>
                 </div>
 
-                {/* Tingkatan Kelas */}
+                {/* No. Telepon Orang Tua */}
                 <div>
                   <label style={{
                     fontSize: '14px',
@@ -727,51 +673,15 @@ export default function DetailSiswa({
                     display: 'block',
                     marginBottom: '8px',
                   }}>
-                    Tingkatan Kelas
-                  </label>
-                  <select
-                    value={siswaData.kelas}
-                    onChange={(e) => handleFieldChange('kelas', e.target.value)}
-                    disabled={!isEditMode}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid #E5E7EB',
-                      fontSize: '14px',
-                      backgroundColor: '#FFFFFF',
-                      color: '#1F2937',
-                      outline: 'none',
-                      cursor: isEditMode ? 'pointer' : 'not-allowed',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {kelasOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* No. Telepon */}
-                <div>
-                  <label style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#FFFFFF',
-                    display: 'block',
-                    marginBottom: '8px',
-                  }}>
-                    No. Telepon
+                    No. Telepon Orang Tua
                   </label>
                   <input
                     type="tel"
-                    value={siswaData.noTelp}
+                    value={siswaData.phone || ''}
                     onChange={(e) => {
                       const value = e.target.value.replace(/\D/g, '').slice(0, 13);
-                      handleFieldChange('noTelp', value);
-                      validateField('noTelp', value);
+                      handleFieldChange('phone', value);
+                      validateField('phone', value);
                     }}
                     disabled={!isEditMode}
                     placeholder="08xxxxxxxxxx"
@@ -780,7 +690,7 @@ export default function DetailSiswa({
                       width: '100%',
                       padding: '12px 16px',
                       borderRadius: '8px',
-                      border: formErrors.noTelp ? '2px solid #EF4444' : '1px solid #E5E7EB',
+                      border: formErrors.phone ? '2px solid #EF4444' : '1px solid #E5E7EB',
                       fontSize: '14px',
                       backgroundColor: '#FFFFFF',
                       color: '#1F2937',
@@ -789,14 +699,46 @@ export default function DetailSiswa({
                       boxSizing: 'border-box',
                     }}
                   />
-                  {formErrors.noTelp && isEditMode && (
+                  {formErrors.phone && isEditMode && (
                     <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>
-                      {formErrors.noTelp}
+                      {formErrors.phone}
                     </p>
                   )}
                 </div>
 
-                {/* ===== TAHUN ANGKATAN - SEPARATOR PUTIH TANPA KOTAK ===== */}
+                {/* Alamat */}
+                <div style={{ gridColumn: window.innerWidth >= 768 ? 'span 2' : 'span 1' }}>
+                  <label style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#FFFFFF',
+                    display: 'block',
+                    marginBottom: '8px',
+                  }}>
+                    Alamat
+                  </label>
+                  <textarea
+                    value={siswaData.address || ''}
+                    onChange={(e) => handleFieldChange('address', e.target.value)}
+                    disabled={!isEditMode}
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      border: '1px solid #E5E7EB',
+                      fontSize: '14px',
+                      backgroundColor: '#FFFFFF',
+                      color: '#1F2937',
+                      outline: 'none',
+                      cursor: isEditMode ? 'text' : 'not-allowed',
+                      boxSizing: 'border-box',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+
+                {/* Tahun Angkatan */}
                 <div>
                   <label style={{
                     fontSize: '14px',
@@ -860,7 +802,7 @@ export default function DetailSiswa({
                       )}
                     </div>
 
-                    {/* Separator - TANPA KOTAK, WARNA PUTIH */}
+                    {/* Separator */}
                     <span style={{
                       color: '#FFFFFF',
                       fontSize: '20px',
@@ -917,11 +859,6 @@ export default function DetailSiswa({
                       )}
                     </div>
                   </div>
-                  {isEditMode && parseInt(tahunMulai) >= parseInt(tahunAkhir) && (
-                    <p style={{ color: '#EF4444', fontSize: '12px', marginTop: '4px' }}>
-                      Tahun akhir harus lebih besar dari tahun mulai
-                    </p>
-                  )}
                 </div>
               </div>
 

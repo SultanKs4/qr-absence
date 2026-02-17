@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->expectsJson() ? null : route('login'));
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserType::class,
             'admin-type' => \App\Http\Middleware\EnsureAdminType::class,

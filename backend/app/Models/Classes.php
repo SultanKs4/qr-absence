@@ -14,18 +14,33 @@ class Classes extends Model
 
     protected $with = ['major']; // Eager load major by default
 
-    protected $appends = ['name'];
-
-    public function getNameAttribute(): string
-    {
-        return trim("{$this->grade} {$this->label}");
-    }
+    protected $appends = ['name', 'grade_roman'];
 
     protected $fillable = [
         'grade',
         'label',
         'major_id',
+        'schedule_image_path',
     ];
+
+    public function getNameAttribute(): string
+    {
+        return trim("{$this->grade_roman} {$this->label}");
+    }
+
+    public function getGradeRomanAttribute(): string
+    {
+        $map = [
+            '10' => 'X',
+            '11' => 'XI',
+            '12' => 'XII',
+            'X' => 'X',
+            'XI' => 'XI',
+            'XII' => 'XII',
+        ];
+
+        return $map[$this->grade] ?? $this->grade;
+    }
 
     // Siswa untuk 
     public function students(): HasMany

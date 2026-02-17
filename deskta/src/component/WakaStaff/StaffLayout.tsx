@@ -19,6 +19,7 @@ interface StaffLayoutProps {
     role: string;
   };
   onLogout: () => void;
+  pageIcon?: React.ReactNode;
 }
 
 export default function StaffLayout({
@@ -28,6 +29,7 @@ export default function StaffLayout({
   onMenuClick,
   user,
   onLogout,
+  pageIcon,
 }: StaffLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('wakaSidebarOpen');
@@ -166,6 +168,7 @@ export default function StaffLayout({
                   borderRadius: "2px",
                 }}
               />
+              {pageIcon && <div style={{ display: 'flex', alignItems: 'center', color: '#2563EB' }}>{pageIcon}</div>}
               {pageTitle}
             </h1>
             {pageTitle === "Beranda" && (

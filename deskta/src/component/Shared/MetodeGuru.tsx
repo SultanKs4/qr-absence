@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal } from '../Modal';
+import { Modal } from './Modal';
 import QRCodeIcon from '../../../assets/Icon/qr_code.png';
 
 interface MetodeGuruProps {
@@ -123,9 +123,9 @@ export function MetodeGuru({
             }}
           >
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              {/* <button
+              <button
                 type="button"
-                onClick={() => setLiveMode(!liveMode)}
+                onClick={onPilihManual}
                 style={{
                   border: "1px solid #D1D5DB",
                   background: "#FFFFFF",
@@ -142,8 +142,8 @@ export function MetodeGuru({
                   gap: 8
                 }}
               >
-                {liveMode ? "Mode: Live" : "Mode: Statics"}
-              </button> */}
+                Input Manual
+              </button>
             </div>
 
             <button

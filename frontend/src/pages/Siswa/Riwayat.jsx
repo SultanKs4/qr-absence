@@ -3,68 +3,8 @@ import { Calendar, Eye, X, ZoomIn } from 'lucide-react';
 import './Riwayat.css';
 import NavbarSiswa from '../../components/Siswa/NavbarSiswa';
 
-// ==================== API CONFIGURATION ====================
-const baseURL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
+import apiService from '../../utils/api';
 
-const API_CONFIG = {
-  BASE_URL: API_BASE_URL,
-  ENDPOINTS: {
-    PROFILE: '/student/profile',
-    ATTENDANCE_RECORDS: '/student/attendance/records',
-    ATTENDANCE_STATS: '/student/attendance/stats'
-  }
-};
-
-// ==================== API SERVICE ====================
-const apiService = {
-  async request(endpoint, options = {}) {
-    const token = localStorage.getItem('authToken');
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers
-    };
-
-    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-      ...options,
-      headers
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('authToken');
-        window.location.href = '/';
-        throw new Error('Unauthorized');
-      }
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async getProfile() {
-    return this.request(API_CONFIG.ENDPOINTS.PROFILE);
-  },
-
-  async getAttendanceRecords(studentId, startDate, endDate) {
-    const params = new URLSearchParams({
-      studentId,
-      startDate,
-      endDate
-    });
-    return this.request(`${API_CONFIG.ENDPOINTS.ATTENDANCE_RECORDS}?${params}`);
-  },
-
-  async getAttendanceStats(studentId, startDate, endDate) {
-    const params = new URLSearchParams({
-      studentId,
-      startDate,
-      endDate
-    });
-    return this.request(`${API_CONFIG.ENDPOINTS.ATTENDANCE_STATS}?${params}`);
-  }
-};
 
 // ==================== UTILITY FUNCTIONS ====================
 const getStatusColor = (status) => {
@@ -106,10 +46,16 @@ function Riwayat() {
     const fetchProfile = async () => {
       try {
         const profile = await apiService.getProfile();
+        console.log('Profile fetched:', profile);
+        
+        // Determine the correct student ID
+        // apiService.getProfile() returns the user object with nested student_profile
+        const studentId = profile.student_profile?.id || profile.id;
+        
         setCurrentStudent({
-          studentId: profile.studentId,
+          studentId: studentId, 
           name: profile.name,
-          nis: profile.id
+          nis: profile.profile?.nis || ''
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -134,60 +80,45 @@ function Riwayat() {
       try {
         setIsLoading(true);
         
-        // Fetch attendance records
-        const records = await apiService.getAttendanceRecords(
-          currentStudent.studentId,
-          startDate,
-          endDate
-        );
+        // Fetch attendance records from real backend
+        const records = await apiService.getAttendanceHistory({
+          start_date: startDate,
+          end_date: endDate
+        });
         
         // Format records
         const formattedRecords = records.map(record => ({
-          recordDate: record.date,
-          date: formatDisplayDate(record.date),
-          period: record.period || '',
-          subject: record.subject || '',
-          teacher: record.teacher || '',
-          status: record.status || '',
-          statusColor: getStatusColor(record.status),
+          id: record.id,
+          date: formatDisplayDate(record.created_at),
+          period: record.schedule?.period || '-',
+          subject: record.schedule?.subject?.name || '-',
+          teacher: record.schedule?.teacher?.user?.name || '-',
+          status: record.status_label || record.status,
+          statusColor: getStatusColor(record.status_label || record.status),
           reason: record.reason || null,
-          proofDocument: record.proofDocument || null,
-          proofImage: record.proofImageUrl || null,
-          studentId: record.studentId,
-          studentName: record.studentName || '',
-          nis: record.nis || ''
+          proofImage: record.proof_url || null,
+          studentName: record.student?.user?.name || '',
+          nis: record.student?.nis || ''
         }));
         
         setAttendanceRecords(formattedRecords);
         
-        // Fetch stats
-        const statsData = await apiService.getAttendanceStats(
-          currentStudent.studentId,
-          startDate,
-          endDate
-        );
+        // Fetch stats from dashboard summary (most efficient way to get summary)
+        const summaryResponse = await apiService.getStudentDashboard();
+        const summary = summaryResponse.attendance_summary || {};
         
         setStats({
-          hadir: statsData.hadir || 0,
-          terlambat: statsData.terlambat || 0,
-          izin: statsData.izin || 0,
-          sakit: statsData.sakit || 0,
-          alpha: statsData.alpha || 0,
-          pulang: statsData.pulang || 0
+          hadir: summary.present || 0,
+          terlambat: summary.late || 0,
+          izin: summary.excused || 0,
+          sakit: summary.sick || 0,
+          alpha: summary.absent || 0,
+          pulang: summary.return || 0
         });
         
       } catch (error) {
         console.error('Error fetching attendance data:', error);
-        // UI tetap dirender dengan state default
         setAttendanceRecords([]);
-        setStats({
-          hadir: 0,
-          terlambat: 0,
-          izin: 0,
-          sakit: 0,
-          alpha: 0,
-          pulang: 0
-        });
       } finally {
         setIsLoading(false);
       }
@@ -195,6 +126,7 @@ function Riwayat() {
 
     fetchAttendanceData();
   }, [currentStudent?.studentId, startDate, endDate]);
+
 
   const formatDisplayDate = (dateString) => {
     const date = new Date(dateString);
@@ -442,7 +374,7 @@ function Riwayat() {
                   
                   <div className="detail-row">
                     <span className="detail-label">Alasan:</span>
-                    <span className="detail-value">{selectedRecord.reason}</span>
+                    <span className="detail-value">{selectedRecord.reason || '-'}</span>
                   </div>
                 </>
               )}
@@ -512,7 +444,8 @@ function Riwayat() {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
+      
         @keyframes spin {
           to { transform: rotate(360deg); }
         }

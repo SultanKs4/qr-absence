@@ -54,6 +54,13 @@ class TeacherController extends Controller
             'items.*.contact' => ['nullable', 'string', 'max:50'],
             'items.*.homeroom_class_id' => ['nullable', 'exists:classes,id'],
             'items.*.subject' => ['nullable', 'string', 'max:100'],
+        ], [
+            'items.*.username.unique' => 'Username :input sudah digunakan.',
+            'items.*.email.unique' => 'Email :input sudah digunakan.',
+            'items.*.nip.unique' => 'NIP :input sudah digunakan oleh guru lain.',
+            'items.*.username.distinct' => 'Username :input duplikat dalam daftar import.',
+            'items.*.email.distinct' => 'Email :input duplikat dalam daftar import.',
+            'items.*.nip.distinct' => 'NIP :input duplikat dalam daftar import.',
         ]);
 
         $count = 0;

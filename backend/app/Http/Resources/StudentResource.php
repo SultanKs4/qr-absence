@@ -27,6 +27,15 @@ class StudentResource extends JsonResource
             'class_name' => $this->whenLoaded('classRoom', fn () => $this->classRoom->name),
             'major_id' => $this->whenLoaded('classRoom', fn () => $this->classRoom->major_id),
             'major_name' => $this->whenLoaded('classRoom', fn () => $this->classRoom->major?->name),
+            'major' => $this->whenLoaded('classRoom', fn () => $this->classRoom->major?->code),
+            'grade' => $this->whenLoaded('classRoom', function() {
+                $grades = [
+                    '10' => 'X',
+                    '11' => 'XI',
+                    '12' => 'XII'
+                ];
+                return $grades[$this->classRoom->grade] ?? $this->classRoom->grade;
+            }),
             'is_class_officer' => $this->is_class_officer,
             'photo_url' => $this->user->photo_url ?? null,
             'created_at' => $this->created_at,

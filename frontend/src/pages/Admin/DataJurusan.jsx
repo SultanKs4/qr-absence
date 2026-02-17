@@ -17,23 +17,28 @@ function DataJurusan() {
   });
   const [errors, setErrors] = useState({});
 
-  // Load data dari localStorage saat komponen mount
+  // API Configuration
+  const baseURL = import.meta.env.VITE_API_URL;
+  const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
+
   useEffect(() => {
     fetchJurusans();
   }, []);
 
-  const fetchJurusans = () => {
+  const fetchJurusans = async () => {
     try {
       setLoading(true);
-      const storedData = localStorage.getItem('dataJurusan');
-      if (storedData) {
-        setJurusans(JSON.parse(storedData));
-      } else {
-        // Data dummy awal (opsional)
-        const dummyData = [];
-        setJurusans(dummyData);
-        localStorage.setItem('dataJurusan', JSON.stringify(dummyData));
-      }
+      const response = await fetch(`${API_BASE_URL}/majors?per_page=-1`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch majors');
+      const result = await response.json();
+      // Resource returns data in 'data' field or directly if per_page=-1 depending on implementation
+      // Our MajorController index returns wrapped in Resource response which has .data
+      setJurusans(result.data || result);
       setLoading(false);
     } catch (err) {
       console.error('Error loading jurusan:', err);
@@ -45,7 +50,11 @@ function DataJurusan() {
   useEffect(() => {
     if (isModalOpen) {
       if (editData) {
-        setFormData(editData);
+        setFormData({
+          id: editData.id,
+          kodeJurusan: editData.kodeJurusan || editData.code,
+          namaJurusan: editData.namaJurusan || editData.name
+        });
       } else {
         setFormData({
           kodeJurusan: '',
@@ -57,17 +66,17 @@ function DataJurusan() {
   }, [editData, isModalOpen]);
 
   const checkKodeExists = (kode) => {
-    if (editData && editData.kodeJurusan.toUpperCase() === kode.toUpperCase()) {
+    if (editData && (editData.kodeJurusan || editData.code).toUpperCase() === kode.toUpperCase()) {
       return false;
     }
-    return jurusans.some(j => j.kodeJurusan.toUpperCase() === kode.toUpperCase());
+    return jurusans.some(j => (j.kodeJurusan || j.code).toUpperCase() === kode.toUpperCase());
   };
 
   const checkNamaExists = (nama) => {
-    if (editData && editData.namaJurusan.toLowerCase() === nama.toLowerCase()) {
+    if (editData && (editData.namaJurusan || editData.name).toLowerCase() === nama.toLowerCase()) {
       return false;
     }
-    return jurusans.some(j => j.namaJurusan.toLowerCase() === nama.toLowerCase());
+    return jurusans.some(j => (j.namaJurusan || j.name).toLowerCase() === nama.toLowerCase());
   };
 
   const handleChange = (e) => {
@@ -89,8 +98,8 @@ function DataJurusan() {
 
     if (!formData.kodeJurusan.trim()) {
       newErrors.kodeJurusan = 'Kode jurusan harus diisi';
-    } else if (formData.kodeJurusan.trim().length > 5) {
-      newErrors.kodeJurusan = 'Kode jurusan maksimal 5 karakter';
+    } else if (formData.kodeJurusan.trim().length > 10) {
+      newErrors.kodeJurusan = 'Kode jurusan maksimal 10 karakter';
     } else if (checkKodeExists(formData.kodeJurusan.trim())) {
       newErrors.kodeJurusan = `Kode jurusan "${formData.kodeJurusan.toUpperCase()}" sudah terdaftar`;
     }
@@ -105,72 +114,95 @@ function DataJurusan() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleAddJurusan = () => {
+  const handleAddJurusan = async () => {
     if (!validate()) return;
 
     try {
       setSaving(true);
-      const newJurusan = {
-        id: Date.now(), // Generate ID sederhana
-        kodeJurusan: formData.kodeJurusan.trim().toUpperCase(),
-        namaJurusan: formData.namaJurusan.trim()
+      const payload = {
+        code: formData.kodeJurusan.trim().toUpperCase(),
+        name: formData.namaJurusan.trim(),
+        category: 'Umum' // Default category
       };
 
-      const updatedJurusans = [...jurusans, newJurusan];
-      setJurusans(updatedJurusans);
-      localStorage.setItem('dataJurusan', JSON.stringify(updatedJurusans));
+      const response = await fetch(`${API_BASE_URL}/majors`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
+      if (!response.ok) throw new Error('Failed to add major');
+
+      await fetchJurusans();
       setIsModalOpen(false);
       setEditData(null);
       alert('Data konsentrasi keahlian berhasil ditambahkan!');
     } catch (error) {
       console.error('Error adding jurusan:', error);
-      alert('Gagal menambahkan data. Silakan coba lagi.');
+      alert('Gagal menambahkan data. ' + error.message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEditJurusan = () => {
+  const handleEditJurusan = async () => {
     if (!validate()) return;
 
     try {
       setSaving(true);
-      const updatedJurusans = jurusans.map(j => 
-        j.id === formData.id 
-          ? {
-              ...j,
-              kodeJurusan: formData.kodeJurusan.trim().toUpperCase(),
-              namaJurusan: formData.namaJurusan.trim()
-            }
-          : j
-      );
+      const payload = {
+        code: formData.kodeJurusan.trim().toUpperCase(),
+        name: formData.namaJurusan.trim(),
+        category: editData.category || 'Umum'
+      };
 
-      setJurusans(updatedJurusans);
-      localStorage.setItem('dataJurusan', JSON.stringify(updatedJurusans));
+      const response = await fetch(`${API_BASE_URL}/majors/${formData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
+      if (!response.ok) throw new Error('Failed to update major');
+
+      await fetchJurusans();
       setEditData(null);
       setIsModalOpen(false);
       alert('Data konsentrasi keahlian berhasil diperbarui!');
     } catch (error) {
       console.error('Error updating jurusan:', error);
-      alert('Gagal memperbarui data. Silakan coba lagi.');
+      alert('Gagal memperbarui data. ' + error.message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteJurusan = (id) => {
+  const handleDeleteJurusan = async (id) => {
     if (!window.confirm('Apakah Anda yakin ingin menghapus data konsentrasi keahlian ini?')) return;
 
     try {
-      const updatedJurusans = jurusans.filter(j => j.id !== id);
-      setJurusans(updatedJurusans);
-      localStorage.setItem('dataJurusan', JSON.stringify(updatedJurusans));
+      const response = await fetch(`${API_BASE_URL}/majors/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete major');
+
+      await fetchJurusans();
       alert('Data konsentrasi keahlian berhasil dihapus!');
     } catch (error) {
       console.error('Error deleting jurusan:', error);
-      alert('Gagal menghapus data. Silakan coba lagi.');
+      alert('Gagal menghapus data. ' + error.message);
     }
   };
 
@@ -183,10 +215,12 @@ function DataJurusan() {
     }
   };
 
-  const filteredJurusans = jurusans.filter(jurusan =>
-    jurusan.namaJurusan.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    jurusan.kodeJurusan.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredJurusans = jurusans.filter(jurusan => {
+    const nama = jurusan.namaJurusan || jurusan.name || '';
+    const kode = jurusan.kodeJurusan || jurusan.code || '';
+    return nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           kode.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   const handleResetSearch = () => {
     setSearchTerm('');
@@ -346,8 +380,8 @@ function DataJurusan() {
               filteredJurusans.map((jurusan, index) => (
                 <tr key={jurusan.id}>
                   <td style={{ fontWeight: '700' }}>{index + 1}</td>
-                  <td><strong>{jurusan.kodeJurusan}</strong></td>
-                  <td>{jurusan.namaJurusan}</td>
+                  <td><strong>{jurusan.kodeJurusan || jurusan.code}</strong></td>
+                  <td>{jurusan.namaJurusan || jurusan.name}</td>
                   <td className="jurusan-aksi-cell">
                     <button
                       className="jurusan-aksi jurusan-edit"

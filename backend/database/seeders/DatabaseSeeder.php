@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             TeacherSeeder::class, // Run after to update with real names
             NewScheduleSeeder::class,
             AdminSeeder::class,
+            WakaSeeder::class,
             HomeroomTeacherSeeder::class,
             StudentSeeder::class,
             ClassOfficerSeeder::class,

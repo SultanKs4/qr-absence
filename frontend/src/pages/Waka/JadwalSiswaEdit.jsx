@@ -4,6 +4,8 @@ import './JadwalSiswaEdit.css';
 import NavbarWaka from '../../components/Waka/NavbarWaka';
 import { FaSave, FaArrowLeft, FaPlus, FaTrash } from 'react-icons/fa';
 
+import apiService from '../../utils/api';
+
 function JadwalSiswaEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -42,24 +44,15 @@ function JadwalSiswaEdit() {
 
   const fetchMasterData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      const [classRes, subjectRes, teacherRes] = await Promise.all([
-        fetch('http://localhost:8000/api/classes', { headers }),
-        fetch('http://localhost:8000/api/subjects', { headers }),
-        fetch('http://localhost:8000/api/teachers', { headers })
+      const [classData, subjectData, teacherData] = await Promise.all([
+        apiService.get('/classes'),
+        apiService.get('/subjects'),
+        apiService.get('/teachers')
       ]);
 
-      if (classRes.ok && subjectRes.ok && teacherRes.ok) {
-        const classData = await classRes.json();
-        const subjectData = await subjectRes.json();
-        const teacherData = await teacherRes.json();
-
-        setClasses(classData.data || classData);
-        setSubjects(subjectData.data || subjectData);
-        setTeachers(teacherData.data || teacherData);
-      }
+      setClasses(classData.data || classData);
+      setSubjects(subjectData.data || subjectData);
+      setTeachers(teacherData.data || teacherData);
     } catch (error) {
       console.error('Error fetching master data:', error);
     } finally {
@@ -70,43 +63,32 @@ function JadwalSiswaEdit() {
   const fetchExistingSchedule = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/schedules/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const data = await apiService.get(`/schedules/${id}`);
+
+      setHeaderData({
+        class_id: data.class_id,
+        year: data.year,
+        semester: data.semester,
+        is_active: data.is_active,
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      // Map existing daily schedules and items
+      const mappedDays = data.daily_schedules.map(day => ({
+        day: day.day,
+        items: day.schedule_items.map(item => ({
+          subject_id: item.subject_id,
+          teacher_id: item.teacher_id,
+          start_time: item.start_time?.substring(0, 5), // HH:mm
+          end_time: item.end_time?.substring(0, 5),
+          room: item.room || ''
+        }))
+      }));
 
-        setHeaderData({
-          class_id: data.class_id,
-          year: data.year,
-          semester: data.semester,
-          is_active: data.is_active,
-        });
-
-        // Map existing daily schedules and items
-        const mappedDays = data.daily_schedules.map(day => ({
-          day: day.day,
-          items: day.schedule_items.map(item => ({
-            subject_id: item.subject_id,
-            teacher_id: item.teacher_id,
-            start_time: item.start_time?.substring(0, 5), // HH:mm
-            end_time: item.end_time?.substring(0, 5),
-            room: item.room || ''
-          }))
-        }));
-
-        setDays(mappedDays);
-
-      } else {
-        alert('Gagal memuat data jadwal');
-        navigate('/waka/jadwal-siswa');
-      }
+      setDays(mappedDays);
     } catch (error) {
       console.error('Error fetching schedule:', error);
+      alert('Gagal memuat data jadwal');
+      navigate('/waka/jadwal-siswa');
     } finally {
       setLoading(false);
     }
@@ -171,38 +153,20 @@ function JadwalSiswaEdit() {
     setLoading(true);
 
     const payload = {
-      ...headerData,
+      year: headerData.year,
+      semester: headerData.semester,
+      is_active: headerData.is_active,
       days: days
     };
 
     try {
-      const token = localStorage.getItem('token');
-      const url = isEditMode
-        ? `http://localhost:8000/api/schedules/${id}`
-        : 'http://localhost:8000/api/schedules';
-
-      const method = isEditMode ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.ok) {
-        alert(`Jadwal berhasil ${isEditMode ? 'diperbarui' : 'dibuat'}`);
-        navigate('/waka/jadwal-siswa');
-      } else {
-        const errorData = await response.json();
-        console.error('Submission error:', errorData);
-        alert('Gagal menyimpan jadwal: ' + (errorData.message || 'Validation error'));
-      }
+      // Use the new bulkUpsert endpoint for consistent logic
+      await apiService.post(`/classes/${headerData.class_id}/schedules/bulk`, payload);
+      alert(`Jadwal berhasil ${isEditMode ? 'diperbarui' : 'dibuat'}`);
+      navigate('/waka/jadwal-siswa');
     } catch (error) {
       console.error('Error submitting schedule:', error);
-      alert('Terjadi kesalahan koneksi');
+      alert('Gagal menyimpan jadwal: ' + error.message);
     } finally {
       setLoading(false);
     }

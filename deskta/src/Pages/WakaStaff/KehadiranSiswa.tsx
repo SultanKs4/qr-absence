@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import StaffLayout from "../../component/WakaStaff/StaffLayout";
 import { Table } from "../../component/Shared/Table";
+import { masterService, type Major } from "../../services/masterService";
 
 interface KelasRow {
   id: string;
-  tingkat: "10" | "11" | "12";
+  tingkat: string;
   namaKelas: string;
   namaJurusan: string;
   waliKelas: string;
@@ -18,19 +19,6 @@ interface KehadiranSiswaProps {
   onNavigateToDetail?: (kelasId: string, kelasData: KelasRow) => void;
 }
 
-const JURUSAN_LIST = [
-  "Mekatronika",
-  "Rekayasa Perangkat Lunak",
-  "Animasi",
-  "Broadcasting",
-  "Elektronika Industri",
-  "Teknik Komputer dan Jaringan",
-  "Audio Video",
-  "Desain Komunikasi Visual",
-];
-
-const KELAS_LIST = ["10", "11", "12"];
-
 export default function KehadiranSiswa({
   user,
   onLogout,
@@ -41,30 +29,67 @@ export default function KehadiranSiswa({
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [selectedJurusan, setSelectedJurusan] = useState("");
   const [selectedKelas, setSelectedKelas] = useState("");
-
-  // Dummy data (disesuaikan dengan gambar)
-  const [kelasData] = useState<KelasRow[]>([
-    {
-      id: "1",
-      tingkat: "12",
-      namaKelas: "12 RPL 1",
-      namaJurusan: "Rekayasa Perangkat Lunak",
-      waliKelas: "RR. HENNING GRATYANIS ANGGRAENI, S.Pd",
-    },
-    {
-      id: "2",
-      tingkat: "12",
-      namaKelas: "12 RPL 2",
-      namaJurusan: "Rekayasa Perangkat Lunak",
-      waliKelas: "TRIANA ARDIANI, S.Pd",
-    },
-  ]);
+  
+  const [kelasData, setKelasData] = useState<KelasRow[]>([]);
+  const [jurusanList, setJurusanList] = useState<string[]>([]);
+  const [kelasList, setKelasList] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
+    
+    fetchData();
+    
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+        const [majorsResponse, classesResponse] = await Promise.all([
+            masterService.getMajors(),
+            masterService.getClasses()
+        ]);
+
+        const majors: Major[] = majorsResponse.data || [];
+        const classes: any[] = classesResponse.data || [];
+
+        // Set Majors List
+        setJurusanList(majors.map(m => m.name));
+
+        // Map Classes
+        const rows: KelasRow[] = classes.map((c: any) => {
+            // Determine grade for filtering (e.g., "10", "11", "12")
+            // Backend might return "X", "10", etc.
+            // We'll trust c.grade for now
+            // If backend returns Roman, verify mapping.
+            // Assuming grade is "10", "11", "12" based on previous analysis of Model.
+            // But Model accessor 'grade_roman' returns Roman.
+            // Let's check c.grade raw value. 
+            // Actually ClassResource returns grade: $this->grade.
+            
+            return {
+                id: String(c.id),
+                tingkat: String(c.grade), 
+                namaKelas: c.class_name || c.name, // ClassResource returns 'class_name' which is "X RPL 1"
+                namaJurusan: c.major_name || "-",
+                waliKelas: c.homeroom_teacher_name || "Belum ditentukan"
+            };
+        });
+
+        setKelasData(rows);
+
+        // Derive unique grades for filter
+        const uniqueGrades = Array.from(new Set(rows.map(r => r.tingkat))).sort();
+        setKelasList(uniqueGrades);
+
+    } catch (error) {
+        console.error("Failed to fetch data:", error);
+    } finally {
+        setLoading(false);
+    }
+  };
 
   // Filter data sesuai jurusan & kelas
   const filteredData = useMemo(() => {
@@ -136,7 +161,7 @@ export default function KehadiranSiswa({
               }}
             >
               <option value="">Semua Konsentrasi Keahlian</option>
-              {JURUSAN_LIST.map((jurusan) => (
+              {jurusanList.map((jurusan) => (
                 <option key={jurusan} value={jurusan}>
                   {jurusan}
                 </option>
@@ -155,7 +180,7 @@ export default function KehadiranSiswa({
               }}
             >
               <option value="">Semua Tingkat Kelas</option>
-              {KELAS_LIST.map((kelas) => (
+              {kelasList.map((kelas) => (
                 <option key={kelas} value={kelas}>
                   {kelas}
                 </option>
@@ -165,13 +190,17 @@ export default function KehadiranSiswa({
         </div>
 
         {/* Tabel */}
-        <Table
-          columns={columns}
-          data={filteredData}
-          onView={handleViewDetail}
-          keyField="id"
-          emptyMessage="Belum ada data kelas."
-        />
+        {loading ? (
+             <div style={{ padding: "20px", textAlign: "center", color: "#6B7280" }}>Memuat data kelas...</div>
+        ) : (
+            <Table
+            columns={columns}
+            data={filteredData}
+            onView={handleViewDetail}
+            keyField="id"
+            emptyMessage="Belum ada data kelas."
+            />
+        )}
       </div>
     </StaffLayout>
   );

@@ -1,21 +1,15 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import AdminLayout from "../../component/Admin/AdminLayout";
 import { Button } from "../../component/Shared/Button";
 import AWANKIRI from "../../assets/Icon/AWANKIRI.png";
 import AwanBawahkanan from "../../assets/Icon/AwanBawahkanan.png";
 import { MoreVertical, Edit, Trash2, X } from "lucide-react";
+import { masterService, type ClassRoom, type Major } from "../../services/masterService";
+import { teacherService, type Teacher } from "../../services/teacherService";
 
 interface User {
   role: string;
   name: string;
-}
-
-interface Kelas {
-  id: string;
-  konsentrasiKeahlian: string;
-  tingkatKelas: string;
-  namaKelas: string;
-  waliKelas: string;
 }
 
 interface KelasAdminProps {
@@ -25,54 +19,12 @@ interface KelasAdminProps {
   onMenuClick: (page: string) => void;
 }
 
-// TODO: BACKEND - Ganti dengan fetch dari API
-const semuaGuru = [
-  { nama: "SLAMET RIADI, S.Pd" },
-  { nama: "MOCHAMAD BACHRUDIN, S.Pd" },
-  { nama: "SOLIKAH,S.Pd" },
-  { nama: "Hj. TITIK MARIYATI, S.Pd" },
-  { nama: "Drs. MOCHAMMAD IQBAL IVAN MAS'UDY" },
-  { nama: "Dra. SITI MUZAYYANAH" },
-  { nama: "DYAH AYU KOMALA, ST" },
-  { nama: "TRIANA ARDIANI, S.Pd" },
-  { nama: "DIANA FARIDA, S.Si" },
-  { nama: "WIWIN WINANGSIH, S.Pd,M.Pd" },
-  { nama: "SITTI HADIJAH, S.Pd" },
-  { nama: "FAJAR NINGTYAS, S.Pd" },
-  { nama: "ZULKIFLI ABDILLAH, S.Kom" },
-  { nama: "HERMAWAN, ST,M.Pd" },
-  { nama: "ANWAR, S.Kom" },
-  { nama: "ALIFAH DIANTEBES AINDRA, S.Pd" },
-];
-
-// TODO: BACKEND - Ganti dengan fetch dari API
-const initialKelasData: Kelas[] = [
-  { id: "1", konsentrasiKeahlian: "Rekayasa Perangkat Lunak", tingkatKelas: "12", namaKelas: "Rekayasa Perangkat Lunak 2", waliKelas: "TRIANA ARDIANI, S.Pd" },
-  { id: "2", konsentrasiKeahlian: "Animasi", tingkatKelas: "12", namaKelas: "Rekayasa Perangkat Lunak 1", waliKelas: "RR. HENNING GRATYANIS ANGGRAENI, S.Pd" },
-  { id: "3", konsentrasiKeahlian: "Teknik Komputer dan Jaringan", tingkatKelas: "12", namaKelas: "Teknik Komputer dan Jaringan 1", waliKelas: "MOHAMMAD JUZKI ARIF, M.Pd" },
-  { id: "4", konsentrasiKeahlian: "Desain Komunikasi Visual", tingkatKelas: "12", namaKelas: "Desain Komunikasi Visual 1", waliKelas: "ADHI BAGUS PERMANA, S.Pd" },
-];
-
-const konsentrasiKeahlianOptions = [
-  "Semua Konsentrasi Keahlian",
-  "Rekayasa Perangkat Lunak",
-  "Teknik Komputer dan Jaringan",
-  "Desain Komunikasi Visual",
-  "Animasi",
-];
-
+/* ===================== DUMMY DATA REMOVED ===================== */
 const tingkatKelasOptions = [
   "Semua Tingkat",
   "10",
   "11",
   "12"
-];
-
-const jurusanList = [
-  { id: "Rekayasa Perangkat Lunak", nama: "Rekayasa Perangkat Lunak" },
-  { id: "Teknik Komputer dan Jaringan", nama: "Teknik Komputer dan Jaringan" },
-  { id: "Desain Komunikasi Visual", nama: "Desain Komunikasi Visual" },
-  { id: "Animasi", nama: "Animasi" },
 ];
 
 export default function KelasAdmin({
@@ -82,9 +34,12 @@ export default function KelasAdmin({
   onMenuClick,
 }: KelasAdminProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [kelasList, setKelasList] = useState<Kelas[]>(initialKelasData);
-  const [editingKelas, setEditingKelas] = useState<Kelas | null>(null);
-  const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [kelasList, setKelasList] = useState<ClassRoom[]>([]);
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingKelas, setEditingKelas] = useState<ClassRoom | null>(null);
+  const [openActionId, setOpenActionId] = useState<number | null>(null);
   const [selectedKonsentrasi, setSelectedKonsentrasi] = useState("Semua Konsentrasi Keahlian");
   const [selectedTingkat, setSelectedTingkat] = useState("Semua Tingkat");
   const [validationError, setValidationError] = useState<string>("");
@@ -92,96 +47,121 @@ export default function KelasAdmin({
   
   // Form state
   const [formData, setFormData] = useState({
-    namaKelas: "",
-    jurusanId: "",
-    kelasId: "",
-    waliKelas: "",
+    label: "",
+    major_id: "",
+    grade: "",
+    homeroom_teacher_id: "",
   });
 
-  // Daftar wali kelas yang sudah digunakan
-  const usedWaliKelas = useMemo(() => {
-    const waliKelasSet = new Set<string>();
-    kelasList.forEach(kelas => {
-      waliKelasSet.add(kelas.waliKelas);
-    });
-    return Array.from(waliKelasSet);
+  /* ===================== FETCH DATA ===================== */
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    setIsLoading(true);
+    try {
+      const [dataClasses, dataMajors, dataTeachers] = await Promise.all([
+        masterService.getClasses(),
+        masterService.getMajors(),
+        teacherService.getTeachers()
+      ]);
+      setKelasList(dataClasses);
+      setMajors(dataMajors);
+      setTeachers(dataTeachers);
+    } catch (error) {
+      console.error("Failed to fetch initial data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Daftar wali kelas yang sudah digunakan (ID nya)
+  const usedWaliKelasIds = useMemo(() => {
+    return new Set(kelasList.map(k => k.homeroom_teacher_id).filter(Boolean));
   }, [kelasList]);
 
   // Wali kelas yang TERSEDIA untuk mode TAMBAH (yang belum dipakai)
-  const availableWaliKelas = useMemo(() => {
-    return semuaGuru.filter(guru => !usedWaliKelas.includes(guru.nama));
-  }, [usedWaliKelas]);
+  const availableTeachers = useMemo(() => {
+    return teachers.filter(t => !usedWaliKelasIds.has(Number(t.id)));
+  }, [teachers, usedWaliKelasIds]);
 
   // Wali kelas yang TERSEDIA untuk mode EDIT
-  const availableWaliKelasForEdit = useMemo(() => {
-    if (!editingKelas) return availableWaliKelas;
-    
-    const currentWaliKelas = semuaGuru.find(guru => guru.nama === editingKelas.waliKelas);
-    if (currentWaliKelas && !availableWaliKelas.find(g => g.nama === currentWaliKelas.nama)) {
-      return [...availableWaliKelas, currentWaliKelas];
+  const availableTeachersForEdit = useMemo(() => {
+    if (!editingKelas) return availableTeachers;
+    const currentTeacher = teachers.find(t => t.namaGuru === editingKelas.homeroom_teacher_name);
+    if (currentTeacher && !availableTeachers.find(t => Number(t.id) === Number(currentTeacher.id))) {
+      return [...availableTeachers, currentTeacher];
     }
-    return availableWaliKelas;
-  }, [availableWaliKelas, editingKelas]);
+    return availableTeachers;
+  }, [availableTeachers, editingKelas, teachers]);
+
+  // Konsentrasi options for filter
+  const konsentrasiKeahlianOptions = useMemo(() => {
+    return ["Semua Konsentrasi Keahlian", ...majors.map(m => m.name)];
+  }, [majors]);
 
   // Statistik
   const stats = useMemo(() => ({
     totalKelas: kelasList.length,
-    totalGuru: semuaGuru.length,
-    totalWaliKelas: usedWaliKelas.length,
-  }), [kelasList.length, usedWaliKelas.length]);
+    totalGuru: teachers.length,
+    totalWaliKelas: usedWaliKelasIds.size,
+  }), [kelasList.length, teachers.length, usedWaliKelasIds.size]);
 
-  const validateKelasData = (data: any, isEditMode: boolean, excludeId?: string): { isValid: boolean; message: string } => {
+  /* ===================== VALIDASI ===================== */
+  const validateKelasData = (data: any, isEditMode: boolean, excludeId?: number): { isValid: boolean; message: string } => {
     setValidationError("");
 
-    const inputNamaKelas = data.namaKelas?.trim() || "";
-    const inputJurusan = data.jurusanId || "";
-    const inputTingkat = data.kelasId || "";
-    const inputWaliKelas = data.waliKelas || "";
+    const inputLabel = data.label?.trim() || "";
+    const inputMajorId = data.major_id || "";
+    const inputGrade = data.grade || "";
+    const inputTeacherId = data.homeroom_teacher_id || "";
 
-    if (!inputNamaKelas) {
-      return { isValid: false, message: "Nama kelas harus diisi!" };
+    if (!inputLabel) {
+      return { isValid: false, message: "Label kelas harus diisi!" };
     }
 
-    if (!inputJurusan) {
+    if (!inputMajorId) {
       return { isValid: false, message: "Konsentrasi keahlian harus dipilih!" };
     }
 
-    if (!inputTingkat) {
+    if (!inputGrade) {
       return { isValid: false, message: "Tingkat kelas harus dipilih!" };
     }
 
-    if (!inputWaliKelas) {
+    if (!inputTeacherId) {
       return { isValid: false, message: "Wali kelas harus dipilih!" };
     }
 
     const duplicateCombination = kelasList.find((k) => {
       if (isEditMode && k.id === excludeId) return false;
       
-      const kelasNama = k.namaKelas.trim().toLowerCase();
-      const kelasJurusan = k.konsentrasiKeahlian;
-      const kelasTingkat = k.tingkatKelas;
+      const kelasLabel = k.label.trim().toLowerCase();
+      const kelasMajorId = k.major_id.toString();
+      const kelasGrade = k.grade;
       
-      return kelasJurusan === inputJurusan && 
-             kelasTingkat === inputTingkat && 
-             kelasNama === inputNamaKelas.toLowerCase();
+      return kelasMajorId === inputMajorId && 
+             kelasGrade === inputGrade && 
+             kelasLabel === inputLabel.toLowerCase();
     });
 
     if (duplicateCombination) {
       return {
         isValid: false,
-        message: `Kelas "${inputNamaKelas}" untuk ${inputJurusan} tingkat ${inputTingkat} sudah ada!`
+        message: `Kelas "${inputLabel}" untuk konsentrasi tersebut tingkat ${inputGrade} sudah ada!`
       };
     }
 
     const duplicateWaliKelas = kelasList.find((k) => {
       if (isEditMode && k.id === excludeId) return false;
-      return k.waliKelas === inputWaliKelas;
+      return k.homeroom_teacher_id?.toString() === inputTeacherId;
     });
 
     if (duplicateWaliKelas) {
+      const teacherName = teachers.find(t => t.id.toString() === inputTeacherId)?.namaGuru || "Guru";
       return {
         isValid: false,
-        message: `Wali kelas "${inputWaliKelas}" sudah mengajar kelas lain!`
+        message: `Wali kelas "${teacherName}" sudah mengajar kelas lain!`
       };
     }
 
@@ -191,20 +171,26 @@ export default function KelasAdmin({
   const filteredData = kelasList.filter((k) => {
     const konsentrasiMatch = 
       selectedKonsentrasi === "Semua Konsentrasi Keahlian" || 
-      k.konsentrasiKeahlian === selectedKonsentrasi;
+      k.major_name === selectedKonsentrasi;
     
     const tingkatMatch = 
       selectedTingkat === "Semua Tingkat" || 
-      k.tingkatKelas === selectedTingkat;
+      k.grade === selectedTingkat;
     
     return konsentrasiMatch && tingkatMatch;
   });
 
-  const handleDelete = (row: Kelas) => {
-    if (confirm(`Hapus kelas "${row.namaKelas}"?`)) {
-      setKelasList((prev) => prev.filter((k) => k.id !== row.id));
-      setOpenActionId(null);
-      setValidationError("");
+  const handleDelete = async (row: ClassRoom) => {
+    if (confirm(`Hapus kelas "${row.name}"?`)) {
+      try {
+        await masterService.deleteClass(row.id);
+        setKelasList((prev) => prev.filter((k) => k.id !== row.id));
+        setOpenActionId(null);
+        setValidationError("");
+      } catch (error) {
+        console.error("Failed to delete class:", error);
+        alert("Gagal menghapus kelas.");
+      }
     }
   };
 
@@ -224,61 +210,54 @@ export default function KelasAdmin({
       return;
     }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    if (editingKelas) {
-      setKelasList((prev) =>
-        prev.map((k) =>
-          k.id === editingKelas.id
-            ? { 
-                ...k,
-                namaKelas: formData.namaKelas.trim(),
-                konsentrasiKeahlian: formData.jurusanId,
-                tingkatKelas: formData.kelasId,
-                waliKelas: formData.waliKelas
-              }
-            : k
-        )
-      );
-      alert("✓ Kelas berhasil diperbarui!");
-    } else {
-      const newId = `kelas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      setKelasList((prev) => [
-        ...prev,
-        {
-          id: newId,
-          namaKelas: formData.namaKelas.trim(),
-          konsentrasiKeahlian: formData.jurusanId,
-          tingkatKelas: formData.kelasId,
-          waliKelas: formData.waliKelas,
-        },
-      ]);
-      alert("✓ Kelas berhasil ditambahkan!");
+    try {
+      if (editingKelas) {
+        const updated = await masterService.updateClass(editingKelas.id, {
+          label: formData.label,
+          major_id: parseInt(formData.major_id),
+          grade: formData.grade,
+          homeroom_teacher_id: parseInt(formData.homeroom_teacher_id)
+        });
+        setKelasList(prev => prev.map(k => k.id === editingKelas.id ? updated : k));
+        alert("✓ Kelas berhasil diperbarui!");
+      } else {
+        const newClass = await masterService.addClass({
+          label: formData.label,
+          major_id: parseInt(formData.major_id),
+          grade: formData.grade,
+          homeroom_teacher_id: parseInt(formData.homeroom_teacher_id)
+        });
+        setKelasList(prev => [...prev, newClass]);
+        alert("✓ Kelas berhasil ditambahkan!");
+      }
+      handleCloseModal();
+    } catch (error) {
+      console.error("Failed to save class:", error);
+      setValidationError("Gagal menyimpan data kelas. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    handleCloseModal();
   };
 
   const handleOpenModal = () => {
     setEditingKelas(null);
     setFormData({
-      namaKelas: "",
-      jurusanId: "",
-      kelasId: "",
-      waliKelas: "",
+      label: "",
+      major_id: "",
+      grade: "",
+      homeroom_teacher_id: "",
     });
     setValidationError("");
     setIsModalOpen(true);
   };
 
-  const handleEditModal = (kelas: Kelas) => {
+  const handleEditModal = (kelas: ClassRoom) => {
     setEditingKelas(kelas);
     setFormData({
-      namaKelas: kelas.namaKelas,
-      jurusanId: kelas.konsentrasiKeahlian,
-      kelasId: kelas.tingkatKelas,
-      waliKelas: kelas.waliKelas,
+      label: kelas.label,
+      major_id: kelas.major_id.toString(),
+      grade: kelas.grade,
+      homeroom_teacher_id: kelas.homeroom_teacher_id?.toString() || "",
     });
     setValidationError("");
     setOpenActionId(null);
@@ -289,10 +268,10 @@ export default function KelasAdmin({
     setIsModalOpen(false);
     setEditingKelas(null);
     setFormData({
-      namaKelas: "",
-      jurusanId: "",
-      kelasId: "",
-      waliKelas: "",
+      label: "",
+      major_id: "",
+      grade: "",
+      homeroom_teacher_id: "",
     });
     setValidationError("");
     setIsSubmitting(false);
@@ -459,7 +438,19 @@ export default function KelasAdmin({
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((row, index) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                    Memuat data...
+                  </td>
+                </tr>
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                    Tidak ada data ditemukan
+                  </td>
+                </tr>
+              ) : filteredData.map((row, index) => (
                 <tr key={row.id} style={{
                   borderBottom: '1px solid #E5E7EB',
                   backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
@@ -484,28 +475,28 @@ export default function KelasAdmin({
                     color: '#374151',
                     textAlign: 'center',
                     borderRight: '1px solid #E5E7EB',
-                  }}>{row.konsentrasiKeahlian}</td>
+                  }}>{row.major_name || "-"}</td>
                   <td style={{
                     padding: '12px 16px',
                     fontSize: '13px',
                     color: '#374151',
                     textAlign: 'center',
                     borderRight: '1px solid #E5E7EB',
-                  }}>{row.tingkatKelas}</td>
+                  }}>{row.grade}</td>
                   <td style={{
                     padding: '12px 16px',
                     fontSize: '13px',
                     color: '#374151',
                     textAlign: 'center',
                     borderRight: '1px solid #E5E7EB',
-                  }}>{row.namaKelas}</td>
+                  }}>{row.name}</td>
                   <td style={{
                     padding: '12px 16px',
                     fontSize: '13px',
                     color: '#374151',
                     textAlign: 'center',
                     borderRight: '1px solid #E5E7EB',
-                  }}>{row.waliKelas}</td>
+                  }}>{row.homeroom_teacher_name || "-"}</td>
                   <td style={{
                     padding: '12px 16px',
                     fontSize: '13px',
@@ -675,9 +666,10 @@ export default function KelasAdmin({
                 </label>
                 <input
                   type="text"
-                  value={formData.namaKelas}
-                  onChange={(e) => setFormData({...formData, namaKelas: e.target.value})}
-                  placeholder="Masukkan nama kelas"
+                  name="label"
+                  value={formData.label}
+                  onChange={(e) => setFormData({...formData, label: e.target.value})}
+                  placeholder="Contoh: A, B, atau 1, 2"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -722,8 +714,8 @@ export default function KelasAdmin({
                   }}>*</span>
                 </label>
                 <select
-                  value={formData.jurusanId}
-                  onChange={(e) => setFormData({...formData, jurusanId: e.target.value})}
+                  value={formData.major_id}
+                  onChange={(e) => setFormData({...formData, major_id: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -749,8 +741,8 @@ export default function KelasAdmin({
                   }}
                 >
                   <option value="">Pilih Konsentrasi Keahlian</option>
-                  {jurusanList.map((jurusan) => (
-                    <option key={jurusan.id} value={jurusan.id}>{jurusan.nama}</option>
+                  {majors.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
               </div>
@@ -774,8 +766,8 @@ export default function KelasAdmin({
                   }}>*</span>
                 </label>
                 <select
-                  value={formData.kelasId}
-                  onChange={(e) => setFormData({...formData, kelasId: e.target.value})}
+                  value={formData.grade}
+                  onChange={(e) => setFormData({...formData, grade: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -826,8 +818,8 @@ export default function KelasAdmin({
                   }}>*</span>
                 </label>
                 <select
-                  value={formData.waliKelas}
-                  onChange={(e) => setFormData({...formData, waliKelas: e.target.value})}
+                  value={formData.homeroom_teacher_id}
+                  onChange={(e) => setFormData({...formData, homeroom_teacher_id: e.target.value})}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -853,8 +845,8 @@ export default function KelasAdmin({
                   }}
                 >
                   <option value="">Pilih Wali Kelas</option>
-                  {(editingKelas ? availableWaliKelasForEdit : availableWaliKelas).map((guru) => (
-                    <option key={guru.nama} value={guru.nama}>{guru.nama}</option>
+                  {(editingKelas ? availableTeachersForEdit : availableTeachers).map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>{teacher.namaGuru}</option>
                   ))}
                 </select>
               </div>

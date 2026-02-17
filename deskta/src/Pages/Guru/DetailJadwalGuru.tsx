@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
+import { scheduleService } from "../../services/scheduleService";
 import GuruLayout from "../../component/Guru/GuruLayout";
-import BookIcon from "../../assets/Icon/open-book.png";
-import ClockIcon from "../../assets/Icon/clock.png";
+
 
 interface DataJadwalGuruProps {
   user: { name: string; role: string };
@@ -37,27 +37,21 @@ export default function DetailJadwalGuru({
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:8000/api/me/schedules", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const items = data.items || [];
+      const response = await scheduleService.getMySchedule();
+      const items = response.items || [];
 
-        const mappedItems = items.map((item: any) => ({
-          id: item.id.toString(),
-          subject: item.subject,
-          className: item.class,
-          active: true, // Assuming active if returned
-          jam: `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
-          room: item.room || "-",
-          day: item.day,
-          start_time: item.start_time
-        }));
+      const mappedItems = items.map((item: any) => ({
+        id: item.id.toString(),
+        subject: item.subject,
+        className: item.class,
+        active: true, // Assuming active if returned
+        jam: `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
+        room: item.room || "-",
+        day: item.day,
+        start_time: item.start_time
+      }));
 
-        setSchedules(mappedItems);
-      }
+      setSchedules(mappedItems);
     } catch (error) {
       console.error("Error fetching schedules:", error);
     } finally {

@@ -3,70 +3,7 @@ import { Calendar, ChevronDown, Eye, X, Users, ZoomIn } from 'lucide-react';
 import NavbarPengurus from "../../components/PengurusKelas/NavbarPengurus";
 import './RiwayatKelas.css';
 
-// ==================== API CONFIGURATION ====================
-const baseURL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
-
-const API_CONFIG = {
-  BASE_URL: API_BASE_URL,
-  ENDPOINTS: {
-    STUDENTS: '/class/students',
-    ATTENDANCE_RECORDS: '/class/attendance/records',
-    ATTENDANCE_STATS: '/class/attendance/stats'
-  }
-};
-
-// ==================== API SERVICE ====================
-const apiService = {
-  async request(endpoint, options = {}) {
-    const token = localStorage.getItem('authToken');
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers
-    };
-
-    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-      ...options,
-      headers
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('authToken');
-        window.location.href = '/';
-        throw new Error('Unauthorized');
-      }
-      throw new Error(`API Error: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  async getStudents(classId) {
-    return this.request(`${API_CONFIG.ENDPOINTS.STUDENTS}?classId=${classId}`);
-  },
-
-  async getAttendanceRecords(classId, startDate, endDate, studentId = null) {
-    const params = new URLSearchParams({
-      classId,
-      startDate,
-      endDate,
-      ...(studentId && { studentId })
-    });
-    return this.request(`${API_CONFIG.ENDPOINTS.ATTENDANCE_RECORDS}?${params}`);
-  },
-
-  async getAttendanceStats(classId, startDate, endDate, studentId = null) {
-    const params = new URLSearchParams({
-      classId,
-      startDate,
-      endDate,
-      ...(studentId && { studentId })
-    });
-    return this.request(`${API_CONFIG.ENDPOINTS.ATTENDANCE_STATS}?${params}`);
-  }
-};
+import apiService from '../../utils/api';
 
 function Riwayat() {
   // Set default tanggal awal bulan dan hari ini
@@ -98,12 +35,14 @@ function Riwayat() {
   useEffect(() => {
     const fetchStudents = async () => {
       try {
-        const classId = localStorage.getItem('classId') || '1';
-        const students = await apiService.getStudents(classId);
-        setStudentList(students);
+        const students = await apiService.getMyClassStudents();
+        setStudentList(students.map(s => ({
+          id: s.id,
+          name: s.user?.name || '-',
+          nis: s.nis || '-'
+        })));
       } catch (error) {
         console.error('Error fetching students:', error);
-        // UI tetap dirender dengan array kosong
       }
     };
 
@@ -111,69 +50,57 @@ function Riwayat() {
     window.scrollTo(0, 0);
   }, []);
 
+
   // Fetch attendance records and stats
   useEffect(() => {
     const fetchAttendanceData = async () => {
       try {
         setIsLoading(true);
-        const classId = localStorage.getItem('classId') || '1';
         
-        // Fetch attendance records
-        const records = await apiService.getAttendanceRecords(
-          classId,
-          startDate,
-          endDate,
-          selectedStudent === 0 ? null : selectedStudent
-        );
+        // Fetch attendance records from real backend
+        const searchParams = {
+          start_date: startDate,
+          end_date: endDate
+        };
+        if (selectedStudent !== 0) {
+          searchParams.student_id = selectedStudent;
+        }
+
+        const records = await apiService.getMyClassAttendanceHistory(searchParams);
         
         // Format records
         const formattedRecords = records.map(record => ({
-          recordDate: record.date,
-          date: formatDateDisplay(record.date),
-          period: record.period || '',
-          subject: record.subject || '',
-          teacher: record.teacher || '',
-          status: record.status || '',
-          statusColor: getStatusColor(record.status),
+          id: record.id,
+          date: formatDateDisplay(record.created_at),
+          period: record.schedule?.period || '-',
+          subject: record.schedule?.subject?.name || '-',
+          teacher: record.schedule?.teacher?.user?.name || '-',
+          status: record.status_label || record.status,
+          statusColor: getStatusColor(record.status_label || record.status),
           reason: record.reason || null,
-          proofDocument: record.proofDocument || null,
-          proofImage: record.proofImageUrl || null,
-          studentId: record.studentId,
-          studentName: record.studentName || '',
-          nis: record.nis || ''
+          proofImage: record.proof_url || null,
+          studentName: record.student?.user?.name || '',
+          nis: record.student?.nis || ''
         }));
         
         setAttendanceRecords(formattedRecords);
         
-        // Fetch stats
-        const statsData = await apiService.getAttendanceStats(
-          classId,
-          startDate,
-          endDate,
-          selectedStudent === 0 ? null : selectedStudent
-        );
+        // Fetch stats from class dashboard for summary efficiency
+        const dashboardData = await apiService.getMyClassDashboard();
+        const summary = dashboardData.stats || {};
         
         setStats({
-          hadir: statsData.hadir || 0,
-          terlambat: statsData.terlambat || 0,
-          izin: statsData.izin || 0,
-          sakit: statsData.sakit || 0,
-          alpha: statsData.alpha || 0,
-          pulang: statsData.pulang || 0
+          hadir: summary.present || 0,
+          terlambat: summary.late || 0,
+          izin: summary.excused || 0,
+          sakit: summary.sick || 0,
+          alpha: summary.absent || 0,
+          pulang: summary.return || 0
         });
         
       } catch (error) {
         console.error('Error fetching attendance data:', error);
-        // UI tetap dirender dengan state default
         setAttendanceRecords([]);
-        setStats({
-          hadir: 0,
-          terlambat: 0,
-          izin: 0,
-          sakit: 0,
-          alpha: 0,
-          pulang: 0
-        });
       } finally {
         setIsLoading(false);
       }
@@ -181,6 +108,7 @@ function Riwayat() {
 
     fetchAttendanceData();
   }, [startDate, endDate, selectedStudent]);
+
 
   const getStatusColor = (status) => {
     const statusColors = {
@@ -695,7 +623,7 @@ function Riwayat() {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }

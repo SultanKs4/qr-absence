@@ -26,7 +26,10 @@ function JadwalGuruShow() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      };
 
       // Fetch Teacher Profile and Schedule Items in parallel
       const [teacherRes, scheduleRes] = await Promise.all([

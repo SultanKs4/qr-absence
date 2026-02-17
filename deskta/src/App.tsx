@@ -16,22 +16,49 @@ import DashboardWalliKelas from "./Pages/WaliKelas/DashboardWalliKelas";
 import { SmoothScroll } from "./component/Shared/SmoothScroll";
 // import { SmoothScroll } from "./Shared/SmoothScroll";
 
+import { authService } from "./services/authService";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<{
     role: string;
     name: string;
     phone: string;
+    profile?: any;
   } | null>(null);
 
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore user dari localStorage
+  // Restore user dari localStorage & Sync Profile
   useEffect(() => {
     const storedUserLocal = localStorage.getItem("currentUser");
     const storedUserSession = sessionStorage.getItem("currentUser");
     const storedRole = localStorage.getItem("selectedRole");
+    const token = localStorage.getItem("token");
+
+    const syncProfile = async (initialUser: any) => {
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const profile = await authService.me();
+        const updatedUser = {
+          role: profile.role || profile.user_type, // Prefer UI role
+          name: profile.name,
+          phone: profile.phone || "",
+          profile: profile.profile,
+        };
+        setCurrentUser(updatedUser);
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      } catch (e) {
+        console.error("Error syncing profile:", e);
+        // If sync fails, use initialUser from storage
+        setCurrentUser(initialUser);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     if (storedUserLocal) {
       try {
@@ -40,10 +67,12 @@ export default function App() {
         if (storedRole) {
           setSelectedRole(storedRole);
         }
+        syncProfile(parsedUser);
       } catch (e) {
         console.error("Error restoring user from localStorage:", e);
         localStorage.removeItem("currentUser");
         localStorage.removeItem("selectedRole");
+        setIsLoading(false);
       }
     } else if (storedUserSession) {
       try {
@@ -53,12 +82,15 @@ export default function App() {
         if (storedRole) {
           localStorage.setItem("selectedRole", storedRole);
         }
+        syncProfile(parsedUser);
       } catch (e) {
         console.error("Error restoring user from sessionStorage:", e);
         sessionStorage.removeItem("currentUser");
+        setIsLoading(false);
       }
+    } else {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const handleRoleSelect = useCallback((role: string) => {
@@ -66,8 +98,8 @@ export default function App() {
     localStorage.setItem("selectedRole", role);
   }, []);
 
-  const handleLogin = useCallback((role: string, name: string, phone: string) => {
-    const userData = { role, name, phone };
+  const handleLogin = useCallback((role: string, name: string, phone: string, profile?: any) => {
+    const userData = { role, name, phone, profile };
     setCurrentUser(userData);
     localStorage.setItem("currentUser", JSON.stringify(userData));
     sessionStorage.setItem("currentUser", JSON.stringify(userData));

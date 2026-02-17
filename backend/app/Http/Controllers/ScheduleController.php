@@ -207,4 +207,61 @@ class ScheduleController extends Controller
         
         return response()->json(['message' => 'Unauthorized'], 403);
     }
+
+    /**
+     * Bulk Upsert Schedules for a Class
+     */
+    public function bulkUpsert(Request $request, Classes $class): JsonResponse
+    {
+        $data = $request->validate([
+            'year' => 'required|string',
+            'semester' => 'required|string',
+            'is_active' => 'boolean',
+            'days' => 'required|array',
+            'days.*.day' => 'required|string',
+            'days.*.items' => 'array',
+            'days.*.items.*.subject_id' => 'required|exists:subjects,id',
+            'days.*.items.*.teacher_id' => 'required|exists:teacher_profiles,id',
+            'days.*.items.*.start_time' => 'required',
+            'days.*.items.*.end_time' => 'required',
+            'days.*.items.*.room' => 'nullable|string',
+        ]);
+
+        $schedule = DB::transaction(function () use ($class, $data) {
+            $classSchedule = ClassSchedule::updateOrCreate(
+                [
+                    'class_id' => $class->id,
+                    'year' => $data['year'],
+                    'semester' => $data['semester'],
+                ],
+                [
+                    'is_active' => $data['is_active'] ?? true,
+                ]
+            );
+
+            if ($classSchedule->is_active) {
+                ClassSchedule::where('class_id', $class->id)
+                    ->where('id', '!=', $classSchedule->id)
+                    ->update(['is_active' => false]);
+            }
+
+            $classSchedule->dailySchedules()->delete();
+
+            foreach ($data['days'] as $dayData) {
+                $dailySchedule = $classSchedule->dailySchedules()->create([
+                    'day' => $dayData['day'],
+                ]);
+
+                if (isset($dayData['items'])) {
+                    foreach ($dayData['items'] as $itemData) {
+                        $dailySchedule->scheduleItems()->create($itemData);
+                    }
+                }
+            }
+
+            return $classSchedule;
+        });
+
+        return response()->json($schedule->load(['class', 'dailySchedules.scheduleItems.subject', 'dailySchedules.scheduleItems.teacher.user']));
+    }
 }

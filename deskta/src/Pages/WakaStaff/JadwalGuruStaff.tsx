@@ -1,9 +1,10 @@
 // src/Pages/WakaStaff/JadwalGuruStaff.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StaffLayout from "../../component/WakaStaff/StaffLayout";
 import { SearchBox } from "../../component/Shared/Search";
 import { Table } from "../../component/Shared/Table";
 import { Eye, Upload } from "lucide-react";
+import { teacherService, type Teacher } from "../../services/teacherService";
 
 interface JadwalGuruStaffProps {
   user: {
@@ -22,38 +23,8 @@ interface GuruJadwal {
   namaGuru: string;
   mataPelajaran: string;
   role: string;
+  scheduleImage?: string;
 }
-
-const dummyGuruJadwal: GuruJadwal[] = [
-  {
-    id: "1",
-    kodeGuru: "0918415784",
-    namaGuru: "Alifah Diantebes Aindra S.Pd",
-    mataPelajaran: "Matematika",
-    role: "Wali Kelas",
-  },
-  {
-    id: "2",
-    kodeGuru: "1348576392",
-    namaGuru: "Budi Santoso",
-    mataPelajaran: "Bahasa Inggris",
-    role: "Staf",
-  },
-  {
-    id: "3",
-    kodeGuru: "0918415785",
-    namaGuru: "Joko Widodo",
-    mataPelajaran: "Fisika",
-    role: "Wali Kelas",
-  },
-  {
-    id: "4",
-    kodeGuru: "1348576393",
-    namaGuru: "Siti Nurhaliza",
-    mataPelajaran: "Kimia",
-    role: "Staf",
-  },
-];
 
 export default function JadwalGuruStaff({
   user,
@@ -63,9 +34,38 @@ export default function JadwalGuruStaff({
   onselectGuru,
 }: JadwalGuruStaffProps) {
   const [searchValue, setSearchValue] = useState("");
-  const [jadwalImages, setJadwalImages] = useState<Record<string, string>>({});
+  const [guruData, setGuruData] = useState<GuruJadwal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
-  const filteredData = dummyGuruJadwal.filter(
+  useEffect(() => {
+    fetchTeachers();
+  }, []);
+
+  const fetchTeachers = async () => {
+    setLoading(true);
+    try {
+      const response = await teacherService.getTeachers({ per_page: -1 });
+      const teachers: Teacher[] = response.data || [];
+      
+      const mappedData: GuruJadwal[] = teachers.map((t) => ({
+        id: t.id,
+        kodeGuru: t.kodeGuru || "-",
+        namaGuru: t.namaGuru,
+        mataPelajaran: t.subject || t.keterangan || "-",
+        role: t.role || "Guru",
+        scheduleImage: (t as any).schedule_image_path // Cast as any because interface might not have it yet
+      }));
+
+      setGuruData(mappedData);
+    } catch (error) {
+      console.error("Failed to fetch teachers:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredData = guruData.filter(
     (item) =>
       item.kodeGuru.toLowerCase().includes(searchValue.toLowerCase()) ||
       item.namaGuru.toLowerCase().includes(searchValue.toLowerCase()) ||
@@ -78,14 +78,30 @@ export default function JadwalGuruStaff({
     input.type = "file";
     input.accept = "image/png, image/jpeg, image/jpg";
 
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
-        const imageUrl = URL.createObjectURL(file);
-        setJadwalImages((prev) => ({
-          ...prev,
-          [row.id]: imageUrl,
-        }));
+        try {
+            setUploadingId(row.id);
+            const response = await teacherService.uploadScheduleImage(row.id, file);
+            
+            // Update local state with new image URL if returned, or just refresh
+            // The response usually contains the URL or we can assume success
+            // If response has url:
+            if (response.url) {
+                 setGuruData(prev => prev.map(item => 
+                    item.id === row.id ? { ...item, scheduleImage: response.url } : item
+                 ));
+            } else {
+                fetchTeachers(); // Refresh to be sure
+            }
+            alert("Jadwal berhasil diunggah");
+        } catch (error) {
+            console.error("Upload failed", error);
+            alert("Gagal mengunggah jadwal");
+        } finally {
+            setUploadingId(null);
+        }
       }
     };
 
@@ -100,7 +116,8 @@ export default function JadwalGuruStaff({
     onMenuClick("lihat-guru", {
       namaGuru: row.namaGuru,
       noIdentitas: row.kodeGuru,
-      jadwalImage: jadwalImages[row.id],
+      jadwalImage: row.scheduleImage,
+      guruId: row.id // Pass ID for detail fetching
     });
   };
 
@@ -129,20 +146,25 @@ export default function JadwalGuruStaff({
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
+              color: "#374151"
             }}
+            title="Lihat Detail"
           >
             <Eye size={18} />
           </button>
 
           <button
             onClick={() => handleUpload(row)}
+            disabled={uploadingId === row.id}
             style={{
               background: "none",
               border: "none",
-              cursor: "pointer",
+              cursor: uploadingId === row.id ? "wait" : "pointer",
               display: "flex",
               alignItems: "center",
+              color: uploadingId === row.id ? "#9CA3AF" : "#374151"
             }}
+             title="Upload Jadwal"
           >
             <Upload size={18} />
           </button>
@@ -176,12 +198,16 @@ export default function JadwalGuruStaff({
           />
         </div>
 
-        <Table
-          columns={columns}
-          data={filteredData}
-          keyField="id"
-          emptyMessage="Belum ada data jadwal guru."
-        />
+        {loading ? (
+             <div style={{ textAlign: "center", padding: "20px", color: "#6B7280" }}>Memuat data guru...</div>
+        ) : (
+            <Table
+            columns={columns}
+            data={filteredData}
+            keyField="id"
+            emptyMessage="Belum ada data jadwal guru."
+            />
+        )}
       </div>
     </StaffLayout>
   );

@@ -16,6 +16,11 @@ use Illuminate\Support\Carbon;
  */
 class StudentLeavePermissionController extends Controller
 {
+    // for security
+    public function __construct(protected \App\Services\AttendanceService $attendanceService)
+    {
+    }
+
     /**
      * List Leave Permissions
      *
@@ -154,10 +159,10 @@ class StudentLeavePermissionController extends Controller
 
         // If full day, create attendance records
         if ($isFullDay) {
-            $this->createFullDayAttendance($student, $data['type'], $today, $data['reason'] ?? null);
+            $this->attendanceService->createFullDayAttendance($student, $data['type'], $today, $data['reason'] ?? null);
         } elseif (empty($data['end_time'])) {
             // If izin_pulang/dispensasi without end time, mark remaining schedules
-            $this->markRemainingAsIzin($student, $today, $data['start_time'], $data['reason'] ?? null);
+            $this->attendanceService->markRemainingAsIzin($student, $today, $data['start_time'], $data['reason'] ?? null);
         }
 
         return response()->json([
@@ -319,7 +324,7 @@ class StudentLeavePermissionController extends Controller
                         'nis' => $p->student->nis,
                     ],
                     'type' => $p->type,
-                    'type_label' => $this->getTypeLabel($p->type),
+                    'type_label' => $this->attendanceService->getTypeLabel($p->type),
                     'start_time' => Carbon::parse($p->start_time)->format('H:i'),
                     'end_time' => $p->end_time ? Carbon::parse($p->end_time)->format('H:i') : null,
                     'is_full_day' => $p->is_full_day,
@@ -392,57 +397,6 @@ class StudentLeavePermissionController extends Controller
         }
     }
 
-    private function createFullDayAttendance(StudentProfile $student, string $status, string $date, ?string $reason): void
-    {
-        $dayName = Carbon::parse($date)->format('l');
-
-        $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', $dayName)
-            ->get();
-
-        foreach ($schedules as $schedule) {
-            \App\Models\Attendance::updateOrCreate(
-                [
-                    'student_id' => $student->id,
-                    'schedule_id' => $schedule->id,
-                    'attendee_type' => 'student',
-                ],
-                [
-                    'date' => $date,
-                    'status' => $status,
-                    'reason' => $reason,
-                    'source' => 'manual',
-                ]
-            );
-        }
-    }
-
-    private function markRemainingAsIzin(StudentProfile $student, string $date, string $fromTime, string $reason): void
-    {
-        $dayName = Carbon::parse($date)->format('l');
-
-        $schedules = Schedule::where('class_id', $student->class_id)
-            ->where('day', $dayName)
-            ->where('start_time', '>=', $fromTime)
-            ->get();
-
-        foreach ($schedules as $schedule) {
-            \App\Models\Attendance::updateOrCreate(
-                [
-                    'student_id' => $student->id,
-                    'schedule_id' => $schedule->id,
-                    'attendee_type' => 'student',
-                ],
-                [
-                    'date' => $date,
-                    'status' => 'izin',
-                    'reason' => $reason,
-                    'source' => 'manual',
-                ]
-            );
-        }
-    }
-
     private function convertIzinToAbsent(StudentLeavePermission $permission): void
     {
         $student = $permission->student;
@@ -462,7 +416,7 @@ class StudentLeavePermissionController extends Controller
             ->where('source', 'manual')
             ->update([
                 'status' => 'absent',
-                'reason' => 'Tidak kembali setelah '.$this->getTypeLabel($permission->type),
+                'reason' => 'Tidak kembali setelah '.$this->attendanceService->getTypeLabel($permission->type),
             ]);
     }
 
@@ -485,16 +439,5 @@ class StudentLeavePermissionController extends Controller
             ->whereIn('status', ['izin', $permission->type])
             ->where('source', 'manual')
             ->delete();
-    }
-
-    private function getTypeLabel(string $type): string
-    {
-        return match ($type) {
-            'sakit' => 'Sakit',
-            'izin' => 'Izin',
-            'izin_pulang' => 'Izin Pulang',
-            'dispensasi' => 'Dispensasi',
-            default => $type,
-        };
     }
 }

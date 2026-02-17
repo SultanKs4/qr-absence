@@ -18,7 +18,8 @@ const apiService = {
       const response = await fetch(`${API_BASE_URL}/students`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       if (!response.ok) throw new Error('Failed to fetch students');
@@ -36,7 +37,8 @@ const apiService = {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(studentData)
       });
@@ -55,7 +57,8 @@ const apiService = {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(studentData)
       });
@@ -74,7 +77,8 @@ const apiService = {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       if (!response.ok) throw new Error('Failed to delete student');
@@ -92,7 +96,8 @@ const apiService = {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ students: studentsData })
       });

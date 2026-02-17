@@ -118,7 +118,7 @@ class AuthController extends Controller
         // Determine precise role for Frontend/Deskta compatibility
         $actualRole = $user->user_type;
         if ($user->user_type === 'teacher') {
-            $isHomeroom = \App\Models\Classes::where('teacher_id', $user->teacherProfile?->id)->exists();
+            $isHomeroom = $user->teacherProfile?->homeroom_class_id !== null;
             $actualRole = $isHomeroom ? 'wakel' : 'guru';
         } elseif ($user->user_type === 'student') {
             $actualRole = $user->studentProfile?->is_class_officer ? 'pengurus_kelas' : 'siswa';
@@ -206,7 +206,7 @@ class AuthController extends Controller
         // Determine precise role for Frontend/Deskta compatibility
         $actualRole = $user->user_type;
         if ($user->user_type === 'teacher') {
-            $isHomeroom = \App\Models\Classes::where('teacher_id', $user->teacherProfile?->id)->exists();
+            $isHomeroom = $user->teacherProfile?->homeroom_class_id !== null;
             $actualRole = $isHomeroom ? 'wakel' : 'guru';
         } elseif ($user->user_type === 'student') {
             $actualRole = $user->studentProfile?->is_class_officer ? 'pengurus_kelas' : 'siswa';
@@ -223,6 +223,7 @@ class AuthController extends Controller
             'role' => $actualRole,
             'is_class_officer' => $isClassOfficer,
             'profile' => $profile,
+            'student_profile' => $user->studentProfile ? ['id' => $user->studentProfile->id] : null,
         ]);
     }
 

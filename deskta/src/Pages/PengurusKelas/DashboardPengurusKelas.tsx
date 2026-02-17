@@ -3,7 +3,8 @@ import PengurusKelasLayout from "../../component/PengurusKelas/PengurusKelasLayo
 import DaftarMapel from "./DaftarMapel";
 import TidakHadirPenguruskelas from "./TidakHadirPenguruskelas";
 import JadwalPengurus from "./JadwalPengurus";
-import openBook from "../../assets/Icon/open-book.png";
+import { dashboardService } from "../../services/dashboardService";
+// import openBook from "../../assets/Icon/open-book.png";
 import INO from "../../assets/Icon/INO.png";
 import RASI from "../../assets/Icon/RASI.png";
 import { Modal } from "../../component/Shared/Modal";
@@ -20,7 +21,8 @@ import {
   ArcElement,
   Filler,
 } from "chart.js";
-import { Bar, Doughnut, Line } from "react-chartjs-2";
+import { Doughnut, Line } from "react-chartjs-2";
+import { BookOpen } from "lucide-react";
 
 ChartJS.register(
   CategoryScale,
@@ -52,67 +54,23 @@ interface ScheduleItem {
 }
 
 interface DashboardPengurusKelasProps {
-  user: { name: string; phone: string; role?: string };
+  user: { 
+    name: string; 
+    phone: string; 
+    role?: string;
+    profile?: {
+      nis?: string;
+      class_name?: string;
+    }
+  };
   onLogout: () => void;
 }
 
-// Mapping ID pengurus kelas ke nama - TAMBAHKAN DATA PENGURUS KELAS DISINI
-const pengurusKelasNameMapping: { [key: string]: string } = {
-  "0075802873": "TALITHA NUDIA RISMATULLAH",
-  "0061631562": "NADIA SINTA DEVI OKTAVIA",
-  "0089965810": "NINDI NARITA MAULIDYA",
-  // Tambahkan mapping ID pengurus kelas lainnya di sini
-  // "ID_PENGURUS": "Nama Pengurus Kelas",
-};
+// Mapping ID pengurus kelas ke nama removed - using profile data
 
-// Fungsi untuk mendapatkan nama pengurus kelas dari ID
-const getPengurusKelasName = (user: { name: string; phone: string; role?: string }): string => {
-  // Jika user.name berisi angka saja (ID), convert ke nama
-  if (/^\d+$/.test(user.name)) {
-    return pengurusKelasNameMapping[user.name] || user.name;
-  }
-  // Jika user.phone berisi ID yang ada di mapping, gunakan itu
-  if (user.phone && pengurusKelasNameMapping[user.phone]) {
-    return pengurusKelasNameMapping[user.phone];
-  }
-  // Jika tidak, return user.name seperti biasa
-  return user.name;
-};
+// Utility functions removed
 
-// Fungsi untuk mendapatkan NISN dari user
-const getPengurusKelasNISN = (user: { name: string; phone: string; role?: string }): string => {
-  // Jika user.name adalah angka (ID/NISN), return itu
-  if (/^\d+$/.test(user.name)) {
-    return user.name;
-  }
-  // Jika user.phone ada dan berupa angka, return itu
-  if (user.phone && /^\d+$/.test(user.phone)) {
-    return user.phone;
-  }
-  // Cari NISN dari mapping berdasarkan nama
-  const nisn = Object.keys(pengurusKelasNameMapping).find(
-    key => pengurusKelasNameMapping[key] === user.name
-  );
-  return nisn || user.phone || "0000000000";
-};
-
-// Dummy data untuk statistik - DIPERBARUI DENGAN DATA YANG SAMA SEPERTI DI SISWA
-const monthlyTrendData = [
-  { month: "Jan", hadir: 460, izin: 90, sakit: 70, Alfa: 40, Pulang: 20 },
-  { month: "Feb", hadir: 480, izin: 80, sakit: 60, Alfa: 40, Pulang: 20 },
-  { month: "Mar", hadir: 500, izin: 76, sakit: 55, Alfa: 30, Pulang: 19 },
-  { month: "Apr", hadir: 510, izin: 70, sakit: 50, Alfa: 30, Pulang: 20 },
-  { month: "Mei", hadir: 522, izin: 65, sakit: 45, Alfa: 30, Pulang: 18 },
-  { month: "Jun", hadir: 505, izin: 70, sakit: 69, Alfa: 35, Pulang: 21 },
-];
-
-const weeklyStats = {
-  hadir: 120,
-  izin: 20,
-  sakit: 15,
-  Alfa: 10,
-  Pulang: 5,
-};
+// Dummy data removed - fetched from API
 
 export default function DashboardPengurusKelas({
   user,
@@ -123,17 +81,24 @@ export default function DashboardPengurusKelas({
   const [currentTime, setCurrentTime] = useState("");
   const [isMapelModalOpen, setIsMapelModalOpen] = useState(false);
 
-  // Convert ID ke nama pengurus kelas
-  const displayName = getPengurusKelasName(user);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState({
+    hadir: 0,
+    izin: 0,
+    sakit: 0,
+    alpha: 0,
+    pulang: 0,
+  });
+
+  // Use data directly from user object (synced in App.tsx)
+  const displayName = user.name;
+  const displayNISN = user.profile?.nis || user.phone || "0000000000";
   
-  // Get NISN pengurus kelas
-  const displayNISN = getPengurusKelasNISN(user);
-  
-  // Update user object dengan nama yang sudah diconvert
   const userWithName = {
     name: displayName,
     phone: user.phone,
-    role: user.role
+    role: user.role,
+    profile: user.profile
   };
 
   useEffect(() => {
@@ -152,11 +117,34 @@ export default function DashboardPengurusKelas({
     };
 
     updateDateTime();
-    const interval = setInterval(updateDateTime, 60000);
+    const interval = setInterval(updateDateTime, 1000);
 
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await dashboardService.getClassDashboard();
+        if (response) {
+          setMonthlyTrendData(response.monthlyTrend || []);
+          const ds = response.dailyStats || {};
+          setWeeklyStats({
+            hadir: ds.hadir || 0,
+            izin: ds.izin || 0,
+            sakit: ds.sakit || 0,
+            alpha: ds.alpha || 0,
+            pulang: ds.pulang || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching class dashboard:", error);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Data Dummy 
   const schedules = useMemo<ScheduleItem[]>(
     () => [
       {
@@ -606,7 +594,7 @@ function TimePill({ label }: { label: string }) {
 function MonthlyLineChart({
   data,
 }: {
-  data: Array<{ month: string; hadir: number; izin: number; sakit: number; Alfa: number; Pulang: number }>;
+  data: Array<{ month: string; hadir: number; izin: number; sakit: number; alpha: number; pulang: number }>;
 }) {
   const chartData = {
     labels: data.map((d) => d.month),
@@ -655,7 +643,7 @@ function MonthlyLineChart({
       },
       {
         label: "Alfa",
-        data: data.map((d) => d.Alfa),
+        data: data.map((d) => d.alpha),
         borderColor: "#D90000", // MERAH - Alfa
         backgroundColor: "rgba(217, 0, 0, 0.1)",
         borderWidth: 3,
@@ -669,7 +657,7 @@ function MonthlyLineChart({
       },
       {
         label: "Pulang",
-        data: data.map((d) => d.Pulang),
+        data: data.map((d) => d.pulang),
         borderColor: "#2F85EB", // BIRU - Pulang
         backgroundColor: "rgba(47, 133, 235, 0.1)",
         borderWidth: 3,
@@ -765,13 +753,13 @@ function MonthlyLineChart({
 function WeeklyDonutChart({
   data,
 }: {
-  data: { hadir: number; izin: number; sakit: number; Alfa: number; Pulang: number };
+  data: { hadir: number; izin: number; sakit: number; alpha: number; pulang: number };
 }) {
   const chartData = {
     labels: ["Hadir", "Izin", "Sakit", "Alfa", "Pulang"],
     datasets: [
       {
-        data: [data.hadir, data.izin, data.sakit, data.Alfa, data.Pulang],
+        data: [data.hadir, data.izin, data.sakit, data.alpha, data.pulang],
         backgroundColor: [
           "#1FA83D", // HIJAU - Hadir
           "#ACA40D", // KUNING - Izin
@@ -866,16 +854,7 @@ function MapelListModal({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img
-              src={openBook}
-              alt="Book"
-              style={{
-                width: "24px",
-                height: "24px",
-                objectFit: "contain",
-                filter: "brightness(0) invert(1)",
-              }}
-            />
+            <BookOpen size={24} color="white" />
             <h2 style={{ fontSize: "18px", fontWeight: "bold", margin: 0 }}>
               Jadwal Pelajaran Hari Ini
             </h2>

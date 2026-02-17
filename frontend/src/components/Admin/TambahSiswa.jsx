@@ -68,7 +68,7 @@ function Tambah({ isOpen, onClose, onSubmit, editData }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <h2 className="modal-title">
+        <h2 className="modal-title" style={{ fontFamily: 'Poppins, sans-serif', color: 'whitesmoke' }}>
           {editData ? "Ubah Data Siswa" : "Tambah Siswa"}
         </h2>
         

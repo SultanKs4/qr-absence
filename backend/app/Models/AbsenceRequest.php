@@ -16,6 +16,7 @@ class AbsenceRequest extends Model
         'start_date',
         'end_date',
         'reason',
+        'attachment_path',
         'status',
         'approved_by',
         'approved_at',

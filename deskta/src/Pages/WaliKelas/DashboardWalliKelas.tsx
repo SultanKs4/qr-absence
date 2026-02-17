@@ -9,6 +9,7 @@ import { KehadiranSiswaWakel } from "./KehadiranSiswaWakel";
 import JadwalPengurus from "./JadwalPengurus";
 import { RekapKehadiranSiswa } from "./RekapKehadiranSiswa";
 import DaftarKetidakhadiranWaliKelas from "./DaftarKetidakhadiranWaliKelas";
+import { scheduleService } from "../../services/scheduleService";
 
 // ==================== INTERFACES ====================
 interface DashboardWalliKelasProps {
@@ -51,30 +52,7 @@ const BREAKPOINTS = {
   mobile: 768,
 };
 
-// dummy schedule
-const DUMMY_SCHEDULE: ScheduleItem[] = [
-  {
-    id: "1",
-    subject: "Matematika",
-    className: "12 Rekayasa Perangkat Lunak 1",
-    jurusan: "RPL",
-    jam: "08:00 - 09:00",
-  },
-  {
-    id: "2",
-    subject: "Bahasa Indonesia",
-    className: "12 Rekayasa Perangkat Lunak 2",
-    jurusan: "RPL",
-    jam: "09:00 - 10:00",
-  },
-  {
-    id: "3",
-    subject: "Bahasa Iggris",
-    className: "10 Rekayasa Perangkat Lunak 1",
-    jurusan: "RPL",
-    jam: "10:00 - 11:00",
-  },
-];
+// dummy schedule removed
 
 const styles = {
   mainContainer: (isMobile: boolean) => ({
@@ -306,6 +284,8 @@ export default function DashboardWalliKelas({
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
   const [iconStates, setIconStates] = useState<Record<string, "qr" | "eye">>({});
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
   
   // State untuk menyimpan data siswa yang dipilih
   const [siswaData, setSiswaData] = useState<{
@@ -338,12 +318,36 @@ export default function DashboardWalliKelas({
     window.addEventListener("resize", handleResize);
     updateTime();
     const timer = setInterval(updateTime, 1000);
+    
+    fetchSchedules();
 
     return () => {
       window.removeEventListener("resize", handleResize);
       clearInterval(timer);
     };
   }, []);
+
+  const fetchSchedules = async () => {
+    setLoadingSchedule(true);
+    try {
+      // must be fixed
+        const response = await scheduleService.getMyHomeroomSchedules();
+        if(response.items){
+            const mappedSchedules = response.items.map((item: any) => ({
+                id: String(item.id),
+                subject: item.subject,
+                className: item.class_name || item.class,
+                jurusan: item.major || '-',
+                jam: `${item.start_time} - ${item.end_time}`
+            }));
+            setSchedules(mappedSchedules);
+        }
+    } catch (error) {
+        console.error("Failed to fetch schedules:", error);
+    } finally {
+        setLoadingSchedule(false);
+    }
+  };
 
   // === FLOW SAMA SEPERTI GURU DASHBOARD ===
   const handleMenuClick = (page: string, payload?: any) => {
@@ -438,7 +442,7 @@ export default function DashboardWalliKelas({
       case "jadwal-pengurus":
         return (
           <JadwalPengurus
-            user={{ name: user.name, phone: "1234567890" }}
+            user={{ name: user.name, role: user.role, phone: "1234567890" }}
             currentPage="jadwal-pengurus"
             onMenuClick={handleMenuClick}
             onLogout={onLogout}
@@ -583,7 +587,10 @@ export default function DashboardWalliKelas({
               <div>
                 <h3 style={styles.sectionTitle(isMobile)}>Jadwal Kelas Anda</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {DUMMY_SCHEDULE.map((item) => (
+                  {loadingSchedule ? (
+                    <div>Memuat jadwal...</div>
+                  ) : schedules.length > 0 ? (
+                    schedules.map((item) => (
                     <div
                       key={item.id}
                       style={styles.scheduleCard(isMobile)}
@@ -641,7 +648,10 @@ export default function DashboardWalliKelas({
                         </div>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  ) : (
+                    <div>Tidak ada jadwal hari ini</div>
+                  )}
                 </div>
               </div>
 

@@ -7,7 +7,7 @@ import { useLocalLenis } from "../Shared/SmoothScroll";
 type MenuKey = "dashboard" | "jadwal-anda" | "absensi" | "notifikasi";
 
 interface SiswaLayoutProps {
-  user: { name: string; phone: string };
+  user: { name: string; phone: string; role?: string };
   currentPage: MenuKey;
   onMenuClick: (key: MenuKey) => void;
   onLogout: () => void;

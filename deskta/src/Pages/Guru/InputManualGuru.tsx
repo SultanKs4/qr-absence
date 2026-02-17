@@ -14,7 +14,7 @@ interface Siswa {
   id: string;
   nisn: string;
   nama: string;
-  status: 'hadir' | 'sakit' | 'izin' | 'alfa' | 'pulang' | null;
+  status: 'hadir' | 'sakit' | 'izin' | 'alfa' | 'pulang';
   keterangan?: string;
 }
 
@@ -166,15 +166,15 @@ export default function InputManualGuru({
       hadir: { label: 'Hadir', color: statusColors.hadir, textColor: '#FFFFFF' },
       sakit: { label: 'Sakit', color: statusColors.sakit, textColor: '#FFFFFF' },
       izin: { label: 'Izin', color: statusColors.izin, textColor: '#FFFFFF' },
-      alfa: { label: 'Alfa', color: statusColors.alfa, textColor: '#FFFFFF' },
-      pulang: { label: 'Pulang', color: statusColors.pulang, textColor: '#FFFFFF' },
+      alfa: { label: 'alfa', color: statusColors.alfa, textColor: '#FFFFFF' },
+      pulang: { label: 'pulang', color: statusColors.pulang, textColor: '#FFFFFF' },
     };
 
     const config = statusConfig[siswa.status];
 
     return (
       <div
-        // onClick={(e) => handleStatusClick(siswa, e)}
+        onClick={(e) => handleStatusClick(siswa, e)}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -351,8 +351,8 @@ export default function InputManualGuru({
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Hadir</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Sakit</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Izin</th>
-                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '90px' }}>Alfa</th>
-                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>Pulang</th>
+                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '90px' }}>alfa</th>
+                    <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '80px' }}>pulang</th>
                     <th style={{ padding: '16px', textAlign: 'center', fontSize: '14px', fontWeight: '700', color: '#111827', letterSpacing: '0.5px', width: '120px' }}>Status</th>
                   </tr>
                 </thead>
@@ -426,7 +426,7 @@ export default function InputManualGuru({
                         />
                       </td>
                       
-                      {/* Radio Button Tidak Hadir (Alfa) */}
+                      {/* Radio Button Tidak Hadir (alfa) */}
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input 
                           type="radio" 
@@ -444,7 +444,7 @@ export default function InputManualGuru({
                         />
                       </td>
                       
-                      {/* Radio Button Pulang */}
+                      {/* Radio Button pulang */}
                       <td style={{ padding: '16px', textAlign: 'center' }}>
                         <input 
                           type="radio" 
@@ -646,7 +646,7 @@ export default function InputManualGuru({
                     {(['hadir', 'sakit', 'izin', 'alfa', 'pulang'] as const).map((status) => (
                       <button
                         key={status}
-                        // onClick={() => setEditStatus(status)}
+                        onClick={() => setEditStatus(status)}
                         style={{
                           padding: "10px",
                           borderRadius: "6px",
@@ -685,7 +685,7 @@ export default function InputManualGuru({
                 marginTop: 24,
               }}>
                 <button
-                  // onClick={() => setIsModalOpen(false)}
+                  onClick={() => setIsModalOpen(false)}
                   style={{
                     flex: 1,
                     padding: "12px",
@@ -708,7 +708,7 @@ export default function InputManualGuru({
                   {editStatus === 'hadir' ? 'Tutup' : 'Batal'}
                 </button>
                 <button
-                  // onClick={handleSaveEdit}
+                  onClick={handleSaveEdit}
                   style={{
                     flex: 1,
                     padding: "12px",

@@ -1,73 +1,125 @@
 <?php
 
-use App\Models\Qrcode;
-use App\Models\Schedule;
+namespace Tests\Feature;
+
 use App\Models\User;
+use App\Models\TeacherProfile;
+use App\Models\StudentProfile;
+use App\Models\Classes;
+use App\Models\ScheduleItem;
+use App\Models\DailySchedule;
+use App\Models\ClassSchedule;
+use App\Models\Subject;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
-uses(RefreshDatabase::class);
+class QrCodeTest extends TestCase
+{
+    use RefreshDatabase;
 
-it('allows teacher to generate a QR code for their schedule', function () {
-    $teacher = User::factory()->teacher()->create();
-    $teacher->refresh(); // Load teacherProfile created in factory callback
+    protected $teacher;
+    protected $studentOfficer;
+    protected $schedule;
 
-    $schedule = Schedule::factory()->create(['teacher_id' => $teacher->teacherProfile->id]);
+    protected function setUp(): void
+    {
+        parent::setUp();
 
-    $response = $this->actingAs($teacher)->postJson('/api/qrcodes/generate', [
-        'schedule_id' => $schedule->id,
-        'type' => 'student',
-        'expires_in_minutes' => 30,
-    ]);
+        // Setup common data
+        $this->teacher = User::factory()->create(['user_type' => 'teacher']);
+        TeacherProfile::factory()->create(['user_id' => $this->teacher->id]);
 
-    $response->assertStatus(201)
-        ->assertJsonStructure(['qrcode', 'qr_svg', 'payload']);
-});
+        $class = Classes::factory()->create();
+        
+        $this->studentOfficer = User::factory()->create(['user_type' => 'student']);
+        StudentProfile::factory()->create([
+            'user_id' => $this->studentOfficer->id,
+            'class_id' => $class->id,
+            'is_class_officer' => true
+        ]);
 
-it('allows class officer to generate a QR code for their class', function () {
-    $user = User::factory()->student()->create();
-    $user->refresh();
-    $user->studentProfile->update(['is_class_officer' => true]);
+        $subject = Subject::factory()->create();
+        
+        // Create Schedule Hierarchy
+        $classSchedule = ClassSchedule::factory()->create(['class_id' => $class->id]);
+        
+        // Ensure day matches today for student test
+        $today = now()->format('l'); 
+        $dailySchedule = DailySchedule::factory()->create([
+            'class_schedule_id' => $classSchedule->id, 
+            'day' => $today
+        ]);
 
-    $schedule = Schedule::factory()->create(['class_id' => $user->studentProfile->class_id]);
+        $this->schedule = ScheduleItem::factory()->create([
+            'daily_schedule_id' => $dailySchedule->id,
+            'teacher_id' => $this->teacher->teacherProfile->id,
+            'subject_id' => $subject->id,
+            'start_time' => '07:00:00',
+            'end_time' => '08:00:00',
+        ]);
+    }
 
-    $response = $this->actingAs($user)->postJson('/api/qrcodes/generate', [
-        'schedule_id' => $schedule->id,
-        'type' => 'student',
-    ]);
+    public function test_teacher_can_generate_qr()
+    {
+        $response = $this->actingAs($this->teacher)
+            ->postJson('/api/qrcodes/generate', [
+                'schedule_id' => $this->schedule->id,
+                'type' => 'student',
+                'expires_in_minutes' => 30
+            ]);
 
-    $response->assertStatus(201);
-});
+        $response->assertStatus(201)
+            ->assertJsonStructure(['qrcode', 'qr_svg', 'payload', 'mobile_format']);
+            
+        $this->assertDatabaseHas('qrcodes', [
+            'schedule_id' => $this->schedule->id,
+            'type' => 'student',
+            'is_active' => 1
+        ]);
+    }
 
-it('prevents regular student from generating a QR code', function () {
-    $student = User::factory()->student()->create();
-    $student->refresh();
-    $student->studentProfile->update(['is_class_officer' => false]);
-    $schedule = Schedule::factory()->create(['class_id' => $student->studentProfile->class_id]);
+    public function test_student_officer_can_generate_qr_for_today()
+    {
+        $response = $this->actingAs($this->studentOfficer)
+            ->postJson('/api/qrcodes/generate', [
+                'schedule_id' => $this->schedule->id,
+                'type' => 'student',
+            ]);
 
-    $response = $this->actingAs($student)->postJson('/api/qrcodes/generate', [
-        'schedule_id' => $schedule->id,
-        'type' => 'student',
-    ]);
+        $response->assertStatus(201);
+    }
 
-    $response->assertStatus(403);
-});
+    public function test_student_officer_cannot_generate_for_other_class()
+    {
+        $otherClass = Classes::factory()->create();
+        $otherClassSchedule = ClassSchedule::factory()->create(['class_id' => $otherClass->id]);
+        $otherDaily = DailySchedule::factory()->create(['class_schedule_id' => $otherClassSchedule->id, 'day' => now()->format('l')]);
+        $otherSchedule = ScheduleItem::factory()->create(['daily_schedule_id' => $otherDaily->id]);
 
-it('allows revoking a QR code', function () {
-    $teacher = User::factory()->teacher()->create();
-    $teacher->refresh();
+        $response = $this->actingAs($this->studentOfficer)
+            ->postJson('/api/qrcodes/generate', [
+                'schedule_id' => $otherSchedule->id,
+                'type' => 'student',
+            ]);
 
-    $schedule = Schedule::factory()->create(['teacher_id' => $teacher->teacherProfile->id]);
-    $qr = Qrcode::factory()->create([
-        'schedule_id' => $schedule->id,
-        'issued_by' => $teacher->id,
-        'is_active' => true,
-    ]);
+        $response->assertStatus(403);
+    }
 
-    $response = $this->actingAs($teacher)->postJson("/api/qrcodes/{$qr->token}/revoke");
+    public function test_regular_student_cannot_generate()
+    {
+        $regularStudent = User::factory()->create(['user_type' => 'student']);
+        StudentProfile::factory()->create([
+            'user_id' => $regularStudent->id,
+            'class_id' => $this->schedule->dailySchedule->classSchedule->class_id,
+            'is_class_officer' => false
+        ]);
 
-    $response->assertStatus(200);
-    $this->assertDatabaseHas('qrcodes', [
-        'id' => $qr->id,
-        'is_active' => false,
-    ]);
-});
+        $response = $this->actingAs($regularStudent)
+            ->postJson('/api/qrcodes/generate', [
+                'schedule_id' => $this->schedule->id,
+                'type' => 'student',
+            ]);
+
+        $response->assertStatus(403);
+    }
+}

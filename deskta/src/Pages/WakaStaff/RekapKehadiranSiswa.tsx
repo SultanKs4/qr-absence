@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Eye, FileDown } from "lucide-react";
 import StaffLayout from "../../component/WakaStaff/StaffLayout";
 import { Table } from "../../component/Shared/Table";
+import { attendanceService } from "../../services/attendanceService";
 
 interface RekapKehadiranSiswaProps {
   user: { name: string; role: string };
@@ -9,6 +10,7 @@ interface RekapKehadiranSiswaProps {
   currentPage: string;
   onMenuClick: (page: string, payload?: any) => void;
   kelas?: string;
+  kelasId?: string;
   namaKelas?: string;
   waliKelas?: string;
   onBack?: () => void;
@@ -30,13 +32,23 @@ export default function RekapKehadiranSiswa({
   onLogout,
   currentPage,
   onMenuClick,
-  kelas = "12 Mekatronika 2",
+  kelasId,
   namaKelas = "12 Mekatronika 2",
   waliKelas = "Ewit Erniyah S.pd",
   onBack,
 }: RekapKehadiranSiswaProps) {
-  const [startDate, setStartDate] = useState("2025-01-14");
-  const [endDate, setEndDate] = useState("2025-01-06");
+  // Set default dates (first and last day of current month)
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const date = new Date();
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+  });
+
+  const [siswaData, setSiswaData] = useState<SiswaRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Warna sesuai revisi
   const COLORS = {
@@ -73,79 +85,57 @@ export default function RekapKehadiranSiswa({
     };
   }, []);
 
-  // Dummy data siswa
-  const [siswaData] = useState<SiswaRow[]>([
-    {
-      no: 1,
-      nisn: "0078980482",
-      namaSiswa: "NOVITA AZZAHRA",
-      hadir: 23,
-      sakit: 3,
-      izin: 2,
-      alpha: 2,
-      pulang: 2,
-    },
-    {
-      no: 2,
-      nisn: "0079312790",
-      namaSiswa: "RAENA WESTI DHEANOFA HERLIANI",
-      hadir: 25,
-      sakit: 1,
-      izin: 2,
-      alpha: 1,
-      pulang: 1,
-    },
-    {
-      no: 3,
-      nisn: "0061631562",
-      namaSiswa: "NADIA SINTA DEVI OKTAVIA",
-      hadir: 22,
-      sakit: 2,
-      izin: 3,
-      alpha: 2,
-      pulang: 1,
-    },
-    {
-      no: 4,
-      nisn: "0076610748",
-      namaSiswa: "RITA AURA AGUSTINA",
-      hadir: 24,
-      sakit: 2,
-      izin: 1,
-      alpha: 1,
-      pulang: 2,
-    },
-    {
-      no: 5,
-      nisn: "0075802873",
-      namaSiswa: "TALITHA NUDIA RISMATULLAH",
-      hadir: 23,
-      sakit: 3,
-      izin: 2,
-      alpha: 2,
-      pulang: 0,
-    },
-    {
-      no: 6,
-      nisn: "0076376703",
-      namaSiswa: "SA'IDHATUL HASANA",
-      hadir: 26,
-      sakit: 1,
-      izin: 1,
-      alpha: 1,
-      pulang: 1,
-    },
-    {
-      no: 7,
-      nisn: "0074320819",
-      namaSiswa: "LELY SAGITA",
-      hadir: 21,
-      sakit: 4,
-      izin: 2,
-      alpha: 2,
-      pulang: 1,
-    },
-  ]);
+  useEffect(() => {
+    if (kelasId) {
+        fetchData();
+    }
+  }, [kelasId, startDate, endDate]);
+
+  const fetchData = async () => {
+    if (!kelasId) return;
+    setLoading(true);
+    try {
+        const response = await attendanceService.getWakaClassAttendanceSummary(kelasId, {
+            from: startDate,
+            to: endDate
+        });
+        
+        // Response is array of { student: {}, totals: { present: 1, ... } }
+        const rows: SiswaRow[] = (response || []).map((item: any, index: number) => {
+            const totals = item.totals || {};
+            // Map backend status to frontend keys
+            // Backend: present, sick, permission, alpha, late?
+            // Frontend: hadir, sakit, izin, alpha, pulang
+            
+            // Note: 'late' is usually counted as 'hadir' in simple recap, or separate.
+            // Based on previous code, 'hadir' includes 'present' and maybe 'late'.
+            // Let's assume 'late' contributes to 'hadir' or shows separately.
+            // The previous mock data had 'hadir'. 
+            // Let's sum 'present' + 'late'.
+            
+            const hadir = (totals.present || 0) + (totals.late || 0);
+            
+            return {
+                no: index + 1,
+                nisn: item.student?.nisn || "-",
+                namaSiswa: item.student?.user?.name || item.student?.name || "-",
+                hadir: hadir,
+                sakit: totals.sick || 0,
+                izin: totals.permission || 0,
+                alpha: totals.alpha || totals.absent || 0, // 'absent' usually means alpha if not otherwise specified
+                pulang: 0 // Backend doesn't seem to have 'pulang' status explicitly in totals? 
+                          // If 'pulang' is a status, it should be in totals.
+                          // 'pulang' usually means 'permission to go home'.
+            };
+        });
+
+        setSiswaData(rows);
+    } catch (error) {
+        console.error("Failed to fetch recap:", error);
+    } finally {
+        setLoading(false);
+    }
+  };
 
   const handleExportExcel = () => {
     // Buat data untuk Excel
@@ -557,6 +547,7 @@ export default function RekapKehadiranSiswa({
             {/* Export Buttons */}
             <button
               onClick={handleExportExcel}
+              disabled={loading || siswaData.length === 0}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -568,7 +559,8 @@ export default function RekapKehadiranSiswa({
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: loading || siswaData.length === 0 ? "not-allowed" : "pointer",
+                opacity: loading || siswaData.length === 0 ? 0.6 : 1,
               }}
             >
               <FileDown size={16} />
@@ -577,6 +569,7 @@ export default function RekapKehadiranSiswa({
 
             <button
               onClick={handleExportPDF}
+              disabled={loading || siswaData.length === 0}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -588,7 +581,8 @@ export default function RekapKehadiranSiswa({
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: loading || siswaData.length === 0 ? "not-allowed" : "pointer",
+                opacity: loading || siswaData.length === 0 ? 0.6 : 1,
               }}
             >
               <FileDown size={16} />
@@ -602,7 +596,7 @@ export default function RekapKehadiranSiswa({
           columns={columns}
           data={siswaData}
           keyField="nisn"
-          emptyMessage="Belum ada data rekap kehadiran siswa."
+          emptyMessage={loading ? "Memuat data rekap..." : "Belum ada data rekap kehadiran siswa."}
         />
       </div>
     </StaffLayout>

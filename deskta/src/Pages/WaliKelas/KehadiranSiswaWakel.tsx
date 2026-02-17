@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { attendanceService } from '../../services/attendanceService';
+import classService from '../../services/classService';
 import WalikelasLayout from '../../component/Walikelas/layoutwakel';
-import { Button } from '../../component/Shared/Button';
+// Removed unused imports if any, but WalikelasLayout is used.
+import { ChevronDown, Calendar, BookOpen, FileText, X, Edit } from 'lucide-react';
+
 import { FormModal } from '../../component/Shared/FormModal';
 import { Select } from '../../component/Shared/Select';
-import { Table } from '../../component/Shared/Table';
-import { Calendar, BookOpen, FileText, ClipboardPlus, Edit, ChevronDown, X, Upload } from 'lucide-react';
-import { valueOrDefault } from 'chart.js/helpers';
+
 
 // STATUS COLOR PALETTE - High Contrast for Accessibility
 const STATUS_COLORS = {
@@ -49,133 +51,115 @@ export function KehadiranSiswaWakel({
 }: KehadiranSiswaWakelProps) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [selectedMapel, setSelectedMapel] = useState('all');
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempDate, setTempDate] = useState('');
-  const [selectedSiswa, setSelectedSiswa] = useState<KehadiranRow | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
 
   const currentDate = new Date();
   const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getFullYear()}`;
-  
-  const kelasInfo = {
-    namaKelas: '12 Rekayasa Perangkat Lunak 2',
-    tanggal: selectedDate || formattedDate,
-  };
 
-  const [rows, setRows] = useState<KehadiranRow[]>(() => {
-    const dummyRows: KehadiranRow[] = [
-      { id: '1', nisn: '1348576392', namaSiswa: 'LAURA LAVIDA LOCA', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:30 WIB' },
-      { id: '2', nisn: '1348576392', namaSiswa: 'LELY SAGITA', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:25 WIB' },
-      { id: '3', nisn: '1348576392', namaSiswa: 'MAYA MELINDA WIJAYANTI', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Ijin tidak masuk karena ada keperluan keluarga' },
-      { id: '4', nisn: '1348576392', namaSiswa: 'MOCH. ABYL GUSTIAN', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Demam tinggi dan dokter menyarankan istirahat' },
-      { id: '5', nisn: '1348576392', namaSiswa: 'MUHAMMAD AMINULLAH', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-      { id: '6', nisn: '1348576392', namaSiswa: 'Muhammad Azka Fadli Atthaya', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-      { id: '7', nisn: '1348576392', namaSiswa: 'MUHAMMAD HADI FIRMANSYAH', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-      { id: '8', nisn: '1348576393', namaSiswa: 'MUHAMMAD HARRIS MAULANA SAPUTRA', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:28 WIB' },
-      { id: '9', nisn: '1348576394', namaSiswa: 'MUHAMMAD IBNU RAFFI AHDAN', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Batuk pilek dan demam' },
-      { id: '10', nisn: '1348576395', namaSiswa: 'MUHAMMAD REYHAN ATHADIANSYAH', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Menghadiri acara keluarga' },
-      { id: '11', nisn: '1348576396', namaSiswa: 'MUHAMMAD WISNU DEWANDARU', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:32 WIB' },
-      { id: '12', nisn: '1348576397', namaSiswa: 'NABILA RAMADHAN', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-      { id: '13', nisn: '1348576398', namaSiswa: 'NADIA SINTA DEVI OKTAVIA', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:29 WIB' },
-      { id: '14', nisn: '1348576399', namaSiswa: 'NOVITA AZZAHRA', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Sakit perut' },
-      { id: '15', nisn: '1348576400', namaSiswa: 'RAENA WESTI DHEANOFA HERLIANI', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'pulang', jamPelajaran: '1-4', keterangan: 'Pulang lebih awal karena sakit kepala' },
-    ];
-    
-    const perizinanData = localStorage.getItem('perizinanPulangList');
-    if (!perizinanData) return dummyRows;
-    
+
+  const [rows, setRows] = useState<KehadiranRow[]>([]);
+  const [kelasInfoData, setKelasInfoData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch Class Info
+  useEffect(() => {
+    const fetchClassInfo = async () => {
+      try {
+        const data = await classService.getMyClass();
+        setKelasInfoData(data);
+      } catch (error) {
+        console.error("Failed to fetch class info", error);
+      }
+    };
+    fetchClassInfo();
+  }, []);
+
+  // Fetch Attendance Data
+  const fetchAttendance = useCallback(async () => {
+    if (!kelasInfoData) return;
+
+    setLoading(true);
     try {
-      const perizinanList = JSON.parse(perizinanData);
+      // Use selectedDate if available, otherwise current formatted date (backend likely expects YYYY-MM-DD or similar)
+      // The backend endpoint myHomeroomAttendance uses 'from' and 'to' or just filters by date if we pass it? 
+      // Checking endpoint: myHomeroomAttendance filters by 'from', 'to', 'status'.
+      // If we want daily attendance, we should pass from=DATE & to=DATE.
       
-      const perizinanRows: KehadiranRow[] = perizinanList.map((perizinan: any, index: number) => ({
-        id: `perizinan-pulang-${perizinan.id || Date.now() + index}`,
-        nisn: perizinan.nisn,
-        namaSiswa: perizinan.namaSiswa,
-        mataPelajaran: perizinan.mapel,
-        namaGuru: perizinan.namaGuru,
-        tanggal: perizinan.tanggal || perizinan.createdAt,
-        status: 'pulang' as StatusType,
-        keterangan: perizinan.keterangan,
-        jamPelajaran: perizinan.jamPelajaran || '1-4',
-        buktiFoto1: perizinan.buktiFoto1,
-        buktiFoto2: perizinan.buktiFoto2,
-        isPerizinanPulang: true,
+      const dateToFetch = selectedDate || formatDateForBackend(new Date());
+      
+      const response = await attendanceService.getMyHomeroomAttendance({
+        from: dateToFetch,
+        to: dateToFetch
+      });
+
+      // Response is array of Attendance objects
+      // We need to map to KehadiranRow
+      // Attendance object: { id, status, date, time, student: { user: { name }, nisn }, schedule: { subject: { name }, teacher: { user: { name } } } }
+      
+      const mappedRows: KehadiranRow[] = response.map((item: any) => ({
+        id: String(item.id),
+        nisn: item.student?.nisn || '-',
+        namaSiswa: item.student?.user?.name || '-',
+        mataPelajaran: item.schedule?.subject?.name || '-',
+        namaGuru: item.schedule?.teacher?.user?.name || '-',
+        tanggal: formatDateDisplay(item.date), // Convert YYYY-MM-DD to DD-MM-YYYY
+        status: item.status.toLowerCase() as StatusType,
+        keterangan: item.notes || item.attachment_path ? 'Ada Lampiran' : '-', 
+        jamPelajaran: `${item.schedule?.start_time?.substring(0,5)} - ${item.schedule?.end_time?.substring(0,5)}`,
+        waktuHadir: item.created_at ? new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : '-',
+        buktiFoto1: item.attachment_path ? item.attachment_path : undefined, // Assuming attachment_path is relative or needs URL mapping. Ideally backend returns full URL or we handle it.
       }));
       
-      return [...dummyRows, ...perizinanRows];
+      setRows(mappedRows);
     } catch (error) {
-      console.error('Error parsing perizinan data:', error);
-      return dummyRows;
+      console.error("Failed to fetch attendance:", error);
+    } finally {
+      setLoading(false);
     }
-  });
+  }, [selectedDate, kelasInfoData]);
 
-  const guruPerMapel: Record<string, string[]> = {
-    'Matematika': ['Solikhah S.pd', 'Budi Santoso S.pd', 'Dewi Lestari S.pd'],
-    'Bahasa Indonesia': ['Siti Aminah S.pd', 'Ahmad Fauzi S.pd'],
-    'Fisika': ['Dr. Bambang S.pd', 'Rina Kusuma S.pd'],
-    'Kimia': ['Arief Budiman S.pd', 'Lina Marlina S.pd'],
-    'MPKK': ['Tri Wahyuni S.pd', 'Eko Prasetyo S.pd', 'Yuni Astuti S.pd'],
-    'Bahasa Inggris': ['Sarah Johnson S.pd', 'David Brown S.pd'],
-    'Sejarah': ['Hendra Gunawan S.pd'],
-    'Ekonomi': ['Fitri Handayani S.pd', 'Rudi Hermawan S.pd'],
+  useEffect(() => {
+    if (kelasInfoData) {
+      fetchAttendance();
+    }
+  }, [kelasInfoData, fetchAttendance]); 
+
+  // Format Helper
+  const formatDateDisplay = (dateString: string) => {
+    if(!dateString) return '-';
+    const date = new Date(dateString);
+    return `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
   };
 
+  const formatDateForBackend = (date: Date) => {
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  };
+  
+  const kelasInfo = {
+    namaKelas: kelasInfoData ? kelasInfoData.name : 'Memuat...',
+    tanggal: selectedDate ? formatDateDisplay(selectedDate) : formattedDate,
+  };
+
+
+
+  // Removed local storage listener
+  /*
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    
-    const handleStorageChange = () => {
-      const perizinanData = localStorage.getItem('perizinanPulangList');
-      if (!perizinanData) return;
-      
-      try {
-        const perizinanList = JSON.parse(perizinanData);
-        
-        const perizinanRows: KehadiranRow[] = perizinanList.map((perizinan: any, index: number) => ({
-          id: `perizinan-pulang-${perizinan.id || Date.now() + index}`,
-          nisn: perizinan.nisn,
-          namaSiswa: perizinan.namaSiswa,
-          mataPelajaran: perizinan.mapel,
-          namaGuru: perizinan.namaGuru,
-          tanggal: perizinan.tanggal || perizinan.createdAt,
-          status: 'pulang' as StatusType,
-          keterangan: perizinan.keterangan,
-          jamPelajaran: perizinan.jamPelajaran || '1-4',
-          buktiFoto1: perizinan.buktiFoto1,
-          buktiFoto2: perizinan.buktiFoto2,
-          isPerizinanPulang: true,
-        }));
-        
-        const dummyRows: KehadiranRow[] = [
-          { id: '1', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:30 WIB' },
-          { id: '2', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:25 WIB' },
-          { id: '3', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Ijin tidak masuk karena ada keperluan keluarga' },
-          { id: '4', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Demam tinggi dan dokter menyarankan istirahat' },
-          { id: '5', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-          { id: '6', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-          { id: '7', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-          { id: '8', nisn: '1348576393', namaSiswa: 'Ahmad Fauzi', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:28 WIB' },
-          { id: '9', nisn: '1348576394', namaSiswa: 'Siti Nurhaliza', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Batuk pilek dan demam' },
-          { id: '10', nisn: '1348576395', namaSiswa: 'Budi Santoso', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Menghadiri acara keluarga' },
-          { id: '11', nisn: '1348576396', namaSiswa: 'Dewi Sartika', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:32 WIB' },
-          { id: '12', nisn: '1348576397', namaSiswa: 'Rizki Ramadhan', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-          { id: '13', nisn: '1348576398', namaSiswa: 'Fitri Handayani', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:29 WIB' },
-          { id: '14', nisn: '1348576399', namaSiswa: 'Andi Wijaya', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Sakit perut' },
-          { id: '15', nisn: '1348576400', namaSiswa: 'Rina Pratiwi', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'pulang', jamPelajaran: '1-4', keterangan: 'Pulang lebih awal karena sakit kepala' },
-        ];
-        
-        setRows([...dummyRows, ...perizinanRows]);
-      } catch (error) {
-        console.error('Error parsing perizinan data:', error);
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
     return () => {
       window.removeEventListener('resize', handleResize);
-      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+  */
+ useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
 
@@ -198,10 +182,10 @@ export function KehadiranSiswaWakel({
       : rows.filter((r) => r.mataPelajaran === selectedMapel);
     
     if (selectedDate) {
-      filtered = filtered.filter((r) => r.tanggal === selectedDate);
+      filtered = filtered.filter((r) => r.tanggal === formatDateDisplay(selectedDate));
     }
     
-    return filtered.map((row, index) => ({
+    return filtered.map((row) => ({
       ...row,
     }));
   }, [rows, selectedMapel, selectedDate]);
@@ -212,101 +196,7 @@ export function KehadiranSiswaWakel({
   const totalAlfa = filteredRows.filter((r) => r.status === 'alfa').length;
   const totalPulang = filteredRows.filter((r) => r.status === 'pulang').length;
 
-  const EyeIcon = ({ size = 16 }: { size?: number }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <path
-        d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M2 12C2 12 5 5 12 5C19 5 22 12 22 12C22 12 19 19 12 19C5 19 2 12 2 12Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
 
-  const XIcon = ({ size = 24 }: { size?: number }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <path
-        d="M18 6L6 18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6 6L18 18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-
-  const CheckIcon = ({ size = 24 }: { size?: number }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <path
-        d="M20 6L9 17L4 12"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-
-  const TimeIcon = ({ size = 16 }: { size?: number }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M12 7V12L15 15"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 
   const getMinMaxDateForFilter = () => {
     const startYear = 2026;
@@ -372,45 +262,9 @@ export function KehadiranSiswaWakel({
     );
   };
 
-  const getStatusText = (status: string, waktuHadir?: string, keterangan?: string) => {
-    switch (status) {
-      case "alfa":
-        return "Siswa tidak hadir tanpa keterangan";
-      case "izin":
-        return "Siswa izin dengan keterangan";
-      case "sakit":
-        return "Siswa sakit dengan surat dokter";
-      case "hadir":
-        return waktuHadir ? `Siswa hadir tepat waktu pada ${waktuHadir}` : "Siswa hadir tepat waktu";
-      case "pulang":
-        return keterangan || "Siswa pulang lebih awal karena ada kepentingan";
-      default:
-        return status;
-    }
-  };
 
-  const columns = useMemo(() => [
-    { 
-      key: 'no', 
-      label: 'No',
-      render: (value: any, row: any, index: number) => index + 1,
-      style: { textAlign: 'center' as const, width: '50px' }
-    },
-    { key: 'nisn', label: 'NISN', style: { width: '120px' } },
-    { key: 'namaSiswa', label: 'Nama Siswa', style: { width: '200px' } },
-    { key: 'mataPelajaran', label: 'Mata Pelajaran', style: { width: '150px' } },
-    { key: 'namaGuru', label: 'Nama Guru', style: { width: '150px' } },
-    { 
-      key: 'status', 
-      label: 'Status',
-      style: { textAlign: 'center' as const, width: '150px' },
-      render: (value: StatusType, row: KehadiranRow) => (
-        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-          <StatusButton status={value} siswa={row} />
-        </div>
-      )
-    },
-  ], []);
+
+
 
   const [editingRow, setEditingRow] = useState<KehadiranRow | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -426,12 +280,7 @@ export function KehadiranSiswaWakel({
     { label: 'Pulang', value: 'pulang' as StatusType },
   ];
 
-  const handleOpenEdit = (row: KehadiranRow) => {
-    setEditingRow(row);
-    setEditStatus(row.status);
-    setEditKeterangan(row.keterangan || '');
-    setIsEditOpen(true);
-  };
+
 
   const handleCloseEdit = () => {
     setIsEditOpen(false);
@@ -472,9 +321,7 @@ export function KehadiranSiswaWakel({
     }, 300);
   };
 
-  const handleLihatRekap = () => {
-    onMenuClick('rekap-kehadiran-siswa');
-  };
+
 
   const handleOpenDatePicker = () => {
     setTempDate(selectedDate || formattedDate);
@@ -498,11 +345,6 @@ export function KehadiranSiswaWakel({
     setShowDatePicker(false);
   };
 
-  const formatDateForDisplay = (dateStr: string) => {
-    if (!dateStr) return formattedDate;
-    return dateStr;
-  };
-
   const parseDateToInput = (dateStr: string) => {
     if (!dateStr) return '';
     const [day, month, year] = dateStr.split('-');
@@ -515,69 +357,8 @@ export function KehadiranSiswaWakel({
     return `${day}-${month}-${year}`;
   };
 
-  const DetailRow = ({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) => (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-      paddingBottom: 12,
-      borderBottom: '1px solid #E5E7EB',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {icon}
-        <div style={{ fontWeight: 600, color: '#374151' }}>{label} :</div>
-      </div>
-      <div style={{ fontWeight: 500, color: '#1F2937', textAlign: 'right' }}>
-        {value}
-      </div>
-    </div>
-  );
 
-  const refreshDataFromLocalStorage = () => {
-    const perizinanData = localStorage.getItem('perizinanPulangList');
-    if (!perizinanData) return;
-    
-    try {
-      const perizinanList = JSON.parse(perizinanData);
-      
-      const perizinanRows: KehadiranRow[] = perizinanList.map((perizinan: any, index: number) => ({
-        id: `perizinan-pulang-${perizinan.id || Date.now() + index}`,
-        nisn: perizinan.nisn,
-        namaSiswa: perizinan.namaSiswa,
-        mataPelajaran: perizinan.mapel,
-        namaGuru: perizinan.namaGuru,
-        tanggal: perizinan.tanggal || perizinan.createdAt,
-        status: 'pulang' as StatusType,
-        keterangan: perizinan.keterangan,
-        jamPelajaran: perizinan.jamPelajaran || '1-4',
-        buktiFoto1: perizinan.buktiFoto1,
-        buktiFoto2: perizinan.buktiFoto2,
-        isPerizinanPulang: true,
-      }));
-      
-      const dummyRows: KehadiranRow[] = [
-        { id: '1', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:30 WIB' },
-        { id: '2', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:25 WIB' },
-        { id: '3', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Ijin tidak masuk karena ada keperluan keluarga' },
-        { id: '4', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Demam tinggi dan dokter menyarankan istirahat' },
-        { id: '5', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-        { id: '6', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-        { id: '7', nisn: '1348576392', namaSiswa: 'Wito Suherman Suhermin', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-        { id: '8', nisn: '1348576393', namaSiswa: 'Ahmad Fauzi', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:28 WIB' },
-        { id: '9', nisn: '1348576394', namaSiswa: 'Siti Nurhaliza', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Batuk pilek dan demam' },
-        { id: '10', nisn: '1348576395', namaSiswa: 'Budi Santoso', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'izin', jamPelajaran: '1-4', keterangan: 'Menghadiri acara keluarga' },
-        { id: '11', nisn: '1348576396', namaSiswa: 'Dewi Sartika', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:32 WIB' },
-        { id: '12', nisn: '1348576397', namaSiswa: 'Rizki Ramadhan', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'alfa', jamPelajaran: '1-4' },
-        { id: '13', nisn: '1348576398', namaSiswa: 'Fitri Handayani', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'hadir', jamPelajaran: '1-4', waktuHadir: '07:29 WIB' },
-        { id: '14', nisn: '1348576399', namaSiswa: 'Andi Wijaya', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'sakit', jamPelajaran: '1-4', keterangan: 'Sakit perut' },
-        { id: '15', nisn: '1348576400', namaSiswa: 'Rina Pratiwi', mataPelajaran: 'Matematika', namaGuru: 'Solikhah S.pd', tanggal: '25-01-2026', status: 'pulang', jamPelajaran: '1-4', keterangan: 'Pulang lebih awal karena sakit kepala' },
-      ];
-      
-      setRows([...dummyRows, ...perizinanRows]);
-    } catch (error) {
-      console.error('Error parsing perizinan data:', error);
-    }
-  };
+
 
   return (
     <WalikelasLayout
@@ -597,6 +378,23 @@ export function KehadiranSiswaWakel({
         border: '1px solid #E5E7EB',
         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
       }}>
+        {/* Loading Overlay */}
+        {loading && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255,255,255,0.7)',
+            zIndex: 10,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          </div>
+        )}
         <div style={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
@@ -639,7 +437,7 @@ export function KehadiranSiswaWakel({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Calendar size={18} color="#FFFFFF" />
                   <span>
-                    {formatDateForDisplay(selectedDate)}
+                    {kelasInfo.tanggal}
                   </span>
                 </div>
                 <ChevronDown size={14} color="#FFFFFF" />
@@ -692,10 +490,10 @@ export function KehadiranSiswaWakel({
               justifyContent: isMobile ? 'flex-start' : 'flex-end',
             }}>
               <button
-                onClick={() => {
-                  refreshDataFromLocalStorage();
-                  handleLihatRekap();
-                }}
+                  onClick={() => {
+                   fetchAttendance(); // Refresh button
+                   // handleLihatRekap();
+                  }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -715,7 +513,7 @@ export function KehadiranSiswaWakel({
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
               >
                 <FileText size={15} />
-                <span>Lihat Rekap</span>
+                <span>Refresh</span>
               </button>
             </div>
 

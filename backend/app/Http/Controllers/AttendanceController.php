@@ -40,6 +40,8 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'token' => ['required', 'string', 'exists:qrcodes,token'],
             'device_id' => ['nullable', 'integer'],
+            'lat' => ['nullable', 'numeric'],
+            'long' => ['nullable', 'numeric'],
         ]);
 
         $qr = Qrcode::with('schedule.dailySchedule.classSchedule.class')->where('token', $data['token'])->firstOrFail();
@@ -66,6 +68,29 @@ class AttendanceController extends Controller
         if ($user->user_type === 'teacher' && ! $user->teacherProfile) {
             return response()->json(['message' => 'Profil guru tidak ditemukan'], 422);
         }
+
+        // --- Geolocation Validation ---
+        // Ambil latitude dan longitude sekolah dari database ( fitur mobile)
+        $schoolLat = \App\Models\Setting::where('key', 'school_lat')->value('value');
+        $schoolLong = \App\Models\Setting::where('key', 'school_long')->value('value');
+        $radius = (int) (\App\Models\Setting::where('key', 'attendance_radius_meters')->value('value') ?? 0);
+
+        if ($schoolLat && $schoolLong && $radius > 0) {
+            if (empty($data['lat']) || empty($data['long'])) {
+                return response()->json(['message' => 'Lokasi diperlukan untuk presensi'], 422);
+            }
+
+            $distance = $this->calculateDistance((float)$data['lat'], (float)$data['long'], (float)$schoolLat, (float)$schoolLong);
+            
+            if ($distance > $radius) {
+                return response()->json([
+                    'message' => 'Anda berada di luar radius sekolah',
+                    'distance' => round($distance, 2) . ' meter',
+                    'max_radius' => $radius . ' meter'
+                ], 422);
+            }
+        }
+        // ------------------------------
 
         // Check if student is on leave (cannot scan if on leave)
         if ($user->user_type === 'student' && $user->studentProfile) {
@@ -144,6 +169,25 @@ class AttendanceController extends Controller
                 return response()->json(new \App\Http\Resources\AttendanceResource($attendance->loadMissing(['student.user', 'teacher.user', 'schedule.dailySchedule.classSchedule.class'])));
             });
         });
+    }
+
+    /**
+     * Calculate distance between two coordinates in meters (Haversine Formula)
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // Meters
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($dLon / 2) * sin($dLon / 2);
+        
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 
     /**
@@ -457,6 +501,102 @@ class AttendanceController extends Controller
      *
      * Retrieve attendance history for the currently authenticated student.
      */
+    public function summary(Request $request)
+    {
+        $user = $request->user();
+        
+        // Ensure user is a student
+        if ($user->user_type !== 'student') { // Changed from $user->role to $user->user_type
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $student = $user->studentProfile; // Changed from $user->student to $user->studentProfile
+        if (!$student) {
+            return response()->json(['message' => 'Student profile not found'], 404);
+        }
+
+        // Monthly Trend (Current Year)
+        $currentYear = date('Y');
+        $monthlyTrend = Attendance::where('student_id', $student->id)
+            ->whereYear('date', $currentYear)
+            ->selectRaw('MONTH(date) as month, status, count(*) as count')
+            ->groupBy('month', 'status')
+            ->get();
+
+        // format monthly trend for frontend
+        $months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        $formattedMonthly = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $monthData = [
+                'month' => $months[$i - 1],
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpha' => 0,
+                'pulang' => 0
+            ];
+            
+            foreach ($monthlyTrend as $trend) {
+                if ($trend->month == $i) {
+                    $status = $this->mapStatusToFrontend($trend->status);
+                    if (isset($monthData[$status])) {
+                        $monthData[$status] += $trend->count;
+                    }
+                }
+            }
+            $formattedMonthly[] = $monthData;
+        }
+
+        // Weekly Stats (Current Week)
+        $startOfWeek = now()->startOfWeek()->format('Y-m-d');
+        $endOfWeek = now()->endOfWeek()->format('Y-m-d');
+        
+        $weeklyStatsRaw = Attendance::where('student_id', $student->id)
+            ->whereBetween('date', [$startOfWeek, $endOfWeek])
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->get();
+
+        $weeklyStats = [
+            'hadir' => 0,
+            'izin' => 0,
+            'sakit' => 0,
+            'alpha' => 0,
+            'pulang' => 0
+        ];
+
+        foreach ($weeklyStatsRaw as $stat) {
+            $status = $this->mapStatusToFrontend($stat->status);
+            if (isset($weeklyStats[$status])) {
+                $weeklyStats[$status] += $stat->count;
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'monthly_trend' => $formattedMonthly,
+                'weekly_stats' => $weeklyStats
+            ]
+        ]);
+    }
+
+    private function mapStatusToFrontend($status) {
+        switch ($status) {
+            case 'present': return 'hadir';
+            case 'sick': return 'sakit';
+            case 'izin': return 'izin'; // Changed from 'permission' to 'izin'
+            case 'absent': return 'alpha'; // Changed from 'alpha' to 'absent'
+            case 'return': return 'pulang'; // Changed from 'leave_early' to 'return'
+            default: return 'alpha';
+        }
+    }
+
+    /**
+     * Get My Attendance History
+     *
+     * Retrieve attendance history for the currently authenticated student.
+     */
     public function me(Request $request): JsonResponse
     {
         if ($request->user()->user_type !== 'student' || ! $request->user()->studentProfile) {
@@ -743,7 +883,7 @@ class AttendanceController extends Controller
         $day = $date->format('l');
 
         $items = ScheduleItem::query()
-            ->with(['teacher.user:id,name'])
+            ->with(['teacher.user:id,name', 'subject'])
             ->whereHas('dailySchedule', function($q) use ($day, $class) {
                  $q->where('day', $day)
                    ->whereHas('classSchedule', function($cq) use ($class) {
@@ -815,87 +955,85 @@ class AttendanceController extends Controller
             'threshold' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = Attendance::query()
+        // 1. Get students for the class (all of them)
+        // Join with users to sort by name
+        $query = $class->students()
+            ->join('users', 'student_profiles.user_id', '=', 'users.id')
+            ->select('student_profiles.*')
+            ->with('user')
+            ->orderBy('users.name');
+
+        $perPage = $this->resolvePerPage($request);
+        
+        if ($perPage) {
+            $students = $query->paginate($perPage);
+            $studentCollection = $students->getCollection();
+        } else {
+            $studentCollection = $query->get();
+            $students = null;
+        }
+
+        $studentIds = $studentCollection->pluck('id')->all();
+
+        if (empty($studentIds)) {
+             return $perPage ? response()->json($students) : response()->json([]);
+        }
+
+        // 2. Get attendance summaries for these students
+        $attendancesQuery = Attendance::query()
             ->where('attendee_type', 'student')
+            ->whereIn('student_id', $studentIds)
             ->whereHas('schedule', function ($q) use ($class): void {
                 $q->where('class_id', $class->id);
             });
 
         if ($request->filled('from')) {
-            $query->whereDate('date', '>=', $request->date('from'));
+            $attendancesQuery->whereDate('date', '>=', $request->date('from'));
         }
 
         if ($request->filled('to')) {
-            $query->whereDate('date', '<=', $request->date('to'));
+            $attendancesQuery->whereDate('date', '<=', $request->date('to'));
         }
 
-        $perPage = $this->resolvePerPage($request);
-        $studentIds = [];
-        if ($perPage) {
-            $studentIdsPage = (clone $query)
-                ->select('student_id')
-                ->distinct()
-                ->orderBy('student_id')
-                ->paginate($perPage);
+        $stats = $attendancesQuery
+            ->selectRaw('student_id, status, count(*) as total')
+            ->groupBy('student_id', 'status')
+            ->get()
+            ->groupBy('student_id');
 
-            $studentIds = $studentIdsPage->getCollection()->pluck('student_id')->all();
+        // 3. Map to result
+        $result = $studentCollection->map(function ($student) use ($stats) {
+            $studentStats = $stats->get($student->id, collect());
+            $totals = $studentStats->pluck('total', 'status')->all();
 
-            $raw = (clone $query)
-                ->whereIn('student_id', $studentIds)
-                ->selectRaw('student_id, status, count(*) as total')
-                ->groupBy('student_id', 'status')
-                ->get();
-        } else {
-            $raw = (clone $query)
-                ->selectRaw('student_id, status, count(*) as total')
-                ->groupBy('student_id', 'status')
-                ->get();
-        }
-
-        $grouped = $raw->groupBy('student_id')->map(function ($rows): array {
             return [
-                'student_id' => $rows->first()->student_id,
-                'totals' => $rows->pluck('total', 'status')->all(),
+                'student' => $student,
+                'totals' => $totals ?: (object)[],
             ];
-        })->values();
+        });
 
+        // 4. Apply threshold filter if needed (post-query)
+        // Note: Filtering after pagination might result in fewer items per page.
+        // If strict pagination is needed with threshold, we would need a more complex query.
+        // For now, we apply filter on the current page/collection.
         if ($request->filled('threshold')) {
             $threshold = $request->integer('threshold');
-            $grouped = $grouped->filter(function (array $item) use ($threshold): bool {
+            $result = $result->filter(function (array $item) use ($threshold): bool {
                 foreach ($item['totals'] as $count) {
                     if ($count >= $threshold) {
                         return true;
                     }
                 }
-
                 return false;
             })->values();
         }
 
-        if (! $perPage) {
-            $studentIds = $grouped->pluck('student_id')->all();
-        }
-
-        $students = $class->students()
-            ->with('user')
-            ->whereIn('id', $studentIds)
-            ->get()
-            ->keyBy('id');
-
-        $response = $grouped->map(function (array $item) use ($students): array {
-            return [
-                'student' => $students->get($item['student_id']),
-                'totals' => $item['totals'],
-            ];
-        });
-
         if ($perPage) {
-            $studentIdsPage->setCollection($response->values());
-
-            return response()->json($studentIdsPage);
+            $students->setCollection($result);
+            return response()->json($students);
         }
 
-        return response()->json($response);
+        return response()->json($result);
     }
 
     public function classStudentsAbsences(Request $request, Classes $class): JsonResponse
@@ -1035,19 +1173,23 @@ class AttendanceController extends Controller
             ->where('attendee_type', 'teacher')
             ->whereDate('date', $date)
             ->whereIn('teacher_id', $teacherIds)
+            ->with('schedule')
             ->orderByDesc('checked_in_at')
             ->get()
             ->groupBy('teacher_id');
 
         $items = $teachers->getCollection()->map(function (TeacherProfile $teacher) use ($attendanceByTeacher): array {
-            $attendance = $attendanceByTeacher->get($teacher->id)?->first();
+        $attendances = $attendanceByTeacher->get($teacher->id) ?? collect([]);
+        // Eager load schedule if possible. But here we already fetched it?
+        // No, the query above didn't eager load schedule.
+        // We should update the query above to ->with('schedule').
 
-            return [
-                'teacher' => $teacher,
-                'attendance' => $attendance,
-                'status' => $attendance?->status ?? 'absent',
-            ];
-        });
+        return [
+            'teacher' => $teacher,
+            'attendances' => $attendances,
+            'status' => $attendances->isNotEmpty() ? $attendances->first()->status : 'absent', // Fallback status
+        ];
+    });
 
         $teachers->setCollection($items);
 
@@ -1061,11 +1203,12 @@ class AttendanceController extends Controller
     {
         // Data already validated and normalized in Form Request
         $dto = \App\Data\ManualAttendanceData::fromRequest($request);
+        $user = $request->user();
 
         // Authorization Check
         $user = $request->user();
         if ($user->user_type === 'teacher') {
-            $schedule = Schedule::find($dto->schedule_id);
+            $schedule = ScheduleItem::find($dto->schedule_id);
             if (! $schedule || $schedule->teacher_id !== $user->teacherProfile->id) {
                 // Allow if homeroom teacher?
                 $student = StudentProfile::find($dto->student_id);
@@ -1106,7 +1249,7 @@ class AttendanceController extends Controller
             'source' => 'manual',
         ]);
 
-        return response()->json(new \App\Http\Resources\AttendanceResource($attendance->load(['student.user', 'teacher.user', 'schedule.class'])), 201);
+        return response()->json(new \App\Http\Resources\AttendanceResource($attendance->load(['student.user', 'teacher.user', 'schedule.dailySchedule.classSchedule.class'])), 201);
     }
 
     public function teacherAttendanceHistory(Request $request, TeacherProfile $teacher): JsonResponse
@@ -1128,7 +1271,9 @@ class AttendanceController extends Controller
             $query->whereDate('date', '<=', $request->date('to'));
         }
 
-        $history = $query->orderByDesc('date')->get();
+        $history = $query->with(['schedule.subject', 'schedule.dailySchedule.classSchedule.class'])
+        ->orderByDesc('date')
+        ->get();
 
         return response()->json([
             'teacher' => $teacher->load('user'),
@@ -1286,7 +1431,7 @@ class AttendanceController extends Controller
         return response()->json($summary);
     }
 
-    public function summaryBySchedule(Request $request, Schedule $schedule): JsonResponse
+    public function summaryBySchedule(Request $request, ScheduleItem $schedule): JsonResponse
     {
         $this->authorizeSchedule($request, $schedule);
 
@@ -1447,14 +1592,14 @@ class AttendanceController extends Controller
         }
     }
 
-    protected function authorizeSchedule(Request $request, Schedule $schedule): void
+    protected function authorizeSchedule(Request $request, ScheduleItem $schedule): void
     {
         if ($request->user()->user_type === 'teacher' && $schedule->teacher_id !== optional($request->user()->teacherProfile)->id) {
             abort(403, 'Tidak boleh mengakses jadwal ini');
         }
     }
 
-    public function bySchedule(Request $request, Schedule $schedule): JsonResponse
+    public function bySchedule(Request $request, ScheduleItem $schedule): JsonResponse
     {
         if ($request->user()->user_type === 'teacher' && $schedule->teacher_id !== optional($request->user()->teacherProfile)->id) {
             abort(403, 'Tidak boleh melihat presensi jadwal ini');

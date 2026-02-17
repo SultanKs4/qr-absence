@@ -1,15 +1,8 @@
-import { useMemo, useState } from "react";
-import { CalendarDays, School, BookOpen, QrCode, Plus } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { CalendarDays, School, BookOpen, QrCode, Plus, Loader2 } from "lucide-react";
 import { Modal } from "../../component/Shared/Modal";
-
-type Mapel = { id: string; name: string; kelas: string };
-
-const mapelList: Mapel[] = [
-  { id: "1", name: "Matematika", kelas: "X Mekatronika 1" },
-  { id: "2", name: "Matematika", kelas: "X Mekatronika 1" },
-  { id: "3", name: "Matematika", kelas: "X Mekatronika 1" },
-  { id: "4", name: "Matematika", kelas: "X Mekatronika 1" },
-];
+import classService from "../../services/classService";
+import { attendanceService } from "../../services/attendanceService";
 
 function formatDDMMYYYY(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
@@ -22,24 +15,56 @@ export default function DaftarMapel() {
   const today = useMemo(() => new Date(), []);
   const todayStr = formatDDMMYYYY(today);
 
-  const kelasInfo = {
-    namaKelas: "X Mekatronika 1",
-    waliKelas: "Ewit Erniyah S.pd",
-  };
-
-  const [selectedMapel, setSelectedMapel] = useState<Mapel | null>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [classInfo, setClassInfo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedMapel, setSelectedMapel] = useState<any | null>(null);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrSvg, setQrSvg] = useState<string | null>(null);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
 
-  const handleGenerateQr = (m: Mapel) => {
-    setSelectedMapel(m);
-    setIsQrModalOpen(true);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [cls, sch] = await Promise.all([
+          classService.getMyClass(),
+          classService.getMyClassSchedules()
+        ]);
+        setClassInfo(cls);
+        setSchedules(sch);
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleGenerateQr = async (m: any) => {
+    try {
+      setIsGeneratingQr(true);
+      setSelectedMapel(m);
+      const res = await attendanceService.generateQrCode(m.id);
+      setQrSvg(res.qr_svg);
+      setIsQrModalOpen(true);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Gagal membuat QR Code");
+    } finally {
+      setIsGeneratingQr(false);
+    }
   };
 
-  const qrUrl = selectedMapel
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=ABSENSI-${selectedMapel.id}-${new Date()
-        .toISOString()
-        .split("T")[0]}&format=svg&margin=10&color=2F80ED&bgcolor=ffffff`
-    : "";
+  
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: "50px" }}>
+        <Loader2 className="animate-spin" size={32} color="#062A4A" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "22px 24px 28px" }}>
@@ -92,14 +117,20 @@ export default function DaftarMapel() {
         </div>
 
         <div style={{ lineHeight: 1.1 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>{kelasInfo.namaKelas}</div>
-          <div style={{ fontWeight: 600, opacity: 0.9, marginTop: 4 }}>{kelasInfo.waliKelas}</div>
+          <div style={{ fontWeight: 900, fontSize: 18 }}>{classInfo?.name || "-"}</div>
+          <div style={{ fontWeight: 600, opacity: 0.9, marginTop: 4 }}>
+            {classInfo?.homeroom_teacher?.user?.name || "Belum ada Wali Kelas"}
+          </div>
         </div>
       </div>
 
-      {/* List Mapel */}
       <div style={{ marginTop: 26, display: "flex", flexDirection: "column", gap: 14 }}>
-        {mapelList.map((m) => (
+        {schedules.length === 0 && (
+          <div style={{ textAlign: "center", padding: "20px", color: "#64748B" }}>
+            Tidak ada jadwal untuk hari ini.
+          </div>
+        )}
+        {schedules.map((m) => (
           <div
             key={m.id}
             style={{
@@ -132,9 +163,14 @@ export default function DaftarMapel() {
 
               {/* text */}
               <div style={{ lineHeight: 1.1 }}>
-                <div style={{ fontSize: 22, fontWeight: 900, color: "#0F172A" }}>{m.name}</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: "#0F172A" }}>
+                  {m.subject?.name || "Mapel"}
+                </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", opacity: 0.8, marginTop: 4 }}>
-                  {m.kelas}
+                {m.kelas?.name || "Kelas"}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", opacity: 0.8, marginTop: 4 }}>
+                  {m.teacher?.user?.name || "Guru"}
                 </div>
               </div>
             </div>
@@ -143,6 +179,7 @@ export default function DaftarMapel() {
             <button
               type="button"
               onClick={() => handleGenerateQr(m)}
+              disabled={isGeneratingQr}
               aria-label="Generate QR"
               style={{
                 width: 54,
@@ -150,16 +187,23 @@ export default function DaftarMapel() {
                 borderRadius: 12,
                 border: "none",
                 background: "transparent",
-                cursor: "pointer",
+                cursor: isGeneratingQr ? "not-allowed" : "pointer",
                 display: "grid",
                 placeItems: "center",
+                opacity: isGeneratingQr ? 0.5 : 1
               }}
             >
               <span style={{ position: "relative", width: 26, height: 26, display: "inline-block" }}>
-                <QrCode size={26} color="#0F172A" />
-                <span style={{ position: "absolute", right: -8, bottom: -8 }}>
-                  <Plus size={16} color="#0F172A" />
-                </span>
+                {isGeneratingQr && selectedMapel?.id === m.id ? (
+                  <Loader2 className="animate-spin" size={26} color="#0F172A" />
+                ) : (
+                  <>
+                    <QrCode size={26} color="#0F172A" />
+                    <span style={{ position: "absolute", right: -8, bottom: -8 }}>
+                      <Plus size={16} color="#0F172A" />
+                    </span>
+                  </>
+                )}
               </span>
             </button>
           </div>
@@ -210,7 +254,6 @@ export default function DaftarMapel() {
             </div>
           </div>
 
-          {/* QR Code */}
           <div style={{ 
             padding: 20,
             marginBottom: 24,
@@ -219,9 +262,9 @@ export default function DaftarMapel() {
             borderRadius: "12px",
             border: "1px solid #E5E7EB"
           }}>
-            {selectedMapel && (
+            {qrSvg && (
               <img 
-                src={qrUrl} 
+                src={`data:image/svg+xml;base64,${qrSvg}`} 
                 alt="QR Code Presensi" 
                 style={{ 
                   width: 250, 

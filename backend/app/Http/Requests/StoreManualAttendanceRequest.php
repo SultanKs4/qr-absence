@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class StoreManualAttendanceRequest extends FormRequest
 {
@@ -14,9 +16,15 @@ class StoreManualAttendanceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'attendee_type' => ['required', 'in:student,teacher'],
-            'schedule_id' => ['required', 'exists:schedules,id'],
-            'status' => ['required', 'in:present,late,excused,sick,absent,dinas,izin,pulang'],
+            'attendee_type' => ['required', Rule::in(['student', 'teacher'])],
+            'schedule_id' => ['required', 'exists:schedule_items,id'],
+            'status' => [
+                'required',
+                Rule::in([
+                    'present', 'late', 'excused', 'sick', 'absent', 'dinas', 'izin', 'pulang', 'return', 'alpha',
+                    'hadir', 'tanpa-keterangan', 'terlambat', 'sakit', 'dispensasi'
+                ]),
+            ],
             'date' => [
                 'required',
                 'date',
@@ -35,7 +43,7 @@ class StoreManualAttendanceRequest extends FormRequest
     protected function prepareForValidation()
     {
         // Normalize status input to backend enum
-        $status = $this->status;
+        $status = $this->input('status');
         $map = [
             'alpha' => 'absent',
             'tanpa-keterangan' => 'absent',

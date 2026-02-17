@@ -19,11 +19,13 @@ class MajorController extends Controller
     {
         $perPage = $request->integer('per_page', 15);
 
+        $query = Major::query()->latest();
+
         if ($perPage === -1) {
-            return response()->json(Major::query()->latest()->get());
+            return \App\Http\Resources\MajorResource::collection($query->get())->response();
         }
 
-        return response()->json(Major::query()->latest()->paginate($perPage));
+        return \App\Http\Resources\MajorResource::collection($query->paginate($perPage))->response();
     }
 
     /**

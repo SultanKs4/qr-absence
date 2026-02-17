@@ -68,15 +68,15 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
 
     Route::middleware(['role:admin', 'admin-type:waka'])->group(function (): void {
         Route::post('/classes/{class}/schedules/bulk', [ScheduleController::class, 'bulkUpsert']);
-        Route::get('/absence-requests', [AbsenceRequestController::class, 'index']);
-        Route::post('/absence-requests/{absenceRequest}/approve', [AbsenceRequestController::class, 'approve']);
-        Route::post('/absence-requests/{absenceRequest}/reject', [AbsenceRequestController::class, 'reject']);
+        Route::post('/classes/{class}/schedules/bulk', [ScheduleController::class, 'bulkUpsert']);
+        // Absence requests moved to shared group
         Route::get('/attendance/teachers/daily', [AttendanceController::class, 'teachersDailyAttendance']);
         Route::get('/waka/attendance/summary', [AttendanceController::class, 'wakaSummary']);
         Route::get('/waka/dashboard/summary', [DashboardController::class, 'wakaDashboard']);
         Route::get('/waka/classes/{class}/attendance-summary', [AttendanceController::class, 'wakaClassSummary']);
         Route::get('/students/absences', [AttendanceController::class, 'studentsAbsences']);
         Route::get('/teachers/{teacher}/attendance-history', [AttendanceController::class, 'teacherAttendanceHistory']);
+        Route::get('/waka/classes/{class}/attendance', [AttendanceController::class, 'classAttendanceByDate']);
 
         Route::post('/teachers/{teacher}/schedule-image', [TeacherController::class, 'uploadScheduleImage']);
         Route::delete('/teachers/{teacher}/schedule-image', [TeacherController::class, 'deleteScheduleImage']);
@@ -157,7 +157,7 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
         Route::post('/me/schedule-image', [TeacherController::class, 'uploadMyScheduleImage']);
         Route::post('/me/schedules/{schedule}/close', [AttendanceController::class, 'close']);
         Route::post('/attendance/scan-student', [AttendanceController::class, 'scanStudent']);
-        Route::post('/attendance/manual', [AttendanceController::class, 'storeManual']);
+        // Route::post('/attendance/manual', [AttendanceController::class, 'storeManual']); // Removed duplicate that overrode the admin-accessible one
 
         // Teacher Schedule Detail - accessed from dashboard "Tampilkan" button
         Route::get('/me/schedules/{schedule}/detail', [\App\Http\Controllers\TeacherScheduleDetailController::class, 'show']);
@@ -203,8 +203,10 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
     });
 
     Route::middleware('role:student')->group(function (): void {
-        Route::get('/me/attendance', [AttendanceController::class, 'me']);
+        Route::get('/me/attendance', [\App\Http\Controllers\AttendanceController::class, 'me']);
+        Route::get('/me/attendance/summary', [\App\Http\Controllers\AttendanceController::class, 'summary']);
         Route::get('/me/attendance/summary', [AttendanceController::class, 'summaryMe']);
+        Route::get('/student/profile', [AuthController::class, 'me']); // Alias for mobile legacy
         Route::post('/me/devices', [DeviceController::class, 'store']);
         Route::post('/devices', [DeviceController::class, 'store']); // Consistent alias
         Route::delete('/me/devices/{device}', [DeviceController::class, 'destroy']);
@@ -212,7 +214,13 @@ Route::middleware(['auth:sanctum', 'activity', 'throttle:api'])->group(function 
 
     Route::middleware('role:admin,teacher,student')->group(function (): void {
         Route::get('/settings/sync', [SettingController::class, 'sync']);
+        Route::get('/absence-requests', [AbsenceRequestController::class, 'index']);
         Route::post('/absence-requests', [AbsenceRequestController::class, 'store']);
+    });
+
+    Route::middleware('role:admin,teacher')->group(function (): void {
+        Route::post('/absence-requests/{absenceRequest}/approve', [AbsenceRequestController::class, 'approve']);
+        Route::post('/absence-requests/{absenceRequest}/reject', [AbsenceRequestController::class, 'reject']);
     });
 
     Route::middleware(['role:student', 'class-officer'])->group(function (): void {

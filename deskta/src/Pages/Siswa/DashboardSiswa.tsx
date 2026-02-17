@@ -1,4 +1,6 @@
-﻿import { useMemo, useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
+import { scheduleService } from "../../services/scheduleService";
+import { attendanceService } from "../../services/attendanceService";
 import SiswaLayout from "../../component/Siswa/SiswaLayout";
 // import openBook from "../../assets/Icon/open-book.png";
 import { Modal } from "../../component/Shared/Modal";
@@ -30,8 +32,9 @@ import {
   Legend,
   ArcElement,
   Filler,
+  BarElement
 } from "chart.js";
-import { Line, Doughnut } from "react-chartjs-2";
+import { Line, Doughnut, Bar } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -42,7 +45,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   ArcElement,
-  Filler
+  Filler,
+  BarElement
 );
 
 type SiswaPage = "dashboard" | "jadwal-anda" | "notifikasi" | "absensi";
@@ -56,67 +60,21 @@ interface ScheduleItem {
 }
 
 interface DashboardSiswaProps {
-  user: { name: string; phone: string };
+  user: { 
+    name: string; 
+    phone: string;
+    profile?: {
+      nis?: string;
+      class_name?: string;
+      photo_url?: string;
+    }
+  };
   onLogout: () => void;
 }
 
-// Mapping ID siswa ke nama - TAMBAHKAN DATA SISWA DISINI
-const studentNameMapping: { [key: string]: string } = {
-  "0075802873": "TALITHA NUDIA RISMATULLAH",
-  "0061631562": "NADIA SINTA DEVI OKTAVIA",
-  "0089965810": "NINDI NARITA MAULIDYA",
-  // Tambahkan mapping ID siswa lainnya di sini
-  // "ID_SISWA": "Nama Siswa",
-};
+// Mapping ID siswa ke nama removed - using profile data
 
-// Fungsi untuk mendapatkan nama siswa dari ID
-const getStudentName = (user: { name: string; phone: string }): string => {
-  // Jika user.name berisi angka saja (ID), convert ke nama
-  if (/^\d+$/.test(user.name)) {
-    return studentNameMapping[user.name] || user.name;
-  }
-  // Jika user.phone berisi ID yang ada di mapping, gunakan itu
-  if (user.phone && studentNameMapping[user.phone]) {
-    return studentNameMapping[user.phone];
-  }
-  // Jika tidak, return user.name seperti biasa
-  return user.name;
-};
-
-// Fungsi untuk mendapatkan NISN dari user
-const getStudentNISN = (user: { name: string; phone: string }): string => {
-  // Jika user.name adalah angka (ID/NISN), return itu
-  if (/^\d+$/.test(user.name)) {
-    return user.name;
-  }
-  // Jika user.phone ada dan berupa angka, return itu
-  if (user.phone && /^\d+$/.test(user.phone)) {
-    return user.phone;
-  }
-  // Cari NISN dari mapping berdasarkan nama
-  const nisn = Object.keys(studentNameMapping).find(
-    key => studentNameMapping[key] === user.name
-  );
-  return nisn || user.phone || "0000000000";
-};
-
-// Dummy data untuk statistik
-const monthlyTrendData = [
-  { month: "Jan", hadir: 8, izin: 5, sakit: 3, alpha: 2, pulang: 1 },
-  { month: "Feb", hadir: 9, izin: 5, sakit: 2, alpha: 3, pulang: 1 },
-  { month: "Mar", hadir: 10, izin: 4, sakit: 3, alpha: 2, pulang: 1 },
-  { month: "Apr", hadir: 11, izin: 2, sakit: 2, alpha: 1, pulang: 2 },
-  { month: "Mei", hadir: 12, izin: 3, sakit: 1, alpha: 2, pulang: 1 },
-  { month: "Jun", hadir: 13, izin:3, sakit: 2, alpha: 1, pulang: 2 },
-];
-
-const weeklyStats = {
-  hadir: 3,
-  izin: 1,
-  sakit: 1,
-  alpha: 0,
-  pulang: 0,
-};
+// Dummy data removed - fetched from API
 
 export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) {
   const [currentPage, setCurrentPage] = useState<SiswaPage>("dashboard");
@@ -124,17 +82,26 @@ export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) 
   const [currentTime, setCurrentTime] = useState("");
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-
-  // Convert ID ke nama siswa
-  const displayName = getStudentName(user);
   
-  // Get NISN siswa
-  const displayNISN = getStudentNISN(user);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState({
+    hadir: 0,
+    izin: 0,
+    sakit: 0,
+    alpha: 0,
+    pulang: 0,
+  });
+  const [dailyStats, setDailyStats] = useState<any[]>([]);
   
-  // Update user object dengan nama yang sudah diconvert
+  // Use data directly from user object (synced in App.tsx)
+  const displayName = user.name;
+  const displayNISN = user.profile?.nis || user.phone || "0000000000";
+  
   const userWithName = {
     name: displayName,
-    phone: user.phone
+    phone: user.phone,
+    profile: user.profile
   };
 
   useEffect(() => {
@@ -161,15 +128,67 @@ export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) 
     return () => clearInterval(interval);
   }, []);
 
-  const schedules = useMemo<ScheduleItem[]>(
-    () => [
-      { id: "1", mapel: "Mata Pelajaran Pilihan", guru: "Ewit Erniyah S.Pd", start: "07:00", end: "08:30" },
-      { id: "2", mapel: "Bahasa Indonesia", guru: "Devi Arfani S.Pd", start: "08:30", end: "10:00" },
-      { id: "3", mapel: "Bahasa Inggris", guru: "Fajar Ningtyas S.Pd", start: "10:15", end: "11:45" },
-      { id: "4", mapel: "Matematika", guru: "Solikah S.Pd", start: "11:45", end: "15:00" },
-    ],
-    []
-  );
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch Schedule
+        const scheduleResponse = await scheduleService.getMySchedule();
+        const scheduleItems = (scheduleResponse.items || [])
+          .filter((item: any) => {
+            // Optional: Filter only today's schedule if needed, but the UI shows "Jadwal Hari Ini"
+            // So we probably want today's schedule.
+            
+            // JADWAL DIMULAI DARI SENIN - JUMAT
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const todayName = days[new Date().getDay()];
+            return item.day === todayName; 
+          })
+          .map((item: any) => ({
+            id: item.id.toString(),
+            mapel: item.subject,
+            guru: item.teacher?.name || "Guru",
+            start: item.start_time?.substring(0, 5) || "",
+            end: item.end_time?.substring(0, 5) || ""
+          }));
+        setSchedules(scheduleItems);
+
+        // Fetch Attendance Summary
+        const summaryResponse = await attendanceService.getStudentSummary();
+        if (summaryResponse.status === 'success') {
+           // Normalize trend data
+           const normalizedTrend = (summaryResponse.data.trend || []).map((t: any) => ({
+             month: t.month,
+             hadir: t.present || 0,
+             alpha: t.absent || 0,
+             sakit: t.sick || 0,
+             izin: t.izin || 0,
+             pulang: t.return || 0
+           }));
+           setMonthlyTrendData(normalizedTrend);
+           
+           // Normalize daily stats if needed, or just set as is
+           // The backend DailyStats for bar chart: hadir, tidak_hadir, izin, sakit, pulang
+           setDailyStats(summaryResponse.data.daily_stats || []);
+
+           if (summaryResponse.data.statistik) {
+             const s = summaryResponse.data.statistik;
+             setWeeklyStats({
+               hadir: s.hadir || 0,
+               izin: s.izin || 0,
+               sakit: s.sakit || 0,
+               alpha: s.alpha || 0,
+               pulang: s.pulang || 0,
+             });
+           }
+        }
+
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleMenuClick = (page: string) => {
     setCurrentPage(page as SiswaPage);
@@ -577,7 +596,8 @@ export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) 
                   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
                   gap: "16px",
                 }}>
-                  {schedules.map((schedule) => (
+                  {schedules.length > 0 ? (
+                    schedules.map((schedule) => (
                     <div
                       key={schedule.id}
                       onClick={() => handleScheduleClick(schedule)}
@@ -663,7 +683,22 @@ export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) 
                         </span>
                       </div>
                     </div>
-                  ))}
+                  ))
+                  ) : (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      textAlign: "center",
+                      padding: "40px 20px",
+                      color: "#6B7280",
+                      backgroundColor: "#F9FAFB",
+                      borderRadius: "12px",
+                      border: "1px dashed #E5E7EB"
+                    }}>
+                      <div style={{ fontSize: "24px", marginBottom: "8px" }}>📅</div>
+                      <p style={{ margin: 0, fontWeight: 500 }}>Tidak ada jadwal untuk hari ini.</p>
+                      <p style={{ margin: "4px 0 0", fontSize: "14px", color: "#9CA3AF" }}>Selamat beristirahat!</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -767,6 +802,54 @@ export default function DashboardSiswa({ user, onLogout }: DashboardSiswaProps) 
                   </div>
                   <WeeklyDonutChart data={weeklyStats} />
                 </div>
+
+                {/* Weekly Bar Chart - NEW */}
+                <div style={{
+                  backgroundColor: "white",
+                  borderRadius: "16px",
+                  padding: "28px",
+                  boxShadow: "0 4px 20px rgba(0, 31, 62, 0.08)",
+                  border: "1px solid #E5E7EB",
+                  transition: "all 0.3s ease",
+                  gridColumn: "1 / -1" // Full width for the bar chart
+                }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-4px)";
+                    e.currentTarget.style.boxShadow = "0 8px 30px rgba(0, 31, 62, 0.12)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "0 4px 20px rgba(0, 31, 62, 0.08)";
+                  }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    marginBottom: "20px"
+                  }}>
+                    <div style={{
+                      width: "40px",
+                      height: "40px",
+                      backgroundColor: "#F0F9FF",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "18px"
+                    }}>
+                      <BarChart3 size={18} color="#0EA5E9" />
+                    </div>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: "18px",
+                      fontWeight: "600",
+                      color: "#001F3E"
+                    }}>
+                      Rincian Kehadiran Mingguan
+                    </h3>
+                  </div>
+                  <WeeklyBarChart data={dailyStats} />
+                </div>
               </div>
 
               {/* Quick Access to Attendance */}
@@ -829,6 +912,17 @@ function MonthlyLineChart({
 }: {
   data: Array<{ month: string; hadir: number; izin: number; sakit: number; alpha: number; pulang: number }>;
 }) {
+  if (!data || data.length === 0) {
+     return (
+       <div style={{ height: "300px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF" }}>
+          <div style={{ textAlign: "center" }}>
+             <div style={{ fontSize: "24px", marginBottom: "8px" }}>📈</div>
+             <div>Belum ada data kehadiran bulanan</div>
+          </div>
+       </div>
+     );
+  }
+
   const chartData = {
     labels: data.map((d) => d.month),
     datasets: [
@@ -988,6 +1082,19 @@ function WeeklyDonutChart({
 }: {
   data: { hadir: number; izin: number; sakit: number; alpha: number; pulang: number };
 }) {
+  const total = data.hadir + data.izin + data.sakit + data.alpha + data.pulang;
+  
+  if (total === 0) {
+    return (
+       <div style={{ height: "250px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: "24px", marginBottom: "8px" }}>📊</div>
+            <div>Belum ada data statistik minggu ini</div>
+          </div>
+       </div>
+    );
+  }
+
   const chartData = {
     labels: ["Hadir", "Izin", "Sakit", "Alfa", "Pulang"], // Mengganti Dispen dengan Pulang
     datasets: [
@@ -1051,6 +1158,92 @@ function WeeklyDonutChart({
   return (
     <div style={{ height: "250px", width: "100%", display: "flex", justifyContent: "center" }}>
       <Doughnut data={chartData} options={options} />
+    </div>
+  );
+}
+
+// Weekly Bar Chart Component
+function WeeklyBarChart({ data }: { data: any[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ height: "300px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>📊</div>
+          <div>Belum ada rincian mingguan</div>
+        </div>
+      </div>
+    );
+  }
+
+  const chartData = {
+    labels: data.map(d => d.day),
+    datasets: [
+      {
+        label: "Hadir",
+        data: data.map(d => d.hadir),
+        backgroundColor: "#1FA83D",
+        borderRadius: 6,
+      },
+      {
+        label: "Izin",
+        data: data.map(d => d.izin),
+        backgroundColor: "#ACA40D",
+        borderRadius: 6,
+      },
+      {
+        label: "Sakit",
+        data: data.map(d => d.sakit),
+        backgroundColor: "#520C8F",
+        borderRadius: 6,
+      },
+      {
+        label: "Alfa",
+        data: data.map(d => d.tidak_hadir),
+        backgroundColor: "#D90000",
+        borderRadius: 6,
+      },
+      {
+        label: "Pulang",
+        data: data.map(d => d.pulang),
+        backgroundColor: "#2F85EB",
+        borderRadius: 6,
+      },
+    ],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "bottom" as const,
+        labels: {
+          usePointStyle: true,
+          boxWidth: 8,
+          padding: 20,
+        },
+      },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+      },
+    },
+    scales: {
+      x: {
+        stacked: true,
+        grid: { display: false },
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        ticks: { stepSize: 1 },
+      },
+    },
+  };
+
+  return (
+    <div style={{ height: "300px", width: "100%" }}>
+      <Bar data={chartData} options={options} />
     </div>
   );
 }

@@ -77,6 +77,7 @@ const LoginPage = () => {
     e.preventDefault();
     setError('');
     
+
     // Validasi field kosong
     const emptyFields = config.fields.filter(field => !formData[field.name]);
     if (emptyFields.length > 0) {
@@ -87,36 +88,35 @@ const LoginPage = () => {
     try {
       setLoading(true);
 
-      // TODO: Ganti dengan endpoint API yang sesuai
-      // const response = await fetch('YOUR_API_ENDPOINT/login', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     role: role,
-      //     identifier: formData.identifier,
-      //     password: formData.password
-      //   }),
-      // });
+      // Define API Base URL
+      const baseURL = import.meta.env.VITE_API_URL;
+      const API_BASE_URL = baseURL ? baseURL : 'http://localhost:8000/api';
 
-      // if (!response.ok) {
-      //   throw new Error('Login gagal');
-      // }
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          login: formData.identifier, // Map identifier to login
+          password: formData.password
+        }),
+      });
 
-      // const data = await response.json();
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login gagal');
+      }
 
       // Simpan token dan data user ke localStorage
-      // localStorage.setItem('token', data.token);
-      // localStorage.setItem('userRole', role);
-      // localStorage.setItem('userData', JSON.stringify(data.user));
-
-      // Sementara untuk development (hapus saat production)
-      console.log('Login berhasil sebagai', role, formData);
-      localStorage.setItem('userRole', role);
-      localStorage.setItem('userIdentifier', formData.identifier);
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       
-      // Navigate ke dashboard
+      // Navigate ke dashboard sesuai role yang dikembalikan backend
+      // Backend returns role logic, but purely navigating based on requested role is safer for now if compatible
+      // Or better yet, allow the user to navigate to the role they selected if successful
       navigate(config.dashboard);
 
     } catch (err) {

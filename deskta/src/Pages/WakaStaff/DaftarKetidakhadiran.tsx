@@ -146,16 +146,6 @@ export default function DaftarKetidakhadiran({
     }
   };
 
-  const getStatusText = (status: StatusKehadiran) => {
-    switch (status) {
-      case "Izin": return "Siswa izin dengan memberikan keterangan yang jelas";
-      case "Sakit": return "Siswa sakit dengan memberikan surat keterangan";
-      case "Alfa": return "Siswa Alfa tanpa keterangan";
-      case "Pulang": return "Siswa pulang lebih awal dengan izin dan keterangan";
-      default: return "";
-    }
-  };
-
   const handleStatusClick = (record: RowKehadiran, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();

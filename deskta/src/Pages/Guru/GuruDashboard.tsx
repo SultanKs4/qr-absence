@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { scheduleService } from "../../services/scheduleService";
 import GuruLayout from "../../component/Guru/GuruLayout";
 import DetailJadwalGuru from "./DetailJadwalGuru";
 import InputAbsenGuru from "./InputManualGuru";
@@ -330,21 +331,17 @@ export default function DashboardGuru({ user, onLogout }: DashboardGuruProps) {
   const fetchSchedule = async () => {
     setLoadingSchedule(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/me/schedules', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await scheduleService.getMySchedule();
+      const items = response.items || [];
 
-      if (response.ok) {
-        const data = await response.json();
-        const items = data.items || [];
+      // Filter for today
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayIndex = new Date().getDay();
+      const todayName = days[todayIndex];
 
-        // Filter for today
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const todayIndex = new Date().getDay();
-        const todayName = days[todayIndex];
-
-        const filtered = items.filter((item: any) => item.day === todayName).map((item: any) => ({
+      const filtered = items
+        .filter((item: any) => item.day === todayName)
+        .map((item: any) => ({
           id: item.id.toString(),
           subject: item.subject,
           className: item.class,
@@ -355,8 +352,7 @@ export default function DashboardGuru({ user, onLogout }: DashboardGuruProps) {
           room: item.room
         }));
 
-        setTodaySchedule(filtered);
-      }
+      setTodaySchedule(filtered);
     } catch (error) {
       console.error("Error fetching schedule:", error);
     } finally {
@@ -693,8 +689,8 @@ export default function DashboardGuru({ user, onLogout }: DashboardGuruProps) {
                   <div style={{ textAlign: "center", padding: 20, color: "#6B7280" }}>Tidak ada jadwal mengajar hari ini.</div>
                 ) : (
                   todaySchedule.map((schedule) => {
-                    const jamParts = schedule.jam?.split("(") || [];
-                    const jamKe = jamParts[0]?.trim() || schedule.jam;
+                    // const jamParts = schedule.jam?.split("(") || [];
+                    // const jamKe = jamParts[0]?.trim() || schedule.jam;
                     // const jamWaktu = jamParts.length > 1 ? `(${jamParts[1]}` : "";
 
                     return (
@@ -848,7 +844,7 @@ export default function DashboardGuru({ user, onLogout }: DashboardGuruProps) {
             <MetodeGuru
               isOpen={activeModal === "metode"}
               onClose={() => setActiveModal(null)}
-              // onPilihQR={handlePilihQR} // QR Disabled
+              onPilihQR={handlePilihQR}
               onPilihManual={handlePilihManual}
               onTidakBisaMengajar={handleTidakBisaMengajar}
             />

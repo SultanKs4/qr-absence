@@ -2,7 +2,9 @@
 
 use App\Models\Attendance;
 use App\Models\Classes;
-use App\Models\Schedule;
+use App\Models\ClassSchedule;
+use App\Models\DailySchedule;
+use App\Models\ScheduleItem;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -24,12 +26,21 @@ it('allows teacher to submit manual attendance', function () {
         'nisn' => '1234567890',
     ]);
 
-    $schedule = Schedule::factory()->create([
-        'teacher_id' => $teacherProfile->id,
+    $classSchedule = ClassSchedule::factory()->create([
         'class_id' => $class->id,
-        'day' => strtolower(Carbon::now()->format('l')),
+        'is_active' => true,
+    ]);
+
+    $dailySchedule = DailySchedule::factory()->create([
+        'class_schedule_id' => $classSchedule->id,
+        'day' => now()->format('l'),
+    ]);
+
+    $scheduleItem = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
+        'teacher_id' => $teacherProfile->id,
         'start_time' => '07:00:00',
-        'end_time' => '17:00:00', // All day
+        'end_time' => '17:00:00',
     ]);
 
     // 2. Submit Manual Attendance
@@ -37,7 +48,7 @@ it('allows teacher to submit manual attendance', function () {
         ->postJson('/api/attendance/manual', [
             'attendee_type' => 'student',
             'student_id' => $student->id,
-            'schedule_id' => $schedule->id,
+            'schedule_id' => $scheduleItem->id,
             'status' => 'present',
             'date' => Carbon::now()->toDateString(),
             'reason' => 'Manual input',
@@ -50,7 +61,7 @@ it('allows teacher to submit manual attendance', function () {
 
     $this->assertDatabaseHas('attendances', [
         'student_id' => $student->id,
-        'schedule_id' => $schedule->id,
+        'schedule_id' => $scheduleItem->id,
         'status' => 'present',
         'source' => 'manual',
         'reason' => 'Manual input',
@@ -70,10 +81,19 @@ it('maps pulang status to return in database', function () {
         'nisn' => '1234567890',
     ]);
 
-    $schedule = Schedule::factory()->create([
-        'teacher_id' => $teacherProfile->id,
+    $classSchedule = ClassSchedule::factory()->create([
         'class_id' => $class->id,
-        'day' => strtolower(Carbon::now()->format('l')),
+        'is_active' => true,
+    ]);
+
+    $dailySchedule = DailySchedule::factory()->create([
+        'class_schedule_id' => $classSchedule->id,
+        'day' => now()->format('l'),
+    ]);
+
+    $scheduleItem = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
+        'teacher_id' => $teacherProfile->id,
         'start_time' => '07:00:00',
         'end_time' => '17:00:00',
     ]);
@@ -83,7 +103,7 @@ it('maps pulang status to return in database', function () {
         ->postJson('/api/attendance/manual', [
             'attendee_type' => 'student',
             'student_id' => $student->id,
-            'schedule_id' => $schedule->id,
+            'schedule_id' => $scheduleItem->id,
             'status' => 'pulang', // Sending 'pulang'
             'date' => Carbon::now()->toDateString(),
             'reason' => 'Pulang cepat',
@@ -94,7 +114,7 @@ it('maps pulang status to return in database', function () {
     // 3. Verify Database has 'return' status
     $this->assertDatabaseHas('attendances', [
         'student_id' => $student->id,
-        'schedule_id' => $schedule->id,
+        'schedule_id' => $scheduleItem->id,
         'status' => 'return', // Expecting 'return'
         'source' => 'manual',
     ]);
@@ -106,9 +126,19 @@ it('prevents unauthorized teacher from submitting attendance', function () {
     $otherTeacherUser = User::factory()->create(['user_type' => 'teacher']);
     $otherTeacherProfile = TeacherProfile::factory()->create(['user_id' => $otherTeacherUser->id]);
 
-    $schedule = Schedule::factory()->create([
-        'teacher_id' => $otherTeacherProfile->id,
+    $classSchedule = ClassSchedule::factory()->create([
         'class_id' => $class->id,
+        'is_active' => true,
+    ]);
+
+    $dailySchedule = DailySchedule::factory()->create([
+        'class_schedule_id' => $classSchedule->id,
+        'day' => now()->format('l'),
+    ]);
+
+    $scheduleItem = ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
+        'teacher_id' => $otherTeacherProfile->id,
     ]);
 
     $studentUser = User::factory()->create(['user_type' => 'student']);
@@ -125,7 +155,7 @@ it('prevents unauthorized teacher from submitting attendance', function () {
         ->postJson('/api/attendance/manual', [
             'attendee_type' => 'student',
             'student_id' => $student->id,
-            'schedule_id' => $schedule->id,
+            'schedule_id' => $scheduleItem->id,
             'status' => 'present',
             'date' => Carbon::now()->toDateString(),
         ]);

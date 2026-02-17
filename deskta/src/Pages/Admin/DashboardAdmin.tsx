@@ -9,6 +9,7 @@ import DetailSiswa from "./DetailSiswa";
 import DetailGuru from "./DetailGuru";
 import ProfilSekolah from "./ProfilSekolah";
 
+import { dashboardService } from "../../services/dashboardService";
 
 interface User {
   role: string;
@@ -43,6 +44,12 @@ export default function AdminDashboard({
   const [currentDate, setCurrentDate] = useState("");
   const [currentTime, setCurrentTime] = useState("");
   const [semester, setSemester] = useState("Semester Genap");
+  const [stats, setStats] = useState({
+    classes_count: 0,
+    students_count: 0,
+    teachers_count: 0,
+    rooms_count: 0
+  });
 
   const updateDateTime = () => {
     const now = new Date();
@@ -67,6 +74,23 @@ export default function AdminDashboard({
   };
 
   useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await dashboardService.getAdminSummary();
+        if (data) {
+          setStats({
+            classes_count: data.classes_count || 0,
+            students_count: data.students_count || 0,
+            teachers_count: data.teachers_count || 0,
+            rooms_count: data.rooms_count || 0
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats", error);
+      }
+    };
+
+    fetchStats();
     updateDateTime(); 
     const interval = setInterval(updateDateTime, 1000); 
     
@@ -264,7 +288,7 @@ export default function AdminDashboard({
                           textShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
                         }}
                       >
-                        19
+                        {stats.classes_count}
                       </div>
                       <div
                         style={{
@@ -349,7 +373,7 @@ export default function AdminDashboard({
                           textShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
                         }}
                       >
-                        2,138
+                        {stats.students_count}
                       </div>
                       <div
                         style={{
@@ -434,7 +458,7 @@ export default function AdminDashboard({
                           textShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
                         }}
                       >
-                        515
+                        {stats.teachers_count}
                       </div>
                       <div
                         style={{
@@ -519,7 +543,7 @@ export default function AdminDashboard({
                           textShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
                         }}
                       >
-                        8
+                        {stats.rooms_count}
                       </div>
                       <div
                         style={{
@@ -529,7 +553,7 @@ export default function AdminDashboard({
                           marginBottom: "12px",
                         }}
                       >
-                        Total Lab
+                        Total Lab/Ruangan
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <div
@@ -553,7 +577,7 @@ export default function AdminDashboard({
                             fontWeight: "bold",
                           }}
                         >
-                          Laboratorium
+                          Fasilitas
                         </div>
                       </div>
                     </div>

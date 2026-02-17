@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import bgLogin from "../assets/Background/bgLogin.png";
+import { settingService } from "../services/settingService";
+import { authService } from "../services/authService";
 
 // ==================== INTERFACE DEFINITIONS ====================
 interface LoginPageProps {
   role: string | null;
-  onLogin: (role: string, identifier: string, phone: string) => void;
+  onLogin: (role: string, name: string, phone: string, profile?: any) => void;
   onBack: () => void;
 }
 
@@ -40,20 +42,16 @@ export default function LoginPage({ role, onLogin, onBack }: LoginPageProps) {
 
   // ==================== LOAD SCHOOL DATA FROM STORAGE ====================
   useEffect(() => {
-    const loadSchoolData = () => {
+    const loadSchoolData = async () => {
       try {
-        const savedData = localStorage.getItem('schoolData');
-        if (savedData) {
-          const parsedData = JSON.parse(savedData);
-          setSchoolData({
-            nama_sekolah: parsedData.nama_sekolah || DEFAULT_SCHOOL_DATA.nama_sekolah,
-            logo_sekolah: parsedData.logo_sekolah || '',
-          });
-        } else {
-          setSchoolData(DEFAULT_SCHOOL_DATA);
-        }
+        const settings = await settingService.getPublicSettings();
+        setSchoolData({
+          nama_sekolah: settings.school_name || DEFAULT_SCHOOL_DATA.nama_sekolah,
+          logo_sekolah: settings.school_logo_url || '',
+        });
       } catch (error) {
         console.error('Error loading school data:', error);
+        // Optional: fallback to localStorage if needed, but let's stick to API
         setSchoolData(DEFAULT_SCHOOL_DATA);
       }
     };
@@ -78,7 +76,7 @@ export default function LoginPage({ role, onLogin, onBack }: LoginPageProps) {
   }, [role, hasRedirected, navigate, onBack]);
 
   // ==================== HANDLE FORM SUBMIT ====================
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -89,14 +87,27 @@ export default function LoginPage({ role, onLogin, onBack }: LoginPageProps) {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      if (role) {
-        onLogin(role, form.identifier.trim(), form.phone.trim());
+    try {
+      const response = await authService.login({
+        login: form.identifier.trim(),
+        password: form.password.trim(),
+      });
+
+      if (response.token) {
+        localStorage.setItem("token", response.token);
+        // Map the backend role to what the app expects if needed
+        // The backend already returns 'role' which is UI-compatible
+        const user = response.user;
+        onLogin(user.role, user.name, user.profile?.nis || user.profile?.nip || "", user.profile);
       } else {
-        setError("Halaman tidak ditemukan");
+        setError("Gagal masuk: Data tidak valid");
       }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "Gagal masuk. Silakan cek kembali identitas dan kata sandi anda.");
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
   // ==================== GET IDENTIFIER LABEL ====================

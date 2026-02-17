@@ -21,11 +21,13 @@ class ClassController extends Controller
     {
         $perPage = $request->integer('per_page', 15);
 
+        $query = Classes::query()->with(['major', 'homeroomTeacher.user'])->latest();
+
         if ($perPage === -1) {
-            return response()->json(Classes::query()->with(['major', 'homeroomTeacher.user'])->latest()->get());
+            return \App\Http\Resources\ClassResource::collection($query->get())->response();
         }
 
-        return response()->json(Classes::query()->with(['major', 'homeroomTeacher.user'])->latest()->paginate($perPage));
+        return \App\Http\Resources\ClassResource::collection($query->paginate($perPage))->response();
     }
 
     /**
@@ -37,7 +39,20 @@ class ClassController extends Controller
     {
         $data = $request->validated();
 
-        $class = Classes::create($data);
+        $class = \Illuminate\Support\Facades\DB::transaction(function () use ($data) {
+            $class = Classes::create([
+                'grade' => $data['grade'],
+                'label' => $data['label'],
+                'major_id' => $data['major_id'] ?? null,
+            ]);
+
+            if (isset($data['homeroom_teacher_id'])) {
+                \App\Models\TeacherProfile::where('id', $data['homeroom_teacher_id'])
+                    ->update(['homeroom_class_id' => $class->id]);
+            }
+
+            return $class;
+        });
 
         return response()->json($class, 201);
     }
@@ -49,7 +64,7 @@ class ClassController extends Controller
      */
     public function show(Classes $class): JsonResponse
     {
-        return response()->json($class->load(['students.user', 'homeroomTeacher', 'major']));
+        return response()->json($class->load(['students.user', 'homeroomTeacher.user', 'major']));
     }
 
     /**
@@ -61,9 +76,21 @@ class ClassController extends Controller
     {
         $data = $request->validated();
 
-        $class->update($data);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($class, $data) {
+            $class->update($data);
 
-        return response()->json($class);
+            if (isset($data['homeroom_teacher_id'])) {
+                // Clear old homeroom if exists
+                \App\Models\TeacherProfile::where('homeroom_class_id', $class->id)
+                    ->update(['homeroom_class_id' => null]);
+
+                // Set new homeroom
+                \App\Models\TeacherProfile::where('id', $data['homeroom_teacher_id'])
+                    ->update(['homeroom_class_id' => $class->id]);
+            }
+        });
+
+        return response()->json($class->load('homeroomTeacher.user'));
     }
 
     /**

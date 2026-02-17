@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import PengurusKelasLayout from "../../component/PengurusKelas/PengurusKelasLayout";
 import { Select } from "../../component/Shared/Select";
 import { Modal } from "../../component/Shared/Modal";
+import classService from "../../services/classService";
+import { Loader2 } from "lucide-react";
 
 interface AbsensiRecord {
   id: string;
@@ -16,103 +18,7 @@ interface AbsensiRecord {
 }
 
 // Dummy data - nanti dari API
-const dummyData: AbsensiRecord[] = [
-  {
-    id: "1",
-    tanggal: "25-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "alfa",
-    namaSiswa: "Ahmad Fauzi",
-    nis: "20250001",
-  },
-  {
-    id: "2",
-    tanggal: "24-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "alfa",
-    namaSiswa: "Budi Santoso",
-    nis: "20250002",
-  },
-  {
-    id: "3",
-    tanggal: "25-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "izin",
-    keterangan: "Ijin tidak masuk karena ada keperluan keluarga",
-    namaSiswa: "Citra Dewi",
-    nis: "20250003",
-  },
-  {
-    id: "4",
-    tanggal: "25-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "sakit",
-    keterangan: "Demam tinggi dan dokter menyarankan istirahat",
-    namaSiswa: "Dewi Lestari",
-    nis: "20250004",
-  },
-  {
-    id: "5",
-    tanggal: "25-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "alfa",
-    namaSiswa: "Eko Pratama",
-    nis: "20250005",
-  },
-  {
-    id: "6",
-    tanggal: "25-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Matematika",
-    guru: "Alifah Diantebes Aindra S.pd",
-    status: "alfa",
-    namaSiswa: "Fitri Amelia",
-    nis: "20250006",
-  },
-  {
-    id: "7",
-    tanggal: "26-05-2025",
-    jamPelajaran: "1-4",
-    mataPelajaran: "Bahasa Indonesia",
-    guru: "Budi Santoso S.Pd",
-    status: "izin",
-    keterangan: "Menghadiri acara keluarga",
-    namaSiswa: "Gunawan Setiawan",
-    nis: "20250007",
-  },
-  {
-    id: "8",
-    tanggal: "26-05-2025",
-    jamPelajaran: "5-8",
-    mataPelajaran: "Bahasa Inggris",
-    guru: "Siti Nurhaliza S.Pd",
-    status: "sakit",
-    keterangan: "Flu berat dan batuk",
-    namaSiswa: "Hana Putri",
-    nis: "20250008",
-  },
-  {
-    id: "10",
-    tanggal: "26-05-2025",
-    jamPelajaran: "5-8",
-    mataPelajaran: "Bahasa Inggris",
-    guru: "Siti Nurhaliza S.Pd",
-    status: "pulang",
-    keterangan: "Pulang lebih awal karena sakit perut",
-    namaSiswa: "Joko Widodo",
-    nis: "20250010",
-  },
-];
+// Dummy data removed - using backend data
 
 function CalendarIcon() {
   return (
@@ -227,42 +133,50 @@ export default function TidakHadirPenguruskelas({
   onMenuClick = () => { },
   onLogout = () => { },
 }: TidakHadirPenguruskelasProps) {
-  const [startDate, setStartDate] = useState("2025-05-24");
-  const [endDate, setEndDate] = useState("2025-05-26");
+  const [startDate, setStartDate] = useState(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [statusFilter, setStatusFilter] = useState<string>("semua");
-  const [selectedRecord, setSelectedRecord] = useState<AbsensiRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filter data
-  const filteredData = useMemo(() => {
-    if (!startDate || !endDate) return dummyData;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-
-    return dummyData.filter((item) => {
-      const [day, month, year] = item.tanggal.split("-").map(Number);
-      const itemDate = new Date(year, month - 1, day);
-
-      const inDateRange = itemDate >= start && itemDate <= end;
-
-      let statusMatch = true;
-      if (statusFilter !== "semua") {
-        if (statusFilter === "izin/sakit") {
-          statusMatch = item.status === "izin" || item.status === "sakit";
-        } else if (statusFilter === "alfa") {
-          statusMatch = item.status === "alfa";
-        } else if (statusFilter === "pulang") {
-          statusMatch = item.status === "pulang";
-        } else if (statusFilter === "hadir") {
-          statusMatch = item.status === "hadir";
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const params: any = {
+          from: startDate,
+          to: endDate
+        };
+        if (statusFilter !== "semua") {
+          if (statusFilter === "izin/sakit") {
+            // Need to handle this or filter in frontend
+            delete params.status;
+          } else {
+            params.status = statusFilter;
+          }
         }
+        
+        const data = await classService.getMyClassAttendance(params);
+        setAttendanceData(data);
+      } catch (err) {
+        console.error("Failed to fetch attendance:", err);
+      } finally {
+        setLoading(false);
       }
-
-      return inDateRange && statusMatch;
-    });
+    };
+    fetchData();
   }, [startDate, endDate, statusFilter]);
+
+  // Map and Filter further if needed (e.g. izin/sakit combined filter)
+  const filteredData = useMemo(() => {
+    let data = attendanceData;
+    if (statusFilter === "izin/sakit") {
+      data = data.filter(d => d.status === "izin" || d.status === "sakit");
+    }
+    return data;
+  }, [attendanceData, statusFilter]);
 
   // Hitung summary berdasarkan data filtered
   const summary = useMemo(() => {
@@ -287,7 +201,7 @@ export default function TidakHadirPenguruskelas({
   // Custom Status Renderer dengan icon mata - SEMUA STATUS bisa diklik
   const StatusButton = ({ status, row }: { status: string; row: AbsensiRecord }) => {
     let bgColor = "#D90000"; // MERAH - alfa
-    let label = "alfa";
+    let label = "Alfa";
     let textColor = "#FFFFFF";
 
     if (status === "izin") {
@@ -355,28 +269,31 @@ export default function TidakHadirPenguruskelas({
       label: "Tanggal",
       width: "130px",
       align: "center" as const,
+      render: (_: any, row: any) => new Date(row.created_at).toLocaleDateString("id-ID"),
     },
     {
       key: "jamPelajaran",
       label: "Jam Pelajaran",
       width: "130px",
       align: "center" as const,
+      render: (_: any, row: any) => row.schedule ? `${row.schedule.start_time.substring(0,5)} - ${row.schedule.end_time.substring(0,5)}` : "-",
     },
     {
       key: "mataPelajaran",
       label: "Mata Pelajaran",
       width: "180px",
+      render: (_: any, row: any) => row.schedule?.subject?.name || "-",
     },
     {
-      key: "guru",
-      label: "Guru",
-      width: "280px",
-      align: "center" as const,
+      key: "namaSiswa",
+      label: "Nama Siswa",
+      width: "200px",
+      render: (_: any, row: any) => row.student?.user?.name || "-",
     },
     {
       key: "status",
       label: "Status",
-      render: (_: any, row: AbsensiRecord) => <StatusButton status={row.status} row={row} />,
+      render: (_: any, row: any) => <StatusButton status={row.status} row={row} />,
       align: "center" as const,
       width: "140px",
     },
@@ -670,7 +587,13 @@ export default function TidakHadirPenguruskelas({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.length > 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={columns.length} style={{ padding: "60px 24px", textAlign: "center" }}>
+                        <Loader2 className="animate-spin" style={{ margin: "0 auto" }} />
+                      </td>
+                    </tr>
+                  ) : filteredData.length > 0 ? (
                     filteredData.map((row, index) => (
                       <tr
                         key={row.id}
@@ -699,8 +622,8 @@ export default function TidakHadirPenguruskelas({
                             {col.key === "no" 
                               ? index + 1
                               : col.render
-                              ? col.render(row[col.key as keyof AbsensiRecord], row)
-                              : row[col.key as keyof AbsensiRecord]}
+                              ? col.render(row[col.key], row)
+                              : row[col.key]}
                           </td>
                         ))}
                       </tr>
@@ -736,7 +659,7 @@ export default function TidakHadirPenguruskelas({
                 fontSize: "14px",
                 color: "#64748B",
               }}>
-                <span>Menampilkan {filteredData.length} dari {dummyData.length} data</span>
+                <span>Menampilkan {filteredData.length} data</span>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <button
                     style={{
@@ -946,9 +869,7 @@ export default function TidakHadirPenguruskelas({
                       color: "#9CA3AF",
                       textAlign: "center",
                     }}>
-                      {selectedRecord.status === "hadir" 
-                        ? "Tidak ada bukti foto yang diperlukan" 
-                        : "[Area untuk menampilkan bukti foto]"}
+                      {"[Area untuk menampilkan bukti foto]"}
                     </p>
                   </div>
                 </div>

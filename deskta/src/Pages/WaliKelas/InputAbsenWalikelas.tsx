@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import WalikelasLayout from '../../component/Walikelas/layoutwakel';
-import { StatusBadge } from '../../component/Shared/StatusBadge';
+
 import CalendarIcon from '../../assets/Icon/calender.png';
 import { Modal } from '../../component/Shared/Modal';
 
@@ -78,7 +78,7 @@ function XIcon({ size = 24 }: { size?: number }) {
 }
 
 // Icon check untuk status hadir
-function CheckIcon({ size = 24 }: { size?: number }) {
+function CheckIcon({ size = 24, color = "currentColor" }: { size?: number; color?: string }) {
   return (
     <svg
       width={size}
@@ -90,7 +90,7 @@ function CheckIcon({ size = 24 }: { size?: number }) {
     >
       <path
         d="M20 6L9 17L4 12"
-        stroke="currentColor"
+        stroke={color}
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -100,32 +100,7 @@ function CheckIcon({ size = 24 }: { size?: number }) {
 }
 
 // Icon time untuk waktu hadir
-function TimeIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M12 7V12L15 15"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+
 
 export function InputAbsenWalikelas({
   user,

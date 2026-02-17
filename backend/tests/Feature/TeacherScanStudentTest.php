@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Classes;
-use App\Models\Schedule;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -25,10 +24,19 @@ it('allows teacher to scan student QR', function () {
 
     // 2. Create Active Schedule
     $now = now();
-    $schedule = Schedule::factory()->create([
-        'teacher_id' => $teacher->id,
+    $classSchedule = \App\Models\ClassSchedule::factory()->create([
         'class_id' => $class->id,
-        'day' => $now->format('l'), // Today
+        'is_active' => true,
+    ]);
+    
+    $dailySchedule = \App\Models\DailySchedule::factory()->create([
+        'class_schedule_id' => $classSchedule->id,
+        'day' => $now->format('l'),
+    ]);
+
+    $scheduleItem = \App\Models\ScheduleItem::factory()->create([
+        'daily_schedule_id' => $dailySchedule->id,
+        'teacher_id' => $teacher->id,
         'start_time' => $now->copy()->subMinute()->format('H:i:s'),
         'end_time' => $now->copy()->addHour()->format('H:i:s'),
     ]);
@@ -36,7 +44,7 @@ it('allows teacher to scan student QR', function () {
     // 3. Act
     $response = $this->actingAs($teacherUser)
         ->postJson('/api/attendance/scan-student', [
-            'token' => '1234567890',
+            'token' => '1234567890', // Token is NISN
         ]);
 
     // 4. Assert
@@ -48,7 +56,7 @@ it('allows teacher to scan student QR', function () {
 
     $this->assertDatabaseHas('attendances', [
         'student_id' => $student->id,
-        'schedule_id' => $schedule->id,
+        'schedule_id' => $scheduleItem->id, // check against scheduleItem
         'status' => 'present',
         'source' => 'teacher_scan',
     ]);

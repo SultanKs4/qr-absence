@@ -76,21 +76,21 @@ if [ -f "backend/.env" ]; then
 fi
 
 # Setup Frontend
-echo "--- Frontend (frontend) ---"
-cd frontend
-./setup.sh
-cd ..
+# echo "--- Frontend (frontend) ---"
+# cd frontend
+# ./setup.sh
+# cd ..
 
-# Setup Deskta
-echo "--- Desktop (deskta) ---"
-cd deskta
-./setup.sh
-cd ..
+# # Setup Deskta
+# echo "--- Desktop (deskta) ---"
+# cd deskta
+# ./setup.sh
+# cd ..
 
-# Setup Whatekster
-echo "--- Whatekster (WhatsApp Gateway) ---"
-cd whatekster
-./setup.sh
-cd ..
+# # Setup Whatekster
+# echo "--- Whatekster (WhatsApp Gateway) ---"
+# cd whatekster
+# ./setup.sh
+# cd ..
 
-echo "✨ All systems set up successfully!"
+# echo "✨ All systems set up successfully!"

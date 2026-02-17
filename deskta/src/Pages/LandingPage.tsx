@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HalamanUtama from '../assets/Icon/HalamanUtama.png';
+import { settingService } from '../services/settingService';
 
 // ==================== INTERFACE DEFINITIONS ====================
 interface LandingPageProps {
@@ -9,28 +10,15 @@ interface LandingPageProps {
 
 interface SchoolData {
   nama_sekolah: string;
-  npsn?: string;
-  jenis_sekolah?: string;
-  akreditasi?: string;
-  jalan?: string;
-  kelurahan?: string;
-  kecamatan?: string;
-  kabupaten_kota?: string;
-  provinsi?: string;
-  kode_pos?: string;
-  email?: string;
-  kepala_sekolah?: string;
-  nip_kepala_sekolah?: string;
-  nomor_telepon?: string;
-  logo_sekolah?: string;
-  maskot_sekolah?: string;
+  logo_sekolah: string | null;
+  maskot_sekolah: string | null;
 }
 
 // ==================== DEFAULT LANDING DATA ====================
 const DEFAULT_LANDING_DATA: SchoolData = {
   nama_sekolah: 'SMKN 2 SINGOSARI',
-  logo_sekolah: '',  // Kosong = tidak tampilin
-  maskot_sekolah: '', // Kosong = tidak tampilin
+  logo_sekolah: null,
+  maskot_sekolah: null,
 };
 
 const ROLES = [
@@ -53,35 +41,32 @@ export default function LandingPage({ onRoleSelect }: LandingPageProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownContentRef = useRef<HTMLDivElement>(null);
 
-  // ==================== LOAD SCHOOL DATA FROM STORAGE ====================
+  // ==================== LOAD SCHOOL DATA FROM API ====================
   useEffect(() => {
-    const loadSchoolData = () => {
+    const fetchSchoolData = async () => {
       try {
+        const settings = await settingService.getPublicSettings();
+        setSchoolData({
+          nama_sekolah: settings.school_name || DEFAULT_LANDING_DATA.nama_sekolah,
+          logo_sekolah: settings.school_logo_url || null,
+          maskot_sekolah: settings.school_mascot_url || null,
+        });
+      } catch (error) {
+        console.error('Error fetching school data:', error);
+        // Fallback to localStorage if API fails (optional, but keep it simple for now)
         const savedData = localStorage.getItem('schoolData');
         if (savedData) {
           const parsedData = JSON.parse(savedData);
           setSchoolData({
             nama_sekolah: parsedData.nama_sekolah || DEFAULT_LANDING_DATA.nama_sekolah,
-            logo_sekolah: parsedData.logo_sekolah || '', // Hanya tampil jika ada, kosong jika tidak
-            maskot_sekolah: parsedData.maskot_sekolah || '', // Hanya tampil jika ada, kosong jika tidak
+            logo_sekolah: parsedData.logo_sekolah || null,
+            maskot_sekolah: parsedData.maskot_sekolah || null,
           });
-        } else {
-          setSchoolData(DEFAULT_LANDING_DATA);
         }
-      } catch (error) {
-        console.error('Error loading school data:', error);
-        setSchoolData(DEFAULT_LANDING_DATA);
       }
     };
 
-    loadSchoolData();
-
-    // ==================== LISTEN FOR SCHOOL DATA UPDATES ====================
-    window.addEventListener('schoolDataUpdated', loadSchoolData);
-
-    return () => {
-      window.removeEventListener('schoolDataUpdated', loadSchoolData);
-    };
+    fetchSchoolData();
   }, []);
 
   // ==================== HANDLE CLICK OUTSIDE DROPDOWN ====================

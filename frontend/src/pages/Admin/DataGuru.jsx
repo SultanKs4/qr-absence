@@ -17,7 +17,8 @@ const apiService = {
       const response = await fetch(`${API_BASE_URL}/teachers`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       if (!response.ok) throw new Error('Failed to fetch teachers');
@@ -38,7 +39,8 @@ const apiService = {
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       if (!response.ok) throw new Error('Failed to fetch available classes');
@@ -56,7 +58,8 @@ const apiService = {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(teacherData)
       });
@@ -75,7 +78,8 @@ const apiService = {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(teacherData)
       });
@@ -94,7 +98,8 @@ const apiService = {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       if (!response.ok) throw new Error('Failed to delete teacher');
@@ -112,7 +117,8 @@ const apiService = {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ teachers: teachersData })
       });
@@ -221,11 +227,10 @@ function DataGuru() {
         teacher.name?.toLowerCase().includes(searchLower) ||
         teacher.code?.toLowerCase().includes(searchLower) ||
         teacher.role?.toLowerCase().includes(searchLower) ||
-        (teacher.subject && teacher.subject.toLowerCase().includes(searchLower)) ||
+        (teacher.subject_name && teacher.subject_name.toLowerCase().includes(searchLower)) ||
         (teacher.waka_field && teacher.waka_field.toLowerCase().includes(searchLower)) ||
         (teacher.major_expertise && teacher.major_expertise.toLowerCase().includes(searchLower)) ||
-        (teacher.grade && teacher.grade.toLowerCase().includes(searchLower)) ||
-        (teacher.major && teacher.major.toLowerCase().includes(searchLower));
+        (teacher.homeroom_class?.name && teacher.homeroom_class.name.toLowerCase().includes(searchLower));
 
       return matchSearch;
     });

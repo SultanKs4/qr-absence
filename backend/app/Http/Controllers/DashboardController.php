@@ -419,10 +419,45 @@ class DashboardController extends Controller
                 $currentMonth->addMonth();
             }
 
+            // 3. Daily Stats (Weekly Breakdown for Bar Chart)
+            $startOfWeek = now()->startOfWeek();
+            $endOfWeek = now()->endOfWeek();
+            
+            $dailyQuery = Attendance::whereBetween('date', [$startOfWeek->format('Y-m-d'), $endOfWeek->format('Y-m-d')])
+                ->selectRaw('DATE(date) as date_only, status, count(*) as count')
+                ->groupBy('date_only', 'status')
+                ->get();
+
+            $dailyData = [];
+            $currentDay = $startOfWeek->copy();
+            
+            while ($currentDay->lte($endOfWeek)) {
+                if ($currentDay->isWeekend()) {
+                     $currentDay->addDay();
+                     continue;
+                }
+
+                $dayDate = $currentDay->format('Y-m-d');
+                $dayRecords = $dailyQuery->where('date_only', $dayDate);
+
+                $dailyData[] = [
+                    'day' => $currentDay->locale('id')->translatedFormat('l'),
+                    'hadir' => $dayRecords->whereIn('status', ['present', 'late'])->sum('count'),
+                    'tidak_hadir' => $dayRecords->where('status', 'absent')->sum('count'), // Alpha
+                    'izin' => $dayRecords->whereIn('status', ['izin', 'excused'])->sum('count'),
+                    'sakit' => $dayRecords->where('status', 'sick')->sum('count'),
+                    'pulang' => $dayRecords->where('status', 'return')->sum('count'),
+                ];
+                
+                
+                $currentDay->addDay();
+            }
+
             return [
                 'date' => $today,
                 'statistik' => $statistik,
                 'trend' => $trend,
+                'daily_stats' => $dailyData,
             ];
         });
 

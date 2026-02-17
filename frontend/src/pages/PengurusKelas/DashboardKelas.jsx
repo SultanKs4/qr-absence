@@ -1,19 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, BookOpen, ArrowLeft, LogOut, TrendingUp, PieChart, User } from 'lucide-react';
+import { Calendar, Clock, BookOpen, ArrowLeft, TrendingUp, PieChart } from 'lucide-react';
 import './DashboardKelas.css';
 import NavbarPengurus from "../../components/PengurusKelas/NavbarPengurus";
-
-// Constants
-const TOTAL_STUDENTS = 30;
+import apiService from '../../utils/api';
 
 // Fungsi untuk mendapatkan total mata pelajaran hari ini dari data jadwal
 const getTodaySubjectCount = (scheduleData) => {
-  if (!scheduleData || !scheduleData.weeklySchedule) return 0;
-  
-  const today = new Date().getDay();
-  const todaySchedule = scheduleData.weeklySchedule[today];
-  return todaySchedule ? todaySchedule.length : 0;
+  if (!scheduleData || !Array.isArray(scheduleData)) return 0;
+  return scheduleData.length;
 };
+
 
 // SVG Avatar Component untuk Profil - Basic Icon
 const ProfileIcon = ({ gender, size = 80 }) => {
@@ -582,7 +578,47 @@ const DashboardKelas = () => {
       try {
         setIsLoading(true);
         
-        // TODO: Replace with actual API endpoints
+        // Fetch dashboard data from real backend
+        const dashboardData = await apiService.getMyClassDashboard();
+        
+        const user = dashboardData.user || {};
+        const profile = dashboardData.student || {}; // Student profile for the pengurus
+        const classRoom = dashboardData.class_room || {};
+        const stats = dashboardData.stats || {};
+        const trend = dashboardData.monthly_trend || [];
+        const schedules = dashboardData.today_schedules || [];
+
+        setProfileData({
+          name: user.name || '-',
+          kelas: classRoom.label || '-',
+          id: profile.nis || '-',
+          gender: profile.gender || 'perempuan'
+        });
+        setProfileImage(profile.photo_url);
+
+        setDailyStats({
+          hadir: stats.present || 0,
+          izin: stats.excused || 0,
+          sakit: stats.sick || 0,
+          alpha: stats.absent || 0,
+          terlambat: stats.late || 0,
+          pulang: stats.return || 0
+        });
+
+        setScheduleData(schedules);
+        
+        // Map Monthly Trend
+        const formattedTrend = trend.map(item => ({
+          month: item.month,
+          hadir: item.present || 0,
+          sakit: item.sick || 0,
+          izin: item.excused || 0,
+          alpha: item.absent || 0,
+          terlambat: item.late || 0,
+          pulang: item.return || 0
+        }));
+        
+        setMonthlyTrend(formattedTrend);
         
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -593,6 +629,7 @@ const DashboardKelas = () => {
 
     fetchData();
   }, []);
+
 
   // Update clock
   useEffect(() => {
@@ -612,9 +649,9 @@ const DashboardKelas = () => {
 
   const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('userRole');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('role');
       window.location.href = '/';
     }
   };

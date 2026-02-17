@@ -3,7 +3,7 @@ import DummyJadwal from "../../assets/Icon/DummyJadwal.png";
 import { User } from "lucide-react";
 
 interface JadwalPengurusProps {
-    user: { name: string; phone: string };
+    user: { name: string; role: string; phone: string };
     currentPage: string;
     onMenuClick: (page: string) => void;
     onLogout: () => void;

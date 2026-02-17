@@ -1,10 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { User, SquarePen, ArrowLeft, Eye, X } from "lucide-react";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import StaffLayout from "../../component/WakaStaff/StaffLayout";
 import { FormModal } from "../../component/Shared/FormModal";
 import { Select } from "../../component/Shared/Select";
+import { attendanceService } from "../../services/attendanceService";
+import { masterService } from "../../services/masterService";
 
-type StatusKehadiran = "Hadir" | "Izin" | "Sakit" | "Alfa" | "Pulang" | "Tidak Ada Jadwal";
+type StatusKehadiran = "Hadir" | "Izin" | "Sakit" | "Alfa" | "Pulang" | "Tidak Ada Jadwal" | "Terlambat" | "Tidak Hadir";
 
 type RowKehadiran = {
   no: number;
@@ -13,6 +16,7 @@ type RowKehadiran = {
   mapel: string;
   kelas: string;
   status: StatusKehadiran;
+  originalStatus?: string; // For storage
 };
 
 interface DetailKehadiranGuruProps {
@@ -25,76 +29,31 @@ interface DetailKehadiranGuruProps {
 }
 
 export default function DetailKehadiranGuru({
-  user = { name: "Admin", role: "waka" },
-  currentPage = "detail-kehadiran-guru",
-  onMenuClick = () => {},
-  onLogout = () => {},
-  onBack = () => {},
-  guruName = "Ewit Emiyah S.pd",
+  user,
+  currentPage,
+  onMenuClick,
+  onLogout,
+  onBack,
+  guruName,
 }: DetailKehadiranGuruProps) {
-  const [rows, setRows] = useState<RowKehadiran[]>([
-    {
-      no: 1,
-      tanggal: "25-05-2025",
-      jam: "1-4",
-      mapel: "Matematika",
-      kelas: "12 Mekatronika 2",
-      status: "Hadir",
-    },
-    {
-      no: 2,
-      tanggal: "24-05-2025",
-      jam: "5-8",
-      mapel: "Matematika",
-      kelas: "12 Mekatronika 2",
-      status: "Hadir",
-    },
-    {
-      no: 3,
-      tanggal: "25-05-2025",
-      jam: "9-10",
-      mapel: "Matematika",
-      kelas: "12 Mekatronika 2",
-      status: "Izin",
-    },
-    {
-      no: 4,
-      tanggal: "25-05-2025",
-      jam: "1-2",
-      mapel: "Matematika",
-      kelas: "12 Mekatronika 2",
-      status: "Pulang",
-    },
-    {
-      no: 5,
-      tanggal: "24-05-2025",
-      jam: "3-4",
-      mapel: "Matematika",
-      kelas: "XII Mekatronika 2",
-      status: "Sakit",
-    },
-    {
-      no: 6,
-      tanggal: "25-05-2025",
-      jam: "5-6",
-      mapel: "Matematika",
-      kelas: "XII Mekatronika 2",
-      status: "Alfa",
-    },
-    {
-      no: 7,
-      tanggal: "25-05-2025",
-      jam: "7-10",
-      mapel: "-",
-      kelas: "-",
-      status: "Tidak Ada Jadwal",
-    },
-  ]);
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const guruInfo = {
-    name: guruName,
-    phone: "0918415784",
-  };
+  // Try to get teacher info from state or fallback
+  const initialGuruName = location.state?.guruName || guruName || "Nama Guru";
+  const [currentGuruName, setCurrentGuruName] = useState(initialGuruName);
+  
+  const [rows, setRows] = useState<RowKehadiran[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Date filter state
+  const [startDate, setStartDate] = useState(
+    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().slice(0, 10) // Last 30 days
+  );
+  const [endDate, setEndDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
 
   const statusOptions = useMemo(
     () => [
@@ -103,7 +62,8 @@ export default function DetailKehadiranGuru({
       { label: "Sakit", value: "Sakit" },
       { label: "Alfa", value: "Alfa" },
       { label: "Pulang", value: "Pulang" },
-      { label: "Tidak Ada Jadwal", value: "Tidak Ada Jadwal" },
+      { label: "Terlambat", value: "Terlambat" },
+      { label: "Tidak Hadir", value: "Tidak Hadir" },
     ],
     []
   );
@@ -116,6 +76,85 @@ export default function DetailKehadiranGuru({
   // State untuk modal detail
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<RowKehadiran | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      fetchData(id);
+    }
+  }, [id, startDate, endDate]);
+
+  const fetchData = async (teacherId: string) => {
+    setLoading(true);
+    try {
+      const [historyResponse, timeSlotsResponse] = await Promise.all([
+        attendanceService.getTeacherAttendanceHistory(teacherId, { from: startDate, to: endDate }),
+        masterService.getTimeSlots()
+      ]);
+
+      const history = historyResponse.history || [];
+      const teacher = historyResponse.teacher;
+      
+      if (teacher) {
+        setCurrentGuruName(teacher.user?.name || teacher.name || currentGuruName);
+      }
+
+      const timeSlots = timeSlotsResponse.data || [];
+      // Create map for quick lookup
+      // Assuming keys are start_time or we find closest
+      
+      const newRows = history.map((item: any, index: number) => {
+        // Safe navigation for nested properties
+        const schedule = item.schedule || {};
+        const subject = schedule.subject || {};
+        const dailySchedule = schedule.daily_schedule || {};
+        const classSchedule = dailySchedule.class_schedule || {};
+        const classRoom = classSchedule.class || {}; // 'class' is reserved word in JS but property name in JSON
+        // Actually checks response structure. 'class' in JSON is fine.
+
+        // Determine Jam
+        let jamStr = "-";
+        if (schedule.start_time) {
+            // Find slot
+            const slot = timeSlots.find((s: any) => s.start_time === schedule.start_time);
+            if (slot) {
+                jamStr = slot.name; // e.g., "Jam 1"
+            } else {
+                jamStr = schedule.start_time.substring(0, 5);
+            }
+            if (schedule.end_time) {
+                // jamStr += ` - ${schedule.end_time.substring(0, 5)}`;
+            }
+        }
+
+        // Map status
+        let status: StatusKehadiran = "Tidak Hadir";
+        const s = item.status;
+        if (s === "present") status = "Hadir";
+        else if (s === "late") status = "Terlambat";
+        else if (s === "sick") status = "Sakit";
+        else if (s === "permission") status = "Izin";
+        else if (s === "alpha") status = "Alfa";
+        else if (s === "absent") status = "Tidak Hadir";
+
+        return {
+          no: index + 1,
+          tanggal: item.date,
+          jam: jamStr,
+          mapel: subject.name || schedule.keterangan || "-",
+          kelas: classRoom.name || "-",
+          status: status,
+          originalStatus: s
+        };
+      });
+
+      setRows(newRows);
+    } catch (error) {
+       console.error("Error fetching detail:", error);
+    } finally {
+       setLoading(false);
+    }
+  };
+
 
   const handleOpenEdit = (row: RowKehadiran) => {
     setEditingRow(row);
@@ -131,10 +170,12 @@ export default function DetailKehadiranGuru({
   const handleSubmitEdit = () => {
     if (!editingRow) return;
     setIsSubmitting(true);
+    // TODO: Implement API update for attendance status
+    // For now update local state
     setTimeout(() => {
       setRows((prev) =>
         prev.map((r) =>
-          r === editingRow ? { ...r, status: editStatus } : r
+          r.no === editingRow.no ? { ...r, status: editStatus } : r
         )
       );
       setIsSubmitting(false);
@@ -143,7 +184,6 @@ export default function DetailKehadiranGuru({
     }, 300);
   };
 
-  // Fungsi untuk mendapatkan warna status sesuai format yang diberikan
   const getStatusColor = (status: StatusKehadiran) => {
     switch (status) {
       case "Hadir":
@@ -156,11 +196,21 @@ export default function DetailKehadiranGuru({
         return { bg: "#D90000", text: "#FFFFFF", border: "#D90000", shadow: "0 1px 3px rgba(217, 0, 0, 0.3)" };
       case "Pulang":
         return { bg: "#2F85EB", text: "#FFFFFF", border: "#2F85EB", shadow: "0 1px 3px rgba(47, 133, 235, 0.3)" };
+      case "Terlambat":
+        return { bg: "#ACA40D", text: "#FFFFFF", border: "#ACA40D", shadow: "0 1px 3px rgba(172, 164, 13, 0.3)" };
       case "Tidak Ada Jadwal":
         return { bg: "#9CA3AF", text: "#FFFFFF", border: "#9CA3AF", shadow: "0 1px 3px rgba(156, 163, 175, 0.3)" };
       default:
         return { bg: "#6B7280", text: "#FFFFFF", border: "#6B7280", shadow: "0 1px 3px rgba(107, 114, 128, 0.3)" };
     }
+  };
+
+  const handleBack = () => {
+      if (onBack) {
+          onBack();
+      } else {
+          navigate(-1);
+      }
   };
 
   return (
@@ -201,24 +251,48 @@ export default function DetailKehadiranGuru({
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
-            {guruInfo.name}
+            {currentGuruName}
           </div>
           <div style={{ fontSize: 15, opacity: 0.9 }}>
-            {guruInfo.phone}
+            Guru
           </div>
         </div>
       </div>
 
-      {/* BUTTON KEMBALI */}
+      {/* FILTER & BACK */}
       <div
         style={{
           display: "flex",
-          justifyContent: "flex-end",
+          justifyContent: "space-between",
+          alignItems: "center",
           marginBottom: 20,
+          flexWrap: "wrap",
+          gap: 16,
         }}
       >
+         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, backgroundColor: "white", padding: "8px 12px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+                <span style={{ fontSize: 14, color: "#6b7280" }}>Dari:</span>
+                <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={{ border: "none", outline: "none", fontSize: 14 }}
+                />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, backgroundColor: "white", padding: "8px 12px", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+                <span style={{ fontSize: 14, color: "#6b7280" }}>Sampai:</span>
+                <input 
+                    type="date" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)}
+                    style={{ border: "none", outline: "none", fontSize: 14 }}
+                />
+            </div>
+         </div>
+
         <button
-          onClick={onBack}
+          onClick={handleBack}
           style={{
             display: "flex",
             alignItems: "center",
@@ -255,7 +329,7 @@ export default function DetailKehadiranGuru({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "80px 140px 100px 160px 250px 180px 100px",
+            gridTemplateColumns: "60px 140px 100px 160px 150px 180px 100px",
             backgroundColor: "#F9FAFB",
             padding: "16px 24px",
             fontWeight: 700,
@@ -276,121 +350,127 @@ export default function DetailKehadiranGuru({
           <div style={{ textAlign: "center" }}>Aksi</div>
         </div>
 
-        {/* BODY ROWS - KOLOM LEBIH LEBAR */}
-        {rows.map((row) => {
-          const statusColor = getStatusColor(row.status);
+        {/* BODY ROWS */}
+        {loading ? (
+             <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>Memuat riwayat kehadiran...</div>
+        ) : rows.length === 0 ? (
+             <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>Tidak ada data kehadiran pada rentang tanggal ini.</div>
+        ) : (
+            rows.map((row) => {
+            const statusColor = getStatusColor(row.status);
 
-          return (
-            <div
-              key={row.no}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "80px 140px 100px 160px 250px 180px 100px",
-                padding: "14px 24px",
-                borderBottom: "1px solid #F3F4F6",
-                alignItems: "center",
-                gap: "24px",
-                fontSize: 13,
-                transition: "background-color 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F9FAFB")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              {/* No */}
-              <div style={{ textAlign: "center", fontWeight: 600, color: "#374151" }}>
-                {row.no}
-              </div>
-
-              {/* Tanggal */}
-              <div style={{ textAlign: "center", color: "#1F2937" }}>
-                {row.tanggal}
-              </div>
-
-              {/* Jam */}
-              <div style={{ textAlign: "center", fontWeight: 600, color: "#374151" }}>
-                {row.jam}
-              </div>
-
-              {/* Mapel */}
-              <div style={{ textAlign: "center", color: "#1F2937" }}>
-                {row.mapel}
-              </div>
-
-              {/* Kelas */}
-              <div style={{ textAlign: "center", color: "#1F2937" }}>
-                {row.kelas}
-              </div>
-
-              {/* Status - IKON MATA DI DALAM BUTTON */}
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <button
-                  onClick={() => handleOpenDetail(row)}
-                  style={{
-                    backgroundColor: statusColor.bg,
-                    color: statusColor.text,
-                    padding: "6px 14px",
-                    borderRadius: 16,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    border: `1px solid ${statusColor.border}`,
-                    boxShadow: statusColor.shadow,
-                    textAlign: "center",
-                    letterSpacing: "0.3px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "scale(1.05)";
-                    e.currentTarget.style.boxShadow = statusColor.shadow.replace("0.3", "0.5");
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "scale(1)";
-                    e.currentTarget.style.boxShadow = statusColor.shadow;
-                  }}
-                >
-                  <Eye size={14} color="#FFFFFF" />
-                  <span>{row.status === "Alfa" ? "Alfa" : row.status}</span>
-                </button>
-              </div>
-
-              {/* Aksi - HANYA TOMBOL EDIT */}
-              <div
+            return (
+                <div
+                key={row.no}
                 style={{
-                  display: "flex",
-                  gap: 10,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  onClick={() => handleOpenEdit(row)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 4,
-                    borderRadius: 4,
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "60px 140px 100px 160px 150px 180px 100px",
+                    padding: "14px 24px",
+                    borderBottom: "1px solid #F3F4F6",
                     alignItems: "center",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#E5E7EB")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                  title="Edit Status"
+                    gap: "24px",
+                    fontSize: 13,
+                    transition: "background-color 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F9FAFB")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
-                  <SquarePen size={18} color="#10B981" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+                {/* No */}
+                <div style={{ textAlign: "center", fontWeight: 600, color: "#374151" }}>
+                    {row.no}
+                </div>
+
+                {/* Tanggal */}
+                <div style={{ textAlign: "center", color: "#1F2937" }}>
+                    {row.tanggal}
+                </div>
+
+                {/* Jam */}
+                <div style={{ textAlign: "center", fontWeight: 600, color: "#374151" }}>
+                    {row.jam}
+                </div>
+
+                {/* Mapel */}
+                <div style={{ textAlign: "center", color: "#1F2937" }}>
+                    {row.mapel}
+                </div>
+
+                {/* Kelas */}
+                <div style={{ textAlign: "center", color: "#1F2937" }}>
+                    {row.kelas}
+                </div>
+
+                {/* Status */}
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                    <button
+                    onClick={() => handleOpenDetail(row)}
+                    style={{
+                        backgroundColor: statusColor.bg,
+                        color: statusColor.text,
+                        padding: "6px 14px",
+                        borderRadius: 16,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: `1px solid ${statusColor.border}`,
+                        boxShadow: statusColor.shadow,
+                        textAlign: "center",
+                        letterSpacing: "0.3px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "scale(1.05)";
+                        e.currentTarget.style.boxShadow = statusColor.shadow.replace("0.3", "0.5");
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = statusColor.shadow;
+                    }}
+                    >
+                    <Eye size={14} color="#FFFFFF" />
+                    <span>{row.status === "Alfa" ? "Alfa" : row.status}</span>
+                    </button>
+                </div>
+
+                    {/* Aksi */}
+                    <div
+                        style={{
+                        display: "flex",
+                        gap: 10,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        }}
+                    >
+                        <button
+                        onClick={() => handleOpenEdit(row)}
+                        style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 4,
+                            borderRadius: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            transition: "background-color 0.2s",
+                        }}
+                        onMouseEnter={(e) =>
+                            (e.currentTarget.style.backgroundColor = "#E5E7EB")
+                        }
+                        onMouseLeave={(e) =>
+                            (e.currentTarget.style.backgroundColor = "transparent")
+                        }
+                        title="Edit Status"
+                        >
+                        <SquarePen size={18} color="#10B981" />
+                        </button>
+                    </div>
+                </div>
+            );
+            })
+        )}
       </div>
 
       {/* EDIT MODAL */}
@@ -431,7 +511,7 @@ export default function DetailKehadiranGuru({
             jamPelajaran: selectedDetail.jam,
             mataPelajaran: selectedDetail.mapel,
             kelas: selectedDetail.kelas,
-            namaGuru: guruInfo.name,
+            namaGuru: currentGuruName,
             status: selectedDetail.status,
           }}
           onClose={() => setIsDetailOpen(false)}
@@ -467,6 +547,8 @@ function DetailModal({ data, onClose }: DetailModalProps) {
         return { bg: "#D90000", text: "#FFFFFF", border: "#D90000", shadow: "0 1px 3px rgba(217, 0, 0, 0.3)" };
       case "Pulang":
         return { bg: "#2F85EB", text: "#FFFFFF", border: "#2F85EB", shadow: "0 1px 3px rgba(47, 133, 235, 0.3)" };
+      case "Terlambat":
+        return { bg: "#ACA40D", text: "#FFFFFF", border: "#ACA40D", shadow: "0 1px 3px rgba(172, 164, 13, 0.3)" };
       case "Tidak Ada Jadwal":
         return { bg: "#9CA3AF", text: "#FFFFFF", border: "#9CA3AF", shadow: "0 1px 3px rgba(156, 163, 175, 0.3)" };
       default:
@@ -490,6 +572,8 @@ function DetailModal({ data, onClose }: DetailModalProps) {
         return "Guru tidak hadir tanpa keterangan";
       case "Pulang":
         return "Guru sudah pulang dari sekolah";
+      case "Terlambat":
+        return "Guru hadir terlambat";
       case "Tidak Ada Jadwal":
         return "Guru tidak ada jadwal mengajar pada jam ini";
       default:

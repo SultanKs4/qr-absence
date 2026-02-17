@@ -29,7 +29,8 @@ function JadwalGuruIndex() {
       const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:8000/api/teachers', {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 

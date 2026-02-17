@@ -1,5 +1,4 @@
 // FILE: GuruAdmin.tsx - Halaman Admin untuk mengelola data guru
-// ✅ PERBAIKAN: Layout lebih pendek dan kompak
 import { useState, useRef, useEffect } from 'react';
 import AdminLayout from '../../component/Admin/AdminLayout';
 import { Button } from '../../component/Shared/Button';
@@ -8,14 +7,15 @@ import {
   MoreVertical,
   Trash2,
   Eye,
-  Grid,
   FileDown,
   Upload,
-  FileText,
   Download,
-  Search,
   X,
+  Search
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { teacherService } from '../../services/teacherService';
+import { masterService, type Subject, type ClassRoom } from '../../services/masterService';
 
 /* ============ IMPORT GAMBAR AWAN ============ */
 import AWANKIRI from '../../assets/Icon/AWANKIRI.png';
@@ -29,13 +29,19 @@ interface User {
 
 interface Guru {
   id: string;
-  kodeGuru: string;
-  namaGuru: string;
-  keterangan: string;
-  role: string;
-  noTelp?: string;
-  waliKelasDari?: string;
-  jenisKelamin?: string;
+  nip: string; // kodeGuru
+  name: string; // namaGuru
+  role: string; // jabatan
+  phone?: string; // noTelp
+  subject?: string; // keterangan for Guru
+  waka_field?: string; // keterangan for Staff
+  homeroom_class?: {
+    id: number;
+    name: string;
+  }; // keterangan for Wali Kelas
+  keterangan: string; // Computed for display
+  email?: string;
+  gender?: string; // Not in resource yet, but form has it
 }
 
 interface GuruAdminProps {
@@ -45,72 +51,6 @@ interface GuruAdminProps {
   onMenuClick: (page: string) => void;
   onNavigateToDetail?: (guruId: string) => void;
 }
-
-/* ===================== DUMMY DATA ===================== */
-const initialGuruData: Guru[] = [
-  {
-    id: '1',
-    kodeGuru: '0918415784',
-    namaGuru: 'TRIANA ARDIANI, S.Pd',
-    keterangan: '12 Rekayasa Perangkat Lunak 2',
-    role: 'Wali Kelas',
-    noTelp: '082183748591',
-    waliKelasDari: '12 Rekayasa Perangkat Lunak 2',
-    jenisKelamin: 'Perempuan',
-  },
-  {
-    id: '2',
-    kodeGuru: '0918417765',
-    namaGuru: 'SOLIKAH,S.Pd',
-    keterangan: 'Matematika',
-    role: 'Guru',
-    noTelp: '081234567890',
-    waliKelasDari: '',
-    jenisKelamin: 'Laki-Laki',
-  },
-  {
-    id: '3',
-    kodeGuru: '0918415785',
-    namaGuru: 'WIWIN WINANGSIH, S.Pd,M.Pd',
-    keterangan: 'Matematika',
-    role: 'Guru',
-    noTelp: '082345678901',
-    waliKelasDari: '11 Teknik Komputer dan Jaringan 1',
-    jenisKelamin: 'Perempuan',
-  },
-  {
-    id: '4',
-    kodeGuru: '0918775542',
-    namaGuru: 'FAJAR NINGTYAS, S.Pd',
-    keterangan: 'Bahasa Inggris',
-    role: 'Guru',
-    noTelp: '083456789012',
-    waliKelasDari: '',
-    jenisKelamin: 'Perempuan',
-  },
-  {
-    id: '5',
-    kodeGuru: '0919765542',
-    namaGuru: 'Hj. TITIK MARIYATI, S.Pd',
-    keterangan: 'Bahasa Indonesia',
-    role: 'Guru',
-    noTelp: '083456766543',
-    waliKelasDari: '',
-    jenisKelamin: 'Perempuan',
-  },
-];
-
-/* ===================== KELAS OPTIONS ===================== */
-const kelasOptions = [
-  '10 Rekayasa Perangkat Lunak 1',
-  '10 Rekayasa Perangkat Lunak 2',
-  '10 Rekayasa Perangkat Lunak 3',
-  '11 Rekayasa Perangkat Lunak 1',
-  '11 Teknik Komputer dan Jaringan 1',
-  '12 Teknik Komputer dan Jaringan 1',
-  '12 Rekayasa Perangkat Lunak 1',
-  '12 Rekayasa Perangkat Lunak 2',
-];
 
 /* ===================== MAIN COMPONENT ===================== */
 export default function GuruAdmin({
@@ -126,11 +66,21 @@ export default function GuruAdmin({
   const [selectedKeterangan, setSelectedKeterangan] = useState('');
   const [isEksporDropdownOpen, setIsEksporDropdownOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [guruList, setGuruList] = useState<Guru[]>(initialGuruData);
-  const [openActionId, setOpenActionId] = useState<string | null>(null);
-  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
-  const [duplicateWarningMessage, setDuplicateWarningMessage] = useState('');
   
+  const [guruList, setGuruList] = useState<Guru[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
+  
+  // Pagination State
+  const [pageIndex, setPageIndex] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [formData, setFormData] = useState({
     namaGuru: '',
     kodeGuru: '',
@@ -139,11 +89,78 @@ export default function GuruAdmin({
     keterangan: '',
     noTelp: '',
     waliKelasDari: '',
+    email: '',
+    password: ''
   });
   
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ==================== FETCH DATA ====================
+  const fetchTeachers = async () => {
+    setLoading(true);
+    try {
+      // Fetch teachers
+      const response = await teacherService.getTeachers({
+        page: pageIndex,
+        per_page: itemsPerPage,
+        search: searchValue
+      });
+      
+      const mappedGuru = response.data.map((t: any) => ({
+        id: t.id.toString(),
+        nip: t.nip,
+        name: t.name,
+        role: t.role || 'Guru',
+        phone: t.phone,
+        subject: t.subject,
+        homeroom_class: t.homeroom_class,
+        waka_field: t.waka_field,
+        email: t.email,
+        // Compute keterangan based on role
+        keterangan: t.role === 'Wali Kelas' && t.homeroom_class 
+          ? t.homeroom_class.name 
+          : t.role === 'Staff' ? (t.waka_field || '-') 
+          : (t.subject || '-'),
+        gender: 'Laki-Laki' // Default or fetch if available
+      }));
+
+      setGuruList(mappedGuru);
+      setTotalPages(response.meta.last_page);
+      
+    } catch (err: any) {
+      console.error('Error fetching teachers:', err);
+      setError('Gagal memuat data guru.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMasterData = async () => {
+    try {
+      const [subjectsRes, classesRes] = await Promise.all([
+        masterService.getSubjects(),
+        masterService.getClasses()
+      ]);
+      setSubjects(subjectsRes.data || []);
+      setClasses(classesRes.data || []);
+    } catch (err) {
+      console.error('Error fetching master data:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMasterData();
+  }, []);
+
+  useEffect(() => {
+    // Debounce search if needed, but for now direct effect
+    const timeoutId = setTimeout(() => {
+      fetchTeachers();
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [pageIndex, searchValue]);
 
   // ==================== DYNAMIC OPTIONS BERDASARKAN ROLE ====================
   
@@ -155,6 +172,16 @@ export default function GuruAdmin({
   const getFilteredKeteranganOptions = () => {
     if (!selectedRole) return allKeteranganOptions;
     
+    // If role is Guru, show subjects
+    if (selectedRole === 'Guru') {
+      return subjects.map(s => ({ value: s.name, label: s.name }));
+    }
+    // If role is Wali Kelas, show classes
+    if (selectedRole === 'Wali Kelas') {
+      return classes.map(c => ({ value: c.name, label: c.name }));
+    }
+    
+    // Fallback based on current list
     const filtered = guruList
       .filter(g => g.role === selectedRole)
       .map(g => g.keterangan)
@@ -172,14 +199,7 @@ export default function GuruAdmin({
 
   // ==================== OPTIONS UNTUK FORM MODAL ====================
   
-  const mataPelajaranOptions = [
-    { label: 'Matematika', value: 'Matematika' },
-    { label: 'Bahasa Indonesia', value: 'Bahasa Indonesia' },
-    { label: 'Bahasa Inggris', value: 'Bahasa Inggris' },
-    { label: 'Seni Budaya', value: 'Seni Buddaya' },
-    { label: 'Sejarah', value: 'Sejarah' },
-    { label: 'Bahasa Jawa', value: 'Bahasa Jawa' },
-  ];
+  const mataPelajaranOptions = subjects.map(s => ({ label: s.name, value: s.name }));
 
   const bagianStaffOptions = [
     { label: 'Tata Usaha', value: 'Tata Usaha' },
@@ -188,194 +208,49 @@ export default function GuruAdmin({
     { label: 'Laboratorium', value: 'Laboratorium' },
     { label: 'Keuangan', value: 'Keuangan' },
   ];
+  
+  const kelasOptions = classes.map(c => c.name);
 
-  const getAvailableKelasOptions = () => {
-    const occupiedKelas = guruList
-      .filter(guru => guru.role === 'Wali Kelas' && guru.waliKelasDari)
-      .map(guru => guru.waliKelasDari);
-    
-    return kelasOptions.filter(kelas => !occupiedKelas.includes(kelas));
-  };
-
-  // ==================== LISTEN TO UPDATES FROM DETAIL PAGE ====================
-  useEffect(() => {
-    const handleGuruUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (customEvent.detail && customEvent.detail.updatedGuru) {
-        const updatedGuru = customEvent.detail.updatedGuru;
-        setGuruList(prevList => 
-          prevList.map(guru => 
-            guru.id === updatedGuru.id ? updatedGuru : guru
-          )
-        );
-      }
-    };
-
-    const checkLocalStorageUpdate = () => {
-      const savedGuru = localStorage.getItem('selectedGuru');
-      const updateFlag = localStorage.getItem('guruDataUpdated');
-      
-      if (savedGuru && updateFlag === 'true') {
-        try {
-          const updatedGuru = JSON.parse(savedGuru);
-          setGuruList(prevList => 
-            prevList.map(guru => 
-              guru.id === updatedGuru.id ? updatedGuru : guru
-            )
-          );
-          localStorage.removeItem('guruDataUpdated');
-        } catch (error) {
-          console.error('Error parsing updated guru:', error);
-        }
-      }
-    };
-
-    checkLocalStorageUpdate();
-    window.addEventListener('guruUpdated', handleGuruUpdate as EventListener);
-    window.addEventListener('storage', checkLocalStorageUpdate);
-    const interval = setInterval(checkLocalStorageUpdate, 500);
-    
-    return () => {
-      window.removeEventListener('guruUpdated', handleGuruUpdate as EventListener);
-      window.removeEventListener('storage', checkLocalStorageUpdate);
-      clearInterval(interval);
-    };
-  }, []);
-
-  // ==================== FORM VALIDATION WITH REAL-TIME ====================
-  const validateField = (field: string, value: string) => {
-    const newErrors = { ...formErrors };
-
-    if (field === 'namaGuru') {
-      if (!value.trim()) {
-        newErrors.namaGuru = 'Nama guru harus diisi';
-      } else if (value.trim().length < 3) {
-        newErrors.namaGuru = 'Nama guru minimal 3 karakter';
-      } else {
-        delete newErrors.namaGuru;
-      }
-    }
-
-    if (field === 'kodeGuru') {
-      if (!value.trim()) {
-        newErrors.kodeGuru = 'Kode guru harus diisi';
-      } else if (guruList.some(g => g.kodeGuru === value)) {
-        newErrors.kodeGuru = 'Kode guru sudah terdaftar';
-      } else {
-        delete newErrors.kodeGuru;
-      }
-    }
-
-    if (field === 'noTelp') {
-      if (value && value.trim()) {
-        if (!/^08\d{10,11}$/.test(value)) {
-          newErrors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
-        } else {
-          delete newErrors.noTelp;
-        }
-      } else {
-        delete newErrors.noTelp;
-      }
-    }
-
-    if (field === 'waliKelasDari') {
-      if (formData.role === 'Wali Kelas' && value) {
-        const isKelasOccupied = guruList.some(
-          guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === value
-        );
-        
-        if (isKelasOccupied) {
-          const waliKelasExist = guruList.find(
-            guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === value
-          );
-          newErrors.waliKelasDari = `Kelas "${value}" sudah memiliki wali kelas (${waliKelasExist?.namaGuru})`;
-        } else {
-          delete newErrors.waliKelasDari;
-        }
-      }
-    }
-
-    setFormErrors(newErrors);
-  };
-
+  // ==================== FORM VALIDATION ====================
   const validateForm = () => {
     const errors: {[key: string]: string} = {};
     
-    if (!formData.namaGuru.trim()) {
-      errors.namaGuru = 'Nama guru harus diisi';
-    } else if (formData.namaGuru.trim().length < 3) {
-      errors.namaGuru = 'Nama guru minimal 3 karakter';
-    }
-    
-    if (!formData.kodeGuru.trim()) {
-      errors.kodeGuru = 'Kode guru harus diisi';
-    } else if (guruList.some(g => g.kodeGuru === formData.kodeGuru)) {
-      errors.kodeGuru = 'Kode guru sudah terdaftar';
-    }
-
-    if (!formData.role) {
-      errors.role = 'Peran harus dipilih';
-    }
+    if (!formData.namaGuru.trim()) errors.namaGuru = 'Nama guru harus diisi';
+    if (!formData.kodeGuru.trim()) errors.kodeGuru = 'NIP harus diisi';
+    if (!formData.role) errors.role = 'Peran harus dipilih';
     
     if (formData.role === 'Guru' && !formData.keterangan) {
       errors.keterangan = 'Mata pelajaran harus dipilih';
     }
     
-    if (formData.role === 'Wali Kelas') {
-      if (!formData.waliKelasDari) {
-        errors.waliKelasDari = 'Wali kelas dari harus dipilih';
-      } else {
-        const isKelasOccupied = guruList.some(
-          guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === formData.waliKelasDari
-        );
-        
-        if (isKelasOccupied) {
-          const waliKelasExist = guruList.find(
-            guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === formData.waliKelasDari
-          );
-          errors.waliKelasDari = `Kelas "${formData.waliKelasDari}" sudah memiliki wali kelas (${waliKelasExist?.namaGuru})`;
-        }
-      }
+    if (formData.role === 'Wali Kelas' && !formData.waliKelasDari) {
+      errors.waliKelasDari = 'Wali kelas dari harus dipilih';
     }
     
     if (formData.role === 'Staff' && !formData.keterangan) {
       errors.keterangan = 'Bagian staff harus dipilih';
     }
 
-    if (formData.noTelp && formData.noTelp.trim()) {
-      if (!/^08\d{10,11}$/.test(formData.noTelp)) {
-        errors.noTelp = 'Nomor telepon harus 12-13 digit (08xxxxxxxxxx)';
-      }
-    }
-    
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // ==================== FILTERING DATA ====================
   const filteredData = guruList.filter((item) => {
-    const matchSearch = 
-      item.kodeGuru.toLowerCase().includes(searchValue.toLowerCase()) ||
-      item.namaGuru.toLowerCase().includes(searchValue.toLowerCase()) ||
-      item.keterangan.toLowerCase().includes(searchValue.toLowerCase()) ||
-      item.role.toLowerCase().includes(searchValue.toLowerCase());
     const matchRole = selectedRole ? item.role === selectedRole : true;
     const matchKeterangan = selectedKeterangan ? item.keterangan === selectedKeterangan : true;
-    return matchSearch && matchRole && matchKeterangan;
+    return matchRole && matchKeterangan;
   });
 
   // ==================== EVENT HANDLERS ====================
   
   const handleNavigateToDetail = (guruId: string) => {
-    const guru = guruList.find(g => g.id === guruId);
-    if (guru) {
-      localStorage.setItem('selectedGuru', JSON.stringify(guru));
-      localStorage.removeItem('guruDataUpdated');
-      if (onNavigateToDetail) {
-        onNavigateToDetail(guruId);
-      } else {
-        onMenuClick('detail-guru');
-      }
+    if (onNavigateToDetail) {
+      onNavigateToDetail(guruId);
+    } else {
+      // Store ID in localStorage or just navigate
+      localStorage.setItem('selectedGuruId', guruId);
+      onMenuClick('detail-guru');
     }
   };
 
@@ -388,100 +263,79 @@ export default function GuruAdmin({
       keterangan: '',
       noTelp: '',
       waliKelasDari: '',
+      email: '',
+      password: ''
     });
     setFormErrors({});
-    setShowDuplicateWarning(false);
-    setDuplicateWarningMessage('');
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setFormData({
-      namaGuru: '',
-      kodeGuru: '',
-      jenisKelamin: 'Laki-Laki',
-      role: '',
-      keterangan: '',
-      noTelp: '',
-      waliKelasDari: '',
-    });
     setFormErrors({});
-    setShowDuplicateWarning(false);
-    setDuplicateWarningMessage('');
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
-    if (formData.role === 'Wali Kelas') {
-      const isKelasOccupied = guruList.some(
-        guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === formData.waliKelasDari
-      );
-      
-      if (isKelasOccupied) {
-        const waliKelasExist = guruList.find(
-          guru => guru.role === 'Wali Kelas' && guru.waliKelasDari === formData.waliKelasDari
-        );
-        setDuplicateWarningMessage(`Kelas "${formData.waliKelasDari}" sudah memiliki wali kelas (${waliKelasExist?.namaGuru}).`);
-        setShowDuplicateWarning(true);
-        return;
+    try {
+      // Build payload
+      const payload: any = {
+        name: formData.namaGuru,
+        username: formData.kodeGuru, // Use NIP as username default
+        nip: formData.kodeGuru,
+        jabatan: formData.role,
+        phone: formData.noTelp,
+        email: formData.email || undefined,
+        password: formData.password || 'password123',
+      };
+
+      if (formData.role === 'Guru') {
+        payload.subject = formData.keterangan;
+      } else if (formData.role === 'Wali Kelas') {
+        const selectedClass = classes.find(c => c.name === formData.waliKelasDari);
+        if (selectedClass) {
+          payload.homeroom_class_id = selectedClass.id;
+        }
+      } else if (formData.role === 'Staff') {
+        // Or create a new field in API for 'bagian'? TeacherController uses 'subject' or 'bidang'
+        payload.bidang = formData.keterangan;
+        payload.waka_field = formData.keterangan; // Just to be safe if backend changes name
       }
-    }
 
-    let keteranganFinal = formData.keterangan;
-    if (formData.role === 'Wali Kelas') {
-      keteranganFinal = formData.waliKelasDari;
+      await teacherService.createTeacher(payload);
+      alert('✓ Data guru berhasil ditambahkan!');
+      handleCloseModal();
+      fetchTeachers();
+    } catch (err: any) {
+      console.error(err);
+      alert('Gagal menambahkan guru: ' + (err.message || 'Unknown error'));
     }
-    
-    const newGuru: Guru = {
-      id: String(Math.max(0, ...guruList.map(g => parseInt(g.id) || 0)) + 1),
-      kodeGuru: formData.kodeGuru.trim(),
-      namaGuru: formData.namaGuru.trim(),
-      keterangan: keteranganFinal,
-      role: formData.role,
-      noTelp: formData.noTelp.trim(),
-      waliKelasDari: formData.waliKelasDari,
-      jenisKelamin: formData.jenisKelamin,
-    };
-
-    setGuruList([...guruList, newGuru]);
-    alert(`✓ Guru "${newGuru.namaGuru}" berhasil ditambahkan!`);
-    handleCloseModal();
   };
 
-  const handleDeleteGuru = (id: string) => {
-    const guru = guruList.find(g => g.id === id);
-    if (confirm(`Apakah Anda yakin ingin menghapus data guru "${guru?.namaGuru}"?`)) {
-      setGuruList(prevList => prevList.filter(guru => guru.id !== id));
-      alert('✓ Data guru berhasil dihapus!');
-      setOpenActionId(null);
+  const handleDeleteGuru = async (id: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus data guru ini?')) {
+      try {
+        await teacherService.deleteTeacher(id);
+        alert('✓ Data guru berhasil dihapus!');
+        setOpenActionId(null);
+        fetchTeachers();
+      } catch (err: any) {
+        console.error(err);
+        alert('Gagal menghapus guru: ' + err.message);
+      }
     }
   };
 
   // ==================== DOWNLOAD FORMAT EXCEL ====================
   const handleDownloadFormatExcel = () => {
     const link = document.createElement('a');
-    link.href = '/Template_Import_Data_Guru.xlsx';
+    link.href = '/Template_Import_Data_Guru.xlsx'; // Ensure this file exists
     link.download = 'Template_Import_Data_Guru.xlsx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    setTimeout(() => {
-      alert(
-        'File: Template_Import_Data_Guru.xlsx\n\n' +
-        'Cara Menggunakan:\n' +
-        '1. Buka file dengan Microsoft Excel\n' +
-        '3. Isi data di sheet "Template Import Guru"\n' +
-        '5. Simpan file\n' +
-        '6. Klik tombol "Impor" untuk upload'
-      );
-    }, 100);
   };
 
   // ==================== IMPORT ====================
@@ -489,15 +343,59 @@ export default function GuruAdmin({
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    alert(`File "${file.name}" siap diimpor!`);
-    e.target.value = '';
+    if (file) {
+      if (!file.name.match(/\.(xlsx|xls|csv)$/)) {
+        alert('Format file tidak didukung. Gunakan Excel atau CSV.');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+          if (data.length === 0) {
+            alert('File kosong atau format tidak sesuai.');
+            return;
+          }
+
+          const mappedItems = data.map(row => ({
+            name: row.Nama || row.name,
+            username: row.Username || row.username,
+            email: row.Email || row.email || null,
+            password: row.Password || row.password || 'password123',
+            nip: String(row.NIP || row.nip),
+            phone: row.Telepon || row.phone || null,
+            contact: row.Kontak || row.contact || null,
+            homeroom_class_id: row.WaliKelasID || row.homeroom_class_id || null,
+            subject: row.MataPelajaran || row.subject || null,
+          }));
+
+          setLoading(true);
+          const result = await teacherService.importTeachers(mappedItems);
+          alert(`Berhasil mengimpor ${result.created} guru.`);
+          fetchTeachers();
+        } catch (error: any) {
+          console.error('Import failed:', error);
+          alert('Gagal mengimpor data: ' + (error.message || 'Lengkapi data wajib.'));
+        } finally {
+          setLoading(false);
+          e.target.value = '';
+        }
+      };
+      reader.readAsBinaryString(file);
+    }
   };
 
   // ==================== EXPORT ====================
   const handleExportPDF = () => {
+    // Reuse existing logic with filteredData
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -511,7 +409,6 @@ export default function GuruAdmin({
           th { background-color: #2563EB; color: white; padding: 10px; text-align: left; }
           td { padding: 10px; border-bottom: 1px solid #ddd; }
           tr:nth-child(even) { background-color: #f5f7fa; }
-          .footer { margin-top: 20px; text-align: right; color: #666; }
         </style>
       </head>
       <body>
@@ -521,7 +418,7 @@ export default function GuruAdmin({
           <thead>
             <tr>
               <th>No</th>
-              <th>Kode Guru</th>
+              <th>NIP/Kode</th>
               <th>Nama Guru</th>
               <th>Peran</th>
               <th>Keterangan</th>
@@ -531,89 +428,26 @@ export default function GuruAdmin({
             ${filteredData.map((guru, index) => `
               <tr>
                 <td>${index + 1}</td>
-                <td>${guru.kodeGuru}</td>
-                <td>${guru.namaGuru}</td>
+                <td>${guru.nip}</td>
+                <td>${guru.name}</td>
                 <td>${guru.role}</td>
                 <td>${guru.keterangan}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
-        <div class="footer">
-          <p>Total Guru: ${filteredData.length}</p>
-          <p>Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} ${new Date().toLocaleTimeString('id-ID')}</p>
-        </div>
       </body>
       </html>
     `;
-
     const newWindow = window.open('', '', 'width=900,height=600');
     if (newWindow) {
       newWindow.document.write(htmlContent);
       newWindow.document.close();
-      setTimeout(() => {
-        newWindow.print();
-      }, 250);
+      setTimeout(() => newWindow.print(), 250);
     }
   };
 
-  const handleOpenInExcel = () => {
-    const headers = ['Kode Guru', 'Nama Guru', 'Peran', 'Keterangan'];
-    
-    const rows = guruList.map((guru) => [
-      guru.kodeGuru,
-      guru.namaGuru,
-      guru.role,
-      guru.keterangan,
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => {
-        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
-          return `"${cell.replace(/"/g, '""')}"`;
-        }
-        return cell;
-      }).join(',')),
-    ].join('\n');
-
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'application/vnd.ms-excel' });
-    const url = window.URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Data_Guru_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.csv`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-    }, 100);
-
-    setTimeout(() => {
-      alert('✓ File Excel telah dibuat!');
-    }, 200);
-  };
-
-  /* ===================== STYLING ===================== */
-  const buttonBaseStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    padding: '6px 12px',
-    borderRadius: '6px',
-    fontWeight: 600,
-    fontSize: '13px',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    height: '36px',
-    border: 'none',
-  } as const;
-
+  /* ===================== RENDER ===================== */
   return (
     <AdminLayout
       pageTitle="Data Guru"
@@ -623,1057 +457,215 @@ export default function GuruAdmin({
       onLogout={onLogout}
       hideBackground
     >
-      {/* BACKGROUND AWAN */}
-      <img 
-        src={AWANKIRI} 
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: 220,
-          zIndex: 0,
-          pointerEvents: "none",
-        }} 
-        alt="Background awan kiri" 
-      />
-      
-      <img 
-        src={AwanBawahkanan} 
-        style={{
-          position: "fixed",
-          bottom: 0,
-          right: 0,
-          width: 220,
-          zIndex: 0,
-          pointerEvents: "none",
-        }} 
-        alt="Background awan kanan bawah" 
-      />
+      {/*... Background Images reuse ...*/}
+      <img src={AWANKIRI} style={{ position: "fixed", top: 0, left: 0, width: 220, zIndex: 0, pointerEvents: "none" }} alt="cloud" />
+      <img src={AwanBawahkanan} style={{ position: "fixed", bottom: 0, right: 0, width: 220, zIndex: 0, pointerEvents: "none" }} alt="cloud" />
 
-      {/* KONTEN UTAMA */}
-      <div
-        style={{
-          background: "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(6px)",
-          borderRadius: 16,
-          padding: '16px',
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(255,255,255,0.6)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-          position: "relative",
-          zIndex: 1,
-          minHeight: "70vh",
-        }}
-      >
-        {/* ============ FILTER & ACTION BUTTONS ============ */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '200px 200px 1fr auto auto auto auto',
-            gap: '12px',
-            alignItems: 'flex-end',
-          }}
-        >
-          {/* Peran */}
-          <div>
-            <Select
-              label="Peran"
-              value={selectedRole}
-              onChange={(value) => {
-                setSelectedRole(value);
-                setSelectedKeterangan('');
-              }}
-              options={roleOptions}
-              placeholder="Semua"
-            />
-          </div>
-
-          {/* Keterangan */}
-          <div>
-            <Select
-              label={
-                selectedRole === 'Guru' ? 'Mata Pelajaran' :
-                selectedRole === 'Wali Kelas' ? 'Kelas' :
-                selectedRole === 'Staff' ? 'Bagian' :
-                'Keterangan'
-              }
-              value={selectedKeterangan}
-              onChange={setSelectedKeterangan}
-              options={getFilteredKeteranganOptions()}
-              placeholder="Semua"
-            />
-          </div>
-
-          {/* Empty space */}
-          <div></div>
-
-          {/* Buttons - auto layout */}
-          <Button
-            label="Tambahkan"
-            onClick={handleTambahGuru}
-            variant="primary"
+      <div style={{
+          background: "rgba(255,255,255,0.85)", backdropFilter: "blur(6px)", borderRadius: 16, padding: '16px',
+          boxShadow: "0 10px 30px rgba(0,0,0,0.08)", border: "1px solid rgba(255,255,255,0.6)",
+          display: "flex", flexDirection: "column", gap: 14, position: "relative", zIndex: 1, minHeight: "70vh",
+      }}>
+        
+        {/* FILTERS & ACTIONS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '200px 200px 1fr auto auto auto auto', gap: '12px', alignItems: 'flex-end' }}>
+          <Select label="Peran" value={selectedRole} onChange={(v) => { setSelectedRole(v); setSelectedKeterangan(''); }} options={roleOptions} placeholder="Semua" />
+          <Select 
+            label={selectedRole === 'Guru' ? 'Mata Pelajaran' : selectedRole === 'Wali Kelas' ? 'Kelas' : 'Keterangan'}
+            value={selectedKeterangan} 
+            onChange={setSelectedKeterangan} 
+            options={getFilteredKeteranganOptions()} 
+            placeholder="Semua" 
           />
           
-          <button
-            onClick={handleDownloadFormatExcel}
-            style={{
-              ...buttonBaseStyle,
-              backgroundColor: '#10B981',
-              color: '#FFFFFF',
-              border: '1px solid #10B981',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#059669';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#10B981';
-            }}
-          >
-            <Download size={14} color="#FFFFFF" />
-            Format Excel
-          </button>
-
-          <button
-            onClick={handleImport}
-            style={{
-              ...buttonBaseStyle,
-              backgroundColor: '#0B1221',
-              color: '#FFFFFF',
-              border: '1px solid #0B1221',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1a2332';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0B1221';
-            }}
-          >
-            <Upload size={14} color="#FFFFFF" />
-            Impor
-          </button>
-
           <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setIsEksporDropdownOpen(!isEksporDropdownOpen)}
-              style={{
-                ...buttonBaseStyle,
-                backgroundColor: '#0B1221',
-                color: '#FFFFFF',
-                border: '1px solid #0B1221',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1a2332';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#0B1221';
-              }}
-            >
-              <FileDown size={14} color="#FFFFFF" />
-              Ekspor
-            </button>
-
-            {isEksporDropdownOpen && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 4,
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 8,
-                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
-                  overflow: 'hidden',
-                  zIndex: 20,
-                  minWidth: 120,
-                  border: '1px solid #E5E7EB',
-                }}
-              >
-                <button
-                  onClick={() => {
-                    setIsEksporDropdownOpen(false);
-                    handleExportPDF();
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'white',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: '#111827',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                >
-                  <FileText size={14} />
-                  PDF
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setIsEksporDropdownOpen(false);
-                    handleOpenInExcel();
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'white',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: '#111827',
-                    textAlign: 'left',
-                    borderTop: '1px solid #F1F5F9',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                >
-                  <Download size={14} />
-                  Excel
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ============ SEARCH INPUT ============ */}
-        <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '400px' }}>
-          <label
-            style={{
-              fontSize: '13px',
-              fontWeight: 500,
-              color: '#252525',
-              display: 'block',
-              marginBottom: '4px',
-            }}
-          >
-            Cari guru
-          </label>
-          <div
-            style={{
-              position: 'relative',
-              display: 'inline-flex',
-              alignItems: 'center',
-              width: '100%',
-            }}
-          >
-            <Search
-              size={16}
-              color="#9CA3AF"
-              style={{
-                position: 'absolute',
-                left: '10px',
-                pointerEvents: 'none',
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Cari guru"
+            <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+            <input 
+              type="text" 
+              placeholder="Cari Guru..." 
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px 10px 6px 32px',
-                border: '1px solid #D1D5DB',
-                borderRadius: '6px',
-                fontSize: '13px',
-                outline: 'none',
-                transition: 'all 0.2s',
-                backgroundColor: '#D9D9D9',
-                height: '32px',
-                boxSizing: 'border-box',
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#3B82F6';
-                e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#D1D5DB';
-                e.target.style.boxShadow = 'none';
-              }}
+              style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '6px', border: '1px solid #E2E8F0', outline: 'none' }}
             />
+          </div>
+          
+          <Button label="Tambahkan" onClick={handleTambahGuru} variant="primary" />
+          
+          <button onClick={handleDownloadFormatExcel} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Download size={14}/> Format Excel</button>
+          <button onClick={handleImport} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: '#0B1221', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Upload size={14}/> Impor</button>
+          <div style={{ position: 'relative' }}>
+             <button onClick={() => setIsEksporDropdownOpen(!isEksporDropdownOpen)} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: '#0B1221', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><FileDown size={14}/> Ekspor</button>
+             {isEksporDropdownOpen && (
+               <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'white', borderRadius: 8, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', zIndex: 20 }}>
+                 <button onClick={() => { setIsEksporDropdownOpen(false); handleExportPDF(); }} style={{ padding: '8px 12px', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}>PDF</button>
+               </div>
+             )}
           </div>
         </div>
 
-        {/* ============ DATA TABLE ============ */}
-        <div style={{ 
-          borderRadius: 12, 
-          overflow: 'hidden', 
-          boxShadow: '0 0 0 1px #E5E7EB'
-        }}>
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: '#FFFFFF',
-          }}>
-            <thead>
-              <tr style={{
-                backgroundColor: '#F3F4F6',
-                borderBottom: '1px solid #E5E7EB',
-              }}>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>No</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Kode Guru</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Nama Guru</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Peran</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                  borderRight: '1px solid #E5E7EB',
-                }}>Keterangan</th>
-                <th style={{
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: '#374151',
-                }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((guru, index) => (
-                <tr key={guru.id} style={{
-                  borderBottom: '1px solid #E5E7EB',
-                  backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F9FAFB',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#F0F4FF';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
-                }}>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{index + 1}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{guru.kodeGuru}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{guru.namaGuru}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{guru.role}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    borderRight: '1px solid #E5E7EB',
-                  }}>{guru.keterangan}</td>
-                  <td style={{
-                    padding: '12px 16px',
-                    fontSize: '13px',
-                    color: '#374151',
-                    textAlign: 'center',
-                    position: 'relative',
-                  }}>
-                    <button
-                      onClick={() => setOpenActionId(openActionId === guru.id ? null : guru.id)}
-                      style={{ 
-                        border: 'none', 
-                        background: 'transparent', 
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <MoreVertical size={20} strokeWidth={1.5} />
-                    </button>
-
-                    {openActionId === guru.id && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          right: 0,
-                          marginTop: 6,
-                          background: '#FFFFFF',
-                          borderRadius: 8,
-                          boxShadow: '0 10px 15px rgba(0,0,0,0.1)',
-                          minWidth: 180,
-                          zIndex: 10,
-                          overflow: 'hidden',
-                          border: '1px solid #E2E8F0',
-                        }}
-                      >
-                        <button
-                          onClick={() => handleNavigateToDetail(guru.id)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'none',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            color: '#0F172A',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                            borderBottom: '1px solid #F1F5F9',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F0F4FF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#2563EB';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FFFFFF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#0F172A';
-                          }}
-                        >
-                          <Eye size={16} color="#64748B" strokeWidth={2} />
-                          Lihat Detail
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDeleteGuru(guru.id)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'none',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            color: '#0F172A',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'all 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FEF2F2';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#DC2626';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#FFFFFF';
-                            (e.currentTarget as HTMLButtonElement).style.color = '#0F172A';
-                          }}
-                        >
-                          <Trash2 size={16} color="#64748B" strokeWidth={2} />
-                          Hapus
-                        </button>
-                      </div>
-                    )}
-                  </td>
+        {/* LOADING / ERROR / TABLE */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', color: 'red', padding: '40px' }}>{error}</div>
+        ) : (
+          <div style={{ flex: 1, overflow: 'auto', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                <tr>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0' }}>No</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0' }}>Kode Guru / NIP</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0' }}>Nama Guru</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0' }}>Peran</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0' }}>Keterangan</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'center', background: '#F8FAFC', color: '#64748B', fontSize: '12px', fontWeight: '600', borderBottom: '1px solid #E2E8F0', width: '80px' }}>Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredData.length > 0 ? (
+                  filteredData.map((guru, index) => (
+                    <tr key={guru.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#334155' }}>{(pageIndex - 1) * itemsPerPage + index + 1}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#334155' }}>{guru.nip}</td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#334155' }}>{guru.name}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{
+                          padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
+                          backgroundColor: guru.role === 'Wali Kelas' ? '#DBEAFE' : guru.role === 'Staff' ? '#F3E8FF' : '#DCFCE7',
+                          color: guru.role === 'Wali Kelas' ? '#1E40AF' : guru.role === 'Staff' ? '#6B21A8' : '#166534',
+                        }}>
+                          {guru.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '13px', color: '#334155' }}>{guru.keterangan}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={() => setOpenActionId(openActionId === guru.id ? null : guru.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                            <MoreVertical size={16} color="#64748B" />
+                          </button>
+                          {openActionId === guru.id && (
+                            <div style={{ position: 'absolute', right: '100%', top: 0, background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #E2E8F0', zIndex: 50, minWidth: '120px', overflow: 'hidden' }}>
+                              <button onClick={() => handleNavigateToDetail(guru.id)} style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'none', border: 'none', fontSize: '13px', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Eye size={14} /> Detail
+                              </button>
+                              <button onClick={() => handleDeleteGuru(guru.id)} style={{ width: '100%', padding: '8px 12px', textAlign: 'left', background: 'none', border: 'none', fontSize: '13px', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Trash2 size={14} /> Hapus
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '32px', textAlign: 'center', color: '#94A3B8' }}>Tidak ada data guru.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* PAGINATION */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+          {/* Simple pagination controls */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button label="Previous" onClick={() => setPageIndex(Math.max(1, pageIndex - 1))} disabled={pageIndex === 1} variant="secondary" />
+            <span style={{ display: 'flex', alignItems: 'center' }}>Page {pageIndex} of {totalPages}</span>
+            <Button label="Next" onClick={() => setPageIndex(Math.min(totalPages, pageIndex + 1))} disabled={pageIndex === totalPages} variant="secondary" />
+          </div>
         </div>
       </div>
 
-      {/* ============ HIDDEN FILE INPUT ============ */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }}
-        onChange={handleFileSelect} 
-        accept=".csv"
-      />
-
-      {/* ============ MODAL TAMBAH GURU ============ */}
+      {/* MODAL TAMBAH GURU */}
       {isModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-            overflow: 'auto',
-          }}
-          onClick={handleCloseModal}
-        >
-          <div
-            style={{
-              backgroundColor: '#0B1221',
-              borderRadius: '16px',
-              padding: '20px',
-              maxWidth: '480px',
-              width: '100%',
-              maxHeight: 'calc(100vh - 40px)',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-              marginTop: '60px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '14px',
-              flexShrink: 0,
-            }}>
-              <h2 style={{
-                margin: 0,
-                fontSize: '18px',
-                fontWeight: '700',
-                color: '#FFFFFF',
-                letterSpacing: '-0.3px',
-              }}>
-                Tambah Data Guru
-              </h2>
-              <button
-                onClick={handleCloseModal}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                }}
-              >
-                <X size={18} color="#FFFFFF" />
-              </button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '500px', maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Tambah Guru Baru</h3>
+              <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
             </div>
-
-            {/* Warning tentang duplikasi wali kelas */}
-            {showDuplicateWarning && (
-              <div style={{
-                backgroundColor: '#FEF3C7',
-                border: '1px solid #F59E0B',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                marginBottom: '14px',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '10px',
-              }}>
-                <div style={{
-                  backgroundColor: '#F59E0B',
-                  borderRadius: '50%',
-                  width: '20px',
-                  height: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  marginTop: '2px',
-                }}>
-                  <span style={{ color: '#FFFFFF', fontSize: '12px', fontWeight: 'bold' }}>!</span>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '12px',
-                    color: '#92400E',
-                    fontWeight: '500',
-                    lineHeight: '1.4',
-                  }}>
-                    {duplicateWarningMessage}
-                  </p>
-                  <p style={{
-                    margin: '4px 0 0 0',
-                    fontSize: '11px',
-                    color: '#92400E',
-                    lineHeight: '1.3',
-                  }}>
-                    Setiap kelas hanya boleh memiliki satu wali kelas. Silakan pilih kelas lain atau edit data wali kelas yang sudah ada.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowDuplicateWarning(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <X size={14} color="#92400E" />
-                </button>
+            
+            <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Nama Guru</label>
+                <input type="text" value={formData.namaGuru} onChange={e => setFormData({ ...formData, namaGuru: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                {formErrors.namaGuru && <span style={{ color: 'red', fontSize: '12px' }}>{formErrors.namaGuru}</span>}
               </div>
-            )}
+              
+              <div>
+                <label>NIP / Kode Guru</label>
+                <input type="text" value={formData.kodeGuru} onChange={e => setFormData({ ...formData, kodeGuru: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                {formErrors.kodeGuru && <span style={{ color: 'red', fontSize: '12px' }}>{formErrors.kodeGuru}</span>}
+              </div>
 
-            {/* Scrollable white card container untuk form */}
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '10px',
-              padding: '16px',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-              overflowY: 'auto',
-              maxHeight: 'calc(100vh - 180px)',
-            }}>
-              <form onSubmit={handleSubmitForm}>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr', 
-                  gap: '12px'
-                }}>
-                  {/* Nama Guru */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Nama Guru <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.namaGuru}
-                      onChange={(e) => {
-                        setFormData({ ...formData, namaGuru: e.target.value });
-                        validateField('namaGuru', e.target.value);
-                      }}
-                      placeholder="Masukkan nama lengkap guru"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.namaGuru ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    />
-                    {formErrors.namaGuru && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.namaGuru}
-                      </p>
-                    )}
-                  </div>
+              <div>
+                <label>Peran</label>
+                <select value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                  <option value="">Pilih Peran</option>
+                  {roleOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                {formErrors.role && <span style={{ color: 'red', fontSize: '12px' }}>{formErrors.role}</span>}
+              </div>
 
-                  {/* Kode Guru */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Kode Guru <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.kodeGuru}
-                      onChange={(e) => {
-                        setFormData({ ...formData, kodeGuru: e.target.value });
-                        validateField('kodeGuru', e.target.value);
-                      }}
-                      placeholder="Masukkan kode guru"
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.kodeGuru ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    />
-                    {formErrors.kodeGuru && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.kodeGuru}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Jenis Kelamin */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Jenis Kelamin <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <select
-                      value={formData.jenisKelamin}
-                      onChange={(e) => setFormData({ ...formData, jenisKelamin: e.target.value })}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    >
-                      <option value="Laki-Laki">Laki-Laki</option>
-                      <option value="Perempuan">Perempuan</option>
-                    </select>
-                  </div>
-
-                  {/* Peran */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      Peran <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <select
-                      value={formData.role}
-                      onChange={(e) => {
-                        setFormData({ 
-                          ...formData, 
-                          role: e.target.value,
-                          keterangan: '',
-                          waliKelasDari: ''
-                        });
-                        setShowDuplicateWarning(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.role ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    >
-                      <option value="">Pilih Peran</option>
-                      <option value="Guru">Guru</option>
-                      <option value="Wali Kelas">Wali Kelas</option>
-                      <option value="Staff">Staff</option>
-                    </select>
-                    {formErrors.role && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.role}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Mata Pelajaran (hanya untuk Guru) */}
-                  {formData.role === 'Guru' && (
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        color: '#374151',
-                        marginBottom: '5px',
-                      }}>
-                        Mata Pelajaran <span style={{ color: '#EF4444' }}>*</span>
-                      </label>
-                      <select
-                        value={formData.keterangan}
-                        onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          border: formErrors.keterangan ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      >
-                        <option value="">Pilih Mata Pelajaran</option>
-                        {mataPelajaranOptions.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {formErrors.keterangan && (
-                        <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                          {formErrors.keterangan}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Wali Kelas (hanya untuk Wali Kelas) */}
-                  {formData.role === 'Wali Kelas' && (
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        color: '#374151',
-                        marginBottom: '5px',
-                      }}>
-                        Wali Kelas Dari <span style={{ color: '#EF4444' }}>*</span>
-                      </label>
-                      <select
-                        value={formData.waliKelasDari}
-                        onChange={(e) => {
-                          setFormData({ ...formData, waliKelasDari: e.target.value });
-                          validateField('waliKelasDari', e.target.value);
-                          setShowDuplicateWarning(false);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          border: formErrors.waliKelasDari ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      >
-                        <option value="">Pilih Kelas</option>
-                        {getAvailableKelasOptions().map((kelas, index) => (
-                          <option key={index} value={kelas}>
-                            {kelas}
-                          </option>
-                        ))}
-                      </select>
-                      {formErrors.waliKelasDari && (
-                        <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                          {formErrors.waliKelasDari}
-                        </p>
-                      )}
-                      <div style={{
-                        marginTop: '4px',
-                        padding: '6px 8px',
-                        backgroundColor: '#F3F4F6',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        color: '#6B7280',
-                        border: '1px solid #E5E7EB',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontWeight: '600' }}>Info:</span>
-                          <span>Kelas yang sudah memiliki wali kelas tidak akan ditampilkan</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bagian Staff (hanya untuk Staff) */}
-                  {formData.role === 'Staff' && (
-                    <div>
-                      <label style={{
-                        display: 'block',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        color: '#374151',
-                        marginBottom: '5px',
-                      }}>
-                        Bagian Staff <span style={{ color: '#EF4444' }}>*</span>
-                      </label>
-                      <select
-                        value={formData.keterangan}
-                        onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                        style={{
-                          width: '100%',
-                          padding: '9px 12px',
-                          border: formErrors.keterangan ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          outline: 'none',
-                          cursor: 'pointer',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#FFFFFF',
-                        }}
-                      >
-                        <option value="">Pilih Bagian</option>
-                        {bagianStaffOptions.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {formErrors.keterangan && (
-                        <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                          {formErrors.keterangan}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* No. Telepon */}
-                  <div>
-                    <label style={{
-                      display: 'block',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '5px',
-                    }}>
-                      No. Telepon <span style={{ color: '#9CA3AF', fontSize: '10px' }}>(Opsional)</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.noTelp}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 13);
-                        setFormData({ ...formData, noTelp: value });
-                        validateField('noTelp', value);
-                      }}
-                      placeholder="08xxxxxxxxxx (12-13 digit)"
-                      maxLength={13}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px',
-                        border: formErrors.noTelp ? '2px solid #EF4444' : '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#FFFFFF',
-                      }}
-                    />
-                    {formErrors.noTelp && (
-                      <p style={{ color: '#EF4444', fontSize: '10px', marginTop: '3px', marginBottom: 0 }}>
-                        {formErrors.noTelp}
-                      </p>
-                    )}
-                  </div>
+              {formData.role === 'Guru' && (
+                <div>
+                  <label>Mata Pelajaran</label>
+                  <select value={formData.keterangan} onChange={e => setFormData({ ...formData, keterangan: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                     <option value="">Pilih Mapel</option>
+                     {mataPelajaranOptions.map(opt => <option key={opt.value} value={opt.label}>{opt.label}</option>)}
+                  </select>
                 </div>
+              )}
 
-                {/* Action Buttons */}
-                <div style={{
-                  display: 'flex',
-                  gap: '10px',
-                  marginTop: '16px',
-                }}>
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    style={{
-                      flex: 1,
-                      padding: '9px 18px',
-                      backgroundColor: '#F3F4F6',
-                      color: '#374151',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#E5E7EB';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F3F4F6';
-                    }}
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    style={{
-                      flex: 1,
-                      padding: '9px 18px',
-                      backgroundColor: '#2563EB',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#1D4ED8';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#2563EB';
-                    }}
-                  >
-                    Simpan Data
-                  </button>
+              {formData.role === 'Wali Kelas' && (
+                <div>
+                  <label>Wali Kelas Dari</label>
+                  <select value={formData.waliKelasDari} onChange={e => setFormData({ ...formData, waliKelasDari: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                     <option value="">Pilih Kelas</option>
+                     {kelasOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                  {formErrors.waliKelasDari && <span style={{ color: 'red', fontSize: '12px' }}>{formErrors.waliKelasDari}</span>}
                 </div>
-              </form>
-            </div>
+              )}
+
+               {formData.role === 'Staff' && (
+                <div>
+                  <label>Bagian</label>
+                  <select value={formData.keterangan} onChange={e => setFormData({ ...formData, keterangan: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                     <option value="">Pilih Bagian</option>
+                     {bagianStaffOptions.map(opt => <option key={opt.value} value={opt.label}>{opt.label}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label>Nomor Telepon</label>
+                <input type="text" value={formData.noTelp} onChange={e => setFormData({ ...formData, noTelp: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              </div>
+
+              <div>
+                <label>Email (untuk Login)</label>
+                <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              </div>
+
+              <div>
+                <label>Password (Default: password123)</label>
+                <input type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} placeholder="Kosongkan untuk default" style={{ width: '100%', padding: '8px', marginTop: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <Button label="Batal" onClick={handleCloseModal} variant="secondary" type="button" />
+                <Button label="Simpan" type="submit" variant="primary" />
+              </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* HIDDEN INPUT IMPORT */}
+      <input type="file" ref={fileInputRef} hidden onChange={handleFileSelect} accept=".xlsx,.xls,.csv" />
     </AdminLayout>
   );
 }

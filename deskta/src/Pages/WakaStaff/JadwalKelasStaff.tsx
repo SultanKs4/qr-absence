@@ -1,9 +1,10 @@
-// src/Pages/WakaStaff/JadwalKelasStaff.tsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import StaffLayout from '../../component/WakaStaff/StaffLayout';
 import { Select } from '../../component/Shared/Select';
 import { Table } from '../../component/Shared/Table';
-import { Eye, Upload, AlertCircle } from "lucide-react";
+import { Eye, Upload, AlertCircle, Settings } from "lucide-react";
+import { masterService, type ClassRoom } from '../../services/masterService';
+import classService from '../../services/classService';
 
 interface JadwalKelasStaffProps {
   user: {
@@ -16,44 +17,16 @@ interface JadwalKelasStaffProps {
   onselectKelas?: (namaKelas: string) => void;
 }
 
-interface KelasItem {
-  id: string;
-  namaKelas: string;
-  tingkat: string;
-  jurusan: string;
-  waliKelas: string;
+// Adapting ClassRoom from service to local Item needs
+interface KelasItem extends ClassRoom {
+  // Add any extra frontend-specific fields if needed, 
+  // but we can mostly rely on ClassRoom structure
+  jurusan: string; // mapped from major_name
+  waliKelas: string; // mapped from homeroom_teacher_name
+  namaKelas: string; // mapped from name
+  tingkat: string; // mapped from grade
+  schedule_image_url?: string | null;
 }
-
-const dummyKelas: KelasItem[] = [
-  {
-    id: '1',
-    namaKelas: '12 RPL 1',
-    tingkat: '12',
-    jurusan: 'Rekayasa Perangkat Lunak',
-    waliKelas: 'RR. HENNING GRATYANIS ANGGRAENI, S.Pd',
-  },
-  {
-    id: '2',
-    namaKelas: '12 RPL 2',
-    tingkat: '12',
-    jurusan: 'Rekayasa Perangkat Lunak',
-    waliKelas: 'TRIANA ARDIANI, S.Pd',
-  },
-  {
-    id: '3',
-    namaKelas: '12 DKV 1',
-    tingkat: '12',
-    jurusan: 'Desain Komunikasi Visual',
-    waliKelas: 'ADHI BAGUS PERMANA, S.Pd',
-  },
-  {
-    id: '4',
-    namaKelas: '12 TKJ 1',
-    tingkat: '12',
-    jurusan: 'Teknik Komputer Jaringan',
-    waliKelas: 'MOHAMMAD JUZKI ARIF, M.Pd',
-  },
-];
 
 export default function JadwalKelasStaff({
   user,
@@ -62,21 +35,48 @@ export default function JadwalKelasStaff({
   onMenuClick,
   onselectKelas,
 }: JadwalKelasStaffProps) {
+  const [kelasData, setKelasData] = useState<KelasItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedJurusan, setSelectedJurusan] = useState('');
   const [selectedTingkat, setSelectedTingkat] = useState('');
-  const [jadwalImages, setJadwalImages] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<{
     type: 'error' | 'success';
     message: string;
   } | null>(null);
 
+  useEffect(() => {
+    fetchClasses();
+  }, []);
+
+  const fetchClasses = async () => {
+    setLoading(true);
+    try {
+      const response = await masterService.getClasses();
+      // Map API response to Component state
+      const mappedData: KelasItem[] = response.data.map((cls: any) => ({
+        ...cls,
+        namaKelas: cls.class_name || cls.name,
+        jurusan: cls.major_name || cls.major || '-',
+        waliKelas: cls.homeroom_teacher_name || '-',
+        tingkat: cls.grade,
+        schedule_image_url: cls.schedule_image_url
+      }));
+      setKelasData(mappedData);
+    } catch (error) {
+      console.error("Failed to fetch classes:", error);
+      showNotification('error', 'Gagal memuat data kelas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const jurusanOptions = useMemo(
     () =>
-      [...new Set(dummyKelas.map((item) => item.jurusan))].map((jrs) => ({
+      [...new Set(kelasData.map((item) => item.jurusan))].map((jrs) => ({
         label: jrs,
         value: jrs,
       })),
-    []
+    [kelasData]
   );
 
   const tingkatOptions = [
@@ -85,7 +85,7 @@ export default function JadwalKelasStaff({
     { label: '12', value: '12' },
   ];
 
-  const filteredData = dummyKelas.filter((item) => {
+  const filteredData = kelasData.filter((item) => {
     const matchJurusan = selectedJurusan ? item.jurusan === selectedJurusan : true;
     const matchTingkat = selectedTingkat ? item.tingkat === selectedTingkat : true;
     return matchJurusan && matchTingkat;
@@ -110,7 +110,7 @@ export default function JadwalKelasStaff({
     input.type = "file";
     input.accept = "image/png, image/jpeg, image/jpg";
 
-    input.onchange = (e: any) => {
+    input.onchange = async (e: any) => {
       const file = e.target.files[0];
       if (file) {
         // Validasi tipe file
@@ -122,12 +122,20 @@ export default function JadwalKelasStaff({
           return;
         }
 
-        const imageUrl = URL.createObjectURL(file);
-        setJadwalImages((prev) => ({
-          ...prev,
-          [row.id]: imageUrl,
-        }));
-        showNotification('success', 'Jadwal berhasil diupload');
+        try {
+            const response = await classService.uploadScheduleImage(String(row.id), file);
+            showNotification('success', 'Jadwal berhasil diupload');
+            
+            // Update local state with new image URL
+            setKelasData(prev => prev.map(item => 
+                item.id === row.id 
+                ? { ...item, schedule_image_url: response.url } 
+                : item
+            ));
+        } catch (error) {
+            console.error("Upload failed", error);
+            showNotification('error', 'Gagal mengupload jadwal');
+        }
       }
     };
 
@@ -140,8 +148,16 @@ export default function JadwalKelasStaff({
     }
 
     onMenuClick('lihat-kelas', {
+      kelasId: row.id, // Pass ID for API calls
       kelas: row.namaKelas,
-      jadwalImage: jadwalImages[row.id],
+      waliKelas: row.waliKelas,
+      jadwalImage: row.schedule_image_url,
+    });
+  };
+
+  const handleEditSchedule = (row: KelasItem) => {
+    onMenuClick('edit-jadwal-kelas', {
+      kelasId: row.id,
     });
   };
 
@@ -205,6 +221,30 @@ export default function JadwalKelasStaff({
             }}
           >
             <Upload size={18} />
+          </button>
+
+          <button
+            onClick={() => handleEditSchedule(row)}
+            title="Edit Struktur Jadwal"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#0D9488', // Emerald-600 ish
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '0.7';
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <Settings size={18} />
           </button>
         </div>
       ),
@@ -307,7 +347,7 @@ export default function JadwalKelasStaff({
           columns={columns}
           data={filteredData}
           keyField="id"
-          emptyMessage="Belum ada data jadwal kelas."
+          emptyMessage={loading ? "Memuat data kelas..." : "Belum ada data jadwal kelas."}
         />
       </div>
     </StaffLayout>

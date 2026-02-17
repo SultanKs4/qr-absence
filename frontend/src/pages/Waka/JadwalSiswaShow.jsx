@@ -26,7 +26,8 @@ function JadwalSiswaShow() {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:8000/api/schedules/${id}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         }
       });
 

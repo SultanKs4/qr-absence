@@ -10,7 +10,8 @@ const API_BASE_URL = 'http://localhost:8000/api';
 const apiService = {
   getHeaders: () => ({
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token')}`
   }),
 
   async getDashboard() {
@@ -163,7 +164,7 @@ function DashboardGuru() {
 
   const handleLogout = () => {
     if (window.confirm('Apakah Anda yakin ingin keluar?')) {
-      localStorage.removeItem('authToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('user');
       navigate('/');
     }

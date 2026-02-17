@@ -19,7 +19,7 @@ class ManualAttendanceSeeder extends Seeder
         $teacherUser = User::where('email', 'guru@sekolah.id')->first();
         if (! $teacherUser) {
             $teacherUser = User::factory()->create([
-                'name' => 'Guru Manual Test',
+                'name' => 'Pak Harris',
                 'email' => 'guru@sekolah.id',
                 'password' => bcrypt('password'),
                 'user_type' => 'teacher',
@@ -40,7 +40,7 @@ class ManualAttendanceSeeder extends Seeder
         if (! $class) {
             $class = Classes::create([
                 'grade' => '12',
-                'label' => 'Test Manual',
+                'label' => 'Test Manual, XI RPL 1',
                 'major_id' => $major->id,
             ]);
         }
